@@ -1,0 +1,6 @@
+# OS cruft
+.DS_Store
+
+# Python bytecode (from running tests / importing hooks)
+__pycache__/
+*.pyc
