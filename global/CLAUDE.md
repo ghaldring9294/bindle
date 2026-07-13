@@ -41,6 +41,15 @@ distilled summary — keep this session's context lean.
   Tier 1 too: keep it in `docs/` (team-visible) or `.claude-local/docs/` (private, per the
   privacy rule), list it in `docs/index.md`, and keep it stable — not in ticket files.
 
+## Memory taxonomy
+
+Organize a project's auto-memory (`~/.claude/projects/<slug>/memory/`) by **type** — one
+folder per Claude-native type: `reference/` (what is), `feedback/` (how to work), `project/`
+(ongoing work + state), `user/` (who), plus `skill/` (skill addenda). `MEMORY.md` is the
+Tier-0 index, grouped by type, one line per memory, linking into the folders. Tag in-flight
+state `[volatile]`; keep the stable majority cache-friendly. Full scheme + the per-repo
+keying gotcha: `templates/memory-taxonomy.md`.
+
 ## Personal context — `.claude-local/`
 
 If `.claude-local/` exists, it is private personal context, authoritative for this project.
