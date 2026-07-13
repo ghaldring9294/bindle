@@ -65,8 +65,8 @@ if [ ! -f "$OUT_FILE" ]; then
     echo "One row per session (upserted by the Stop hook). Cost estimates use the"
     echo "pricing table in hooks/lib/parse_usage.py — update it when prices change."
     echo ""
-    echo "| updated | session | ticket | in | out | cache read | cache write | hit% | est. cost |"
-    echo "|---|---|---|---|---|---|---|---|---|"
+    echo "| updated | session | ticket | in | out | cache read | cache write | hit% | resp | est. cost |"
+    echo "|---|---|---|---|---|---|---|---|---|---|"
   } >> "$OUT_FILE"
 fi
 

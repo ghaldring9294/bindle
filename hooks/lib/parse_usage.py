@@ -2,7 +2,9 @@
 """Sum token usage from a Claude Code transcript JSONL.
 
 Prints one pipe-separated summary row (no leading/trailing pipes):
-    in | out | cache_read | cache_write | hit% | $cost
+    in | out | cache_read | cache_write | hit% | resp | $cost
+(resp = unique billed responses, a normalization denominator; cost stays last
+so statusline.py's cells[-1] lookup is unaffected.)
 
 Each transcript line is self-contained JSON; assistant messages carry a
 `usage` object. We dedupe on message id + request id so streamed duplicates
@@ -85,11 +87,14 @@ def main(path: str) -> int:
 
     denom = tin + cread
     hit = (100.0 * cread / denom) if denom else 0.0
+    # resp = unique billed assistant responses (one per usage-bearing record).
+    # Normalization denominator: cost/resp, tokens/resp.
+    resp = len(seen)
 
     def k(n: int) -> str:
         return f"{n/1000:.1f}k" if n >= 1000 else str(n)
 
-    print(f"{k(tin)} | {k(tout)} | {k(cread)} | {k(cwrite)} | {hit:.0f}% | ${cost:.2f}")
+    print(f"{k(tin)} | {k(tout)} | {k(cread)} | {k(cwrite)} | {hit:.0f}% | {resp} | ${cost:.2f}")
     return 0
 
 

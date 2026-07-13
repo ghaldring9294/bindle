@@ -55,7 +55,8 @@ def ledger_sum(path: str, ticket: str, exclude_session: str) -> float:
                 if not line.startswith("| 20"):  # data rows start with a date
                     continue
                 cells = [c.strip() for c in line.strip().strip("|").split("|")]
-                # updated, session, ticket, in, out, cread, cwrite, hit%, cost
+                # updated, session, ticket, in, out, cread, cwrite, hit%, resp, cost
+                # (cost stays last, so cells[-1] holds it whether or not resp is present)
                 if len(cells) < 9 or cells[2] != ticket:
                     continue
                 if exclude_session and cells[1] == exclude_session:
