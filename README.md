@@ -53,7 +53,7 @@ This setup applies database engineering to agent context:
 ## Layout
 
 ```
-global/          → symlinked into ~/.claude (CLAUDE.md, settings, commands, agents, skills)
+global/          → CLAUDE.md + settings.json, symlinked into ~/.claude
 templates/       → tiered doc templates dropped into projects by init-project.sh
 bin/             → install.sh, init-project.sh
 MIGRATION.md     → instructions for Claude Code to migrate an existing setup into this structure
@@ -66,11 +66,11 @@ Two kinds of thing live here, and they aren't equal:
 - **Boundaries are the frame — mandatory and structural.** The trust-domain separation,
   the `.claude-local` privacy convention, and the craft/context split are the *point* of
   the toolkit. Don't remove them.
-- **Opinionated *craft* lives in the overlay, not here.** Base ships empty `commands/agents/skills/`
-  slots and the mechanism to farm them; specific commands, agents, and skills are personal craft that
-  belongs in the private `bindle-personal` overlay (or a domain memories repo). The `/ticket` workflow
-  moved there; cost tracking and the statusline became their own repos. Base stays opinion-free except
-  for conventions anchored to a Claude-native default (memory taxonomy, tiered retrieval).
+- **Opinionated *craft* lives in the overlay, not here.** Base ships and farms **no** commands, agents,
+  or skills — those are personal craft, farmed into `~/.claude` by the `bindle-personal` overlay's own
+  installer (or a domain memories repo). The `/ticket` workflow moved there; cost tracking and the
+  statusline became their own repos. Base stays opinion-free except for conventions anchored to a
+  Claude-native default (memory taxonomy, tiered retrieval).
 - **Conventions are format, not features.** Tiered retrieval and the memory taxonomy are how context is
   shaped for transport; they're base because a shared format is what makes transported context portable.
 
