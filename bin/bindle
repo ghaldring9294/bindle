@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+# bindle — the orchestrator's front door. Thin router over the bin/*.sh scripts,
+# so `bindle <command>` works from anywhere once it's symlinked onto PATH.
+set -euo pipefail
+
+# Resolve this script through any symlinks to find the repo's bin/ (portable — no `readlink -f`).
+src="${BASH_SOURCE[0]}"
+while [ -L "$src" ]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  case "$src" in /*) ;; *) src="$dir/$src" ;; esac
+done
+BIN="$(cd -P "$(dirname "$src")" && pwd)"
+
+usage() {
+  cat <<'EOF'
+bindle — portable Claude Code orchestrator
+
+Usage: bindle <command> [args]
+
+Commands:
+  install                 Link base config into ~/.claude (run once per machine)
+  init-layer <name> --scope personal|professional [--label ..] [--dir ..] [--from <mem>] [--yes]
+                          Scaffold a private layer repo (personal = always-on; professional = scoped/secure)
+  init-project <repo> [--local <name>]
+                          Link a project to your context (docs scaffold, or .claude-local -> a layer)
+  help                    Show this
+
+Layers are separate private repos created LOCALLY — you point them at remotes yourself
+(professional layers: local, or an approved secure host only). See README + MIGRATION.md.
+EOF
+}
+
+cmd="${1:-help}"; [ $# -gt 0 ] && shift || true
+case "$cmd" in
+  install)         exec "$BIN/install.sh" "$@" ;;
+  init-layer)      exec "$BIN/init-layer.sh" "$@" ;;
+  init-project)    exec "$BIN/init-project.sh" "$@" ;;
+  help|-h|--help)  usage ;;
+  *) echo "bindle: unknown command '$cmd'" >&2; echo >&2; usage >&2; exit 1 ;;
+esac

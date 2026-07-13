@@ -19,11 +19,23 @@ link() {
   echo "  linked $dst -> $src"
 }
 
-# Base ships no craft (commands/agents/skills) — those live in the layers and are farmed
-# by each layer's own installer. Base install only links its conventions + settings.
+# Base ships no USER craft — commands/agents/skills live in the layers, farmed by each layer's
+# own installer. Base links its conventions, settings, and its own /bindle orchestrator command.
 echo "==> Linking global config into ${CLAUDE_DIR}"
-link "$REPO_DIR/global/CLAUDE.md"      "$CLAUDE_DIR/CLAUDE.md"
-link "$REPO_DIR/global/settings.json"  "$CLAUDE_DIR/settings.json"
+link "$REPO_DIR/global/CLAUDE.md"          "$CLAUDE_DIR/CLAUDE.md"
+link "$REPO_DIR/global/settings.json"      "$CLAUDE_DIR/settings.json"
+link "$REPO_DIR/global/commands/bindle.md" "$CLAUDE_DIR/commands/bindle.md"
+
+echo "==> Installing the 'bindle' command on PATH"
+BINDIR="$HOME/.local/bin"
+mkdir -p "$BINDIR"
+chmod +x "$REPO_DIR/bin/bindle"
+ln -sfn "$REPO_DIR/bin/bindle" "$BINDIR/bindle"
+echo "  linked $BINDIR/bindle -> $REPO_DIR/bin/bindle"
+case ":${PATH}:" in
+  *":$BINDIR:"*) : ;;
+  *) echo "  NOTE: $BINDIR is not on PATH — add:  export PATH=\"\$HOME/.local/bin:\$PATH\"" ;;
+esac
 
 echo "==> Machine-local settings"
 if [ ! -f "$CLAUDE_DIR/settings.local.json" ]; then
@@ -48,5 +60,6 @@ done
 
 echo ""
 echo "Done. Sanity checks:"
-echo "  - CLAUDE.md + settings.json linked into ~/.claude (craft comes from the personal/professional layer installers)"
+echo "  - CLAUDE.md + settings.json linked; craft comes from the personal/professional layer installers"
+echo "  - run 'bindle help' for commands (create a layer, link a project), or /bindle inside Claude Code"
 echo "  - migrating an existing setup? Open Claude Code and say: 'Read MIGRATION.md in ~/bindle and migrate my setup.'"

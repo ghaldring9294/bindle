@@ -14,9 +14,9 @@ Migration below is a one-time on-ramp; new work is born clean.)
 ```bash
 git clone <this-repo> ~/bindle
 cd ~/bindle
-./bin/install.sh                                 # symlink base config into ~/.claude
-./bin/init-layer.sh acme --scope professional    # scaffold a secure domain layer (its own private repo)
-./bin/init-project.sh ~/code/some-repo           # link a project to your context
+./bin/install.sh                              # once: links base config + puts `bindle` on your PATH
+bindle init-layer acme --scope professional   # scaffold a secure domain layer (its own private repo)
+bindle init-project ~/code/some-repo          # link a project to your context
 ```
 
 Machine-specific settings go in `~/.claude/settings.local.json` (created by the
@@ -57,9 +57,9 @@ This setup applies database engineering to agent context:
 ## Layout
 
 ```
-global/          → CLAUDE.md + settings.json, symlinked into ~/.claude
+global/          → CLAUDE.md, settings.json, the /bindle command — symlinked into ~/.claude
 templates/       → tiered doc templates dropped into projects by init-project.sh
-bin/             → install.sh, init-project.sh
+bin/             → bindle (front-door dispatcher), install.sh, init-layer.sh, init-project.sh
 MIGRATION.md     → instructions for Claude Code to migrate an existing setup into this structure
 ```
 
@@ -70,11 +70,12 @@ Two kinds of thing live here, and they aren't equal:
 - **Boundaries are the frame — mandatory and structural.** The trust-domain separation,
   the `.claude-local` privacy convention, and the craft/context split are the *point* of
   the toolkit. Don't remove them.
-- **Opinionated *craft* lives in a layer, not here.** Base ships and farms **no** commands, agents,
-  or skills — those are craft, farmed into `~/.claude` by a layer's own installer (your personal layer,
-  or a professional layer). The `/ticket` workflow moved to the personal layer; cost tracking and the
-  statusline became their own repos. Base stays opinion-free except for conventions anchored to a
-  Claude-native default (memory taxonomy, tiered retrieval).
+- **Opinionated *craft* lives in a layer, not here.** Base ships **no user craft** — commands, agents,
+  and skills are farmed into `~/.claude` by a layer's own installer (personal or professional). (The one
+  command base ships is its own `/bindle` front-door — the orchestrator operating itself, not craft.) The
+  `/ticket` workflow moved to the personal layer; cost tracking and the statusline became their own repos.
+  Base stays opinion-free except for conventions anchored to a Claude-native default (memory taxonomy,
+  tiered retrieval).
 - **Conventions are format, not features.** Tiered retrieval and the memory taxonomy are how context is
   shaped for transport; they're base because a shared format is what makes transported context portable.
 
