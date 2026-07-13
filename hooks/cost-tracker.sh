@@ -50,7 +50,6 @@ else
 fi
 
 # Ticket detection from git branch (e.g. feature/ABC-123-thing -> ABC-123).
-# Same pattern lives in statusline.py (TICKET_RE) — keep the two in sync.
 TICKET="$(git -C "$CWD" rev-parse --abbrev-ref HEAD 2>/dev/null \
   | grep -oE '[A-Z][A-Z0-9]+-[0-9]+' | head -n1)"
 TICKET="${TICKET:--}"

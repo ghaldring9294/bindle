@@ -3,8 +3,7 @@
 
 Prints one pipe-separated summary row (no leading/trailing pipes):
     in | out | cache_read | cache_write | hit% | resp | $cost
-(resp = unique billed responses, a normalization denominator; cost stays last
-so statusline.py's cells[-1] lookup is unaffected.)
+(resp = unique billed responses, a normalization denominator.)
 
 Each transcript line is self-contained JSON; assistant messages carry a
 `usage` object. We dedupe on message id + request id so streamed duplicates

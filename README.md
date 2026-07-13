@@ -53,7 +53,7 @@ This setup applies database engineering to agent context:
 
 ```
 global/          → symlinked into ~/.claude (CLAUDE.md, settings, commands, agents, skills)
-hooks/           → Stop-hook cost tracker + statusline + shared JSONL parsing lib
+hooks/           → Stop-hook cost tracker + shared JSONL parsing lib
 templates/       → tiered doc templates dropped into projects by init-project.sh
 test/            → regression tests for the cost loop (bash + python3)
 bin/             → install.sh, init-project.sh
@@ -79,7 +79,6 @@ There's no plugin system: the substrate is files, so "add a feature" means keep 
 |---|---|---|
 | Ticket workflow | `global/commands/ticket.md`, the *Ticket workflow* section of `global/CLAUDE.md`, `templates/ticket.md` | delete those |
 | Cost ledger | `Stop` hook in `global/settings.json`, `hooks/cost-tracker.sh`, `hooks/lib/parse_usage.py` | remove the `Stop` hook entry |
-| Statusline cost | `statusLine` in `global/settings.json`, `hooks/statusline.py` | remove the `statusLine` entry |
 | Tiered retrieval | tier rules in `global/CLAUDE.md`, `templates/docs-index.md` + `architecture.md` | stop maintaining `docs/index.md` |
 
 ## Personal per-project context (`.claude-local/`)
