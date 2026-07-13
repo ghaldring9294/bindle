@@ -2,13 +2,13 @@
 # Drop the tiered-context doc structure into a project.
 # Usage:
 #   init-project.sh /path/to/repo                      # team-visible docs/ scaffold
-#   init-project.sh /path/to/repo --local <name>       # personal .claude-local linked
-#                                                      # to ~/bindle-memories/projects/<name>
+#   init-project.sh /path/to/repo --local <name>       # private .claude-local linked into a layer
+#                                                      # repo's projects/<name> (via BINDLE_LAYER_DIR)
 set -euo pipefail
 
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEMPLATES="$REPO_DIR/templates"
-MEMORIES_DIR="${BINDLE_MEMORIES_DIR:-$HOME/bindle-memories}"
+LAYER_DIR="${BINDLE_LAYER_DIR:-$HOME/bindle-personal}"   # layer repo to hold this project's private context
 
 TARGET="${1:?usage: init-project.sh /path/to/repo [--local <project-name>]}"
 TARGET="$(cd "$TARGET" && pwd)"
@@ -31,8 +31,8 @@ copy_if_absent() {
 }
 
 if [ -n "$LOCAL_NAME" ]; then
-  echo "==> Personal context: .claude-local -> $MEMORIES_DIR/projects/$LOCAL_NAME"
-  MEM="$MEMORIES_DIR/projects/$LOCAL_NAME"
+  echo "==> Private context: .claude-local -> $LAYER_DIR/projects/$LOCAL_NAME"
+  MEM="$LAYER_DIR/projects/$LOCAL_NAME"
   mkdir -p "$MEM/docs"
   copy_if_absent "$TEMPLATES/docs-index.md"   "$MEM/index.md"
   copy_if_absent "$TEMPLATES/architecture.md" "$MEM/docs/architecture.md"

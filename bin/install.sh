@@ -19,8 +19,8 @@ link() {
   echo "  linked $dst -> $src"
 }
 
-# Base ships no craft (commands/agents/skills) — those are personal/domain and are farmed
-# by the overlay's own installer. Base install only links its conventions + settings.
+# Base ships no craft (commands/agents/skills) — those live in the layers and are farmed
+# by each layer's own installer. Base install only links its conventions + settings.
 echo "==> Linking global config into ${CLAUDE_DIR}"
 link "$REPO_DIR/global/CLAUDE.md"      "$CLAUDE_DIR/CLAUDE.md"
 link "$REPO_DIR/global/settings.json"  "$CLAUDE_DIR/settings.json"
@@ -48,5 +48,5 @@ done
 
 echo ""
 echo "Done. Sanity checks:"
-echo "  - CLAUDE.md + settings.json linked into ~/.claude (craft comes from the personal/domain overlay installers)"
+echo "  - CLAUDE.md + settings.json linked into ~/.claude (craft comes from the personal/professional layer installers)"
 echo "  - migrating an existing setup? Open Claude Code and say: 'Read MIGRATION.md in ~/bindle and migrate my setup.'"

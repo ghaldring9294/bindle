@@ -55,10 +55,10 @@ If `.claude-local/` exists, it is private personal context, authoritative for th
 - Record non-obvious design decisions in the active ticket's decision log with a one-line
   rationale.
 
-## Personal overlay
+## Personal layer
 
-A personal overlay, if installed, loads at the end here; if absent, the import below is silently
-ignored. Keep this file employer-agnostic — personal preferences belong in the overlay,
-project/employer context in `.claude-local/`.
+Your personal layer, if installed, loads at the end here; if absent, the import below is silently
+ignored. Keep this base file employer-agnostic — personal preferences belong in the personal layer,
+employer/client context in that domain's professional layer (loaded per-project via `.claude-local/`).
 
 @~/.claude/CLAUDE.personal.md

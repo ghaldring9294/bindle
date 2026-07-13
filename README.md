@@ -3,16 +3,20 @@
 Portable, opinionated Claude Code configuration. Clone on any machine, run the
 installer, and your conventions, hooks, agents, and context architecture follow you.
 
-Pairs with a **private** `bindle-memories` repo that holds per-project context
-(never committed to team repos, never public).
+Bindle is the **orchestrator**: install it once, and it scaffolds and manages your **private
+layer repos** — a personal layer plus one professional layer per employer/client — so every
+piece of craft and memory is born in the right place. The layers are separate private repos;
+nothing employer-specific ever lives in this public base. (Already have a tangled `~/.claude`?
+Migration below is a one-time on-ramp; new work is born clean.)
 
 ## Quick start
 
 ```bash
 git clone <this-repo> ~/bindle
 cd ~/bindle
-./bin/install.sh          # symlinks config into ~/.claude, sets global git excludes
-./bin/init-project.sh ~/code/some-repo   # drop tiered doc templates into a project
+./bin/install.sh                                 # symlink base config into ~/.claude
+./bin/init-layer.sh acme --scope professional    # scaffold a secure domain layer (its own private repo)
+./bin/init-project.sh ~/code/some-repo           # link a project to your context
 ```
 
 Machine-specific settings go in `~/.claude/settings.local.json` (created by the
@@ -66,9 +70,9 @@ Two kinds of thing live here, and they aren't equal:
 - **Boundaries are the frame — mandatory and structural.** The trust-domain separation,
   the `.claude-local` privacy convention, and the craft/context split are the *point* of
   the toolkit. Don't remove them.
-- **Opinionated *craft* lives in the overlay, not here.** Base ships and farms **no** commands, agents,
-  or skills — those are personal craft, farmed into `~/.claude` by the `bindle-personal` overlay's own
-  installer (or a domain memories repo). The `/ticket` workflow moved there; cost tracking and the
+- **Opinionated *craft* lives in a layer, not here.** Base ships and farms **no** commands, agents,
+  or skills — those are craft, farmed into `~/.claude` by a layer's own installer (your personal layer,
+  or a professional layer). The `/ticket` workflow moved to the personal layer; cost tracking and the
   statusline became their own repos. Base stays opinion-free except for conventions anchored to a
   Claude-native default (memory taxonomy, tiered retrieval).
 - **Conventions are format, not features.** Tiered retrieval and the memory taxonomy are how context is
@@ -87,13 +91,46 @@ There's no plugin system: the substrate is files, so "add a feature" means keep 
 Team repos stay pristine. Personal context lives in `.claude-local/`, which is:
 
 - ignored **globally** via `git config core.excludesFile` (no team .gitignore edits)
-- a **symlink** into your private `bindle-memories` repo, so it's versioned and portable
+- a **symlink** into a professional layer's `projects/<name>/`, so it's versioned and portable
 - taught to Claude via the global CLAUDE.md: read it first, never reference it in
   code, commits, or PR descriptions
 
 ## Security boundaries
 
 - No secrets in this repo. Ever. Machine/auth specifics live in `settings.local.json`.
-- Employer/project knowledge lives in `bindle-memories` (private), not here.
-- Keep separate memories repos per trust domain (personal vs. work) so a wrong
+- Employer/project knowledge lives in a **professional layer** repo (private), not here.
+- Keep separate layer repos per trust domain (personal vs. each employer/client) so a wrong
   `git push` can't cross the boundary.
+
+## Layers, and migrating into them
+
+Craft and memory live in **layer** repos, scaffolded with `bin/init-layer.sh` — each its own
+private git repo, stored locally or on the appropriate (personal vs. company) git host:
+
+- **personal** — cross-domain craft; loads on every machine (always-on). This is what you carry
+  between your own machines, or onto a work box.
+- **professional** — a secure employer/client domain; loads only inside that domain's projects
+  (scoped). One per company; never overlaps personal or another professional layer.
+
+### Migrating an existing setup
+
+Most people adopting bindle start where its author did: a **mixed** `~/.claude` — personal craft and
+employer/client context tangled together. The recommended path for that (the common case):
+
+1. **Create the professional (secure) layer and migrate everything into it:**
+   `init-layer <company> --scope professional --from ~/.claude/projects/<slug>/memory`. Everything
+   lands in that layer's `memory/_incoming/` for sorting — secure-by-default, nothing leaks to a
+   broader layer by omission.
+2. **Promote genuinely cross-domain craft into a personal layer, piece by piece** — each move a
+   deliberate "yes, this is safe to carry everywhere."
+
+Already have *clean, personal-only* craft — e.g. carrying it between your own machines or onto a work
+box? Skip step 1 and migrate straight into a **personal** layer; that's exactly what it's for.
+
+```bash
+./bin/init-layer.sh acme --scope professional --from ~/.claude/projects/<slug>/memory   # common: mixed → secure first
+./bin/init-layer.sh me   --scope personal                                               # then promote cross-domain craft
+```
+
+Either way, `init-layer --from` **warns and asks you to confirm before copying** — the destination is
+a trust decision, and nothing is copied until you confirm.
