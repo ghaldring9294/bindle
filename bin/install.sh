@@ -19,12 +19,24 @@ link() {
   echo "  linked $dst -> $src"
 }
 
+# Farm src_dir into dst_dir as per-item symlinks, so an overlay install can add or override
+# individual entries later. Skips dotfiles (e.g. .gitkeep) and empty dirs (glob no-match).
+farm() {
+  local src="$1" dst="$2" item
+  [ -d "$src" ] || return 0
+  mkdir -p "$dst"
+  for item in "$src"/*; do
+    [ -e "$item" ] || continue
+    link "$item" "$dst/$(basename "$item")"
+  done
+}
+
 echo "==> Linking global config into ${CLAUDE_DIR}"
 link "$REPO_DIR/global/CLAUDE.md"      "$CLAUDE_DIR/CLAUDE.md"
 link "$REPO_DIR/global/settings.json"  "$CLAUDE_DIR/settings.json"
-link "$REPO_DIR/global/commands"       "$CLAUDE_DIR/commands"
-link "$REPO_DIR/global/agents"         "$CLAUDE_DIR/agents"
-link "$REPO_DIR/global/skills"         "$CLAUDE_DIR/skills"
+farm "$REPO_DIR/global/commands"       "$CLAUDE_DIR/commands"
+farm "$REPO_DIR/global/agents"         "$CLAUDE_DIR/agents"
+farm "$REPO_DIR/global/skills"         "$CLAUDE_DIR/skills"
 
 echo "==> Linking hooks"
 link "$REPO_DIR/hooks/cost-tracker.sh" "$CLAUDE_DIR/hooks/cost-tracker.sh"
