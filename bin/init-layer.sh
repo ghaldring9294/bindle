@@ -126,5 +126,30 @@ fi
 echo "==> git init + first commit"
 git -C "$REPO" init -q
 git -C "$REPO" add -A
-git -C "$REPO" -c user.name="bindle" -c user.email="bindle@localhost" commit -q -m "Scaffold $SCOPE layer bindle-$NAME"
+
+# Commit identity: suggest the user's current (global) git identity; let them accept or override.
+# Set it as this repo's LOCAL config so the repo is ready to use; they can change it anytime.
+cur_name="$(git config --global user.name 2>/dev/null || true)"
+cur_email="$(git config --global user.email 2>/dev/null || true)"
+use_name="$cur_name" use_email="$cur_email"
+if [ -z "$ASSUME_YES" ] && [ -t 0 ]; then
+  if [ -n "$cur_name" ] && [ -n "$cur_email" ]; then
+    printf "  Commit as [%s <%s>]? Enter to accept, or type 'Name <email>' to change: " "$cur_name" "$cur_email"
+  else
+    printf "  No global git identity found. Type 'Name <email>' for this repo (or Enter to skip the commit): "
+  fi
+  read -r reply
+  if [ -n "$reply" ]; then
+    use_name="$(printf '%s' "$reply" | sed 's/[[:space:]]*<.*//')"
+    use_email="$(printf '%s' "$reply" | sed -n 's/.*<\(.*\)>.*/\1/p')"
+  fi
+fi
+if [ -n "$use_name" ] && [ -n "$use_email" ]; then
+  git -C "$REPO" config user.name  "$use_name"
+  git -C "$REPO" config user.email "$use_email"
+  git -C "$REPO" commit -q -m "Scaffold $SCOPE layer bindle-$NAME"
+  echo "  committed as $use_name <$use_email>  (change: git -C '$REPO' config user.name/user.email)"
+else
+  echo "  no git identity resolved — files staged but NOT committed; set an identity and commit when ready."
+fi
 echo "Done. $REPO ($SCOPE$( [ -n "$LABEL" ] && echo "/$LABEL" ))"
