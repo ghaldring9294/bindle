@@ -29,14 +29,6 @@ distilled summary — keep this session's context lean.
   finishing.
 - Resuming a ticket: read its top section before anything else.
 
-## Cost ledger
-
-- A Stop hook appends one row per session to `claude-costs.md` (`.claude-local/` if present,
-  else `docs/`), keyed by the ticket derived from the git branch. It is the single source of
-  truth for spend — a queryable ledger, not per-ticket scatter.
-- It is machine-written and append-only; don't hand-edit rows. Cost figures use a pricing
-  table that goes stale — treat them as directional.
-
 ## Doc maintenance
 
 - After changes to the data model, module boundaries, or conventions, update

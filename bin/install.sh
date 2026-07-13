@@ -38,11 +38,6 @@ farm "$REPO_DIR/global/commands"       "$CLAUDE_DIR/commands"
 farm "$REPO_DIR/global/agents"         "$CLAUDE_DIR/agents"
 farm "$REPO_DIR/global/skills"         "$CLAUDE_DIR/skills"
 
-echo "==> Linking hooks"
-link "$REPO_DIR/hooks/cost-tracker.sh" "$CLAUDE_DIR/hooks/cost-tracker.sh"
-link "$REPO_DIR/hooks/lib"             "$CLAUDE_DIR/hooks/lib"
-chmod +x "$REPO_DIR/hooks/cost-tracker.sh"
-
 echo "==> Machine-local settings"
 if [ ! -f "$CLAUDE_DIR/settings.local.json" ]; then
   echo '{}' > "$CLAUDE_DIR/settings.local.json"
@@ -66,7 +61,5 @@ done
 
 echo ""
 echo "Done. Sanity checks:"
-echo "  - python3 is required by the cost hook: $(command -v python3 >/dev/null && echo 'python3 OK' || echo 'python3 MISSING')"
-echo "  - git is optional (used for ticket detection); without it the ticket column stays '-'"
-echo "  - start a Claude Code session, then check for docs/claude-costs.md (or .claude-local/claude-costs.md) after your first turn"
+echo "  - config linked into ~/.claude (CLAUDE.md, commands, agents, skills, templates)"
 echo "  - migrating an existing setup? Open Claude Code and say: 'Read MIGRATION.md in ~/bindle and migrate my setup.'"

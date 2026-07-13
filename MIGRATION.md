@@ -63,7 +63,6 @@ Present the table. Flag every `unsure`. Wait for approval.
 
 - Start a fresh session in one migrated project; confirm the tier flow works
   (index → architecture → ticket) and the session orients without grepping.
-- Confirm the cost hook wrote a row to `claude-costs.md` after one turn.
 - Confirm `git status` in the team repo shows NO new untracked files
   (`.claude-local/` must be invisible via global excludes).
 

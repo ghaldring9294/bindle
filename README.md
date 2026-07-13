@@ -46,16 +46,15 @@ This setup applies database engineering to agent context:
    into it, or the whole session's cached prefix invalidates.
 2. **Append, don't rewrite.** Ticket updates go to the end of a `## Decision log`
    section. Editing the top of a file invalidates everything after it.
-3. **Measure everything.** The cost-tracker hook records one cost row per session
-   (upserted after each turn) in a central ledger. Optimizations without numbers are vibes.
+3. **Measure everything.** Optimizations without numbers are vibes. Pair this with a
+   per-session cost ledger — the companion [`claude-cost-ledger`](https://github.com/ghaldring9294/claude-cost-ledger)
+   repo is a drop-in `Stop` hook that writes one row per session to `claude-costs.md`.
 
 ## Layout
 
 ```
 global/          → symlinked into ~/.claude (CLAUDE.md, settings, commands, agents, skills)
-hooks/           → Stop-hook cost tracker + shared JSONL parsing lib
 templates/       → tiered doc templates dropped into projects by init-project.sh
-test/            → regression tests for the cost loop (bash + python3)
 bin/             → install.sh, init-project.sh
 MIGRATION.md     → instructions for Claude Code to migrate an existing setup into this structure
 ```
@@ -67,10 +66,11 @@ Two kinds of thing live here, and they aren't equal:
 - **Boundaries are the frame — mandatory and structural.** The trust-domain separation,
   the `.claude-local` privacy convention, and the craft/context split are the *point* of
   the toolkit. Don't remove them.
-- **Features are furniture — opinionated defaults you can rip out.** The ticket workflow,
-  cost tracking, and tiered retrieval are independent and opt-in. They don't depend on each
-  other — e.g. cost tracking detects the ticket from the git branch and degrades to `-` when
-  there's none, so it works fine with the ticket workflow deleted entirely.
+- **Features are furniture — opinionated defaults you can rip out.** The ticket workflow
+  and tiered retrieval are independent and opt-in. They don't depend on each other — e.g.
+  tiered retrieval works fine with the ticket workflow deleted entirely. Cost tracking used
+  to live here too; it's now the standalone [`claude-cost-ledger`](https://github.com/ghaldring9294/claude-cost-ledger)
+  repo — the strongest form of "rip it out."
 
 There's no plugin system: the substrate is files, so "add a feature" means keep its files and
 "remove it" means delete them. Keep what you use.
@@ -78,7 +78,6 @@ There's no plugin system: the substrate is files, so "add a feature" means keep 
 | Feature | Lives in | Remove by |
 |---|---|---|
 | Ticket workflow | `global/commands/ticket.md`, the *Ticket workflow* section of `global/CLAUDE.md`, `templates/ticket.md` | delete those |
-| Cost ledger | `Stop` hook in `global/settings.json`, `hooks/cost-tracker.sh`, `hooks/lib/parse_usage.py` | remove the `Stop` hook entry |
 | Tiered retrieval | tier rules in `global/CLAUDE.md`, `templates/docs-index.md` + `architecture.md` | stop maintaining `docs/index.md` |
 
 ## Personal per-project context (`.claude-local/`)
