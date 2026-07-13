@@ -66,19 +66,21 @@ Two kinds of thing live here, and they aren't equal:
 - **Boundaries are the frame — mandatory and structural.** The trust-domain separation,
   the `.claude-local` privacy convention, and the craft/context split are the *point* of
   the toolkit. Don't remove them.
-- **Features are furniture — opinionated defaults you can rip out.** The ticket workflow
-  and tiered retrieval are independent and opt-in. They don't depend on each other — e.g.
-  tiered retrieval works fine with the ticket workflow deleted entirely. Cost tracking used
-  to live here too; it's now the standalone [`claude-cost-ledger`](https://github.com/ghaldring9294/claude-cost-ledger)
-  repo — the strongest form of "rip it out."
+- **Opinionated *craft* lives in the overlay, not here.** Base ships empty `commands/agents/skills/`
+  slots and the mechanism to farm them; specific commands, agents, and skills are personal craft that
+  belongs in the private `bindle-personal` overlay (or a domain memories repo). The `/ticket` workflow
+  moved there; cost tracking and the statusline became their own repos. Base stays opinion-free except
+  for conventions anchored to a Claude-native default (memory taxonomy, tiered retrieval).
+- **Conventions are format, not features.** Tiered retrieval and the memory taxonomy are how context is
+  shaped for transport; they're base because a shared format is what makes transported context portable.
 
 There's no plugin system: the substrate is files, so "add a feature" means keep its files and
 "remove it" means delete them. Keep what you use.
 
-| Feature | Lives in | Remove by |
+| Convention | Lives in | Opt out by |
 |---|---|---|
-| Ticket workflow | `global/commands/ticket.md`, the *Ticket workflow* section of `global/CLAUDE.md`, `templates/ticket.md` | delete those |
 | Tiered retrieval | tier rules in `global/CLAUDE.md`, `templates/docs-index.md` + `architecture.md` | stop maintaining `docs/index.md` |
+| Memory taxonomy | `templates/memory-taxonomy.md` + the *Memory taxonomy* section of `global/CLAUDE.md` | organize memory however you like |
 
 ## Personal per-project context (`.claude-local/`)
 

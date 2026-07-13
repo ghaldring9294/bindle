@@ -18,17 +18,6 @@ only when the map says to.
 When broad exploration is unavoidable, dispatch a subagent and take back only its
 distilled summary — keep this session's context lean.
 
-## Ticket workflow
-
-- Given a ticket (tracker link/ID) or any task worth preserving, find or create
-  `tickets/<ID>.md` (`.claude-local/tickets/` if that dir exists, else `docs/tickets/`).
-- Shape: **Status + TL;DR + links at the TOP** (a fresh session orients from the first
-  ~20 lines); `## Decision log` below, **append-only** — dated entries at the end, never
-  rewrite earlier ones; verbose notes at the bottom or in `<ID>.scratch.md`.
-- The top section is Tier 1 for that ticket. Keep it current; refresh Status/TL;DR before
-  finishing.
-- Resuming a ticket: read its top section before anything else.
-
 ## Doc maintenance
 
 - After changes to the data model, module boundaries, or conventions, update

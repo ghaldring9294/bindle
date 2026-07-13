@@ -33,7 +33,7 @@ copy_if_absent() {
 if [ -n "$LOCAL_NAME" ]; then
   echo "==> Personal context: .claude-local -> $MEMORIES_DIR/projects/$LOCAL_NAME"
   MEM="$MEMORIES_DIR/projects/$LOCAL_NAME"
-  mkdir -p "$MEM/docs" "$MEM/tickets"
+  mkdir -p "$MEM/docs"
   copy_if_absent "$TEMPLATES/docs-index.md"   "$MEM/index.md"
   copy_if_absent "$TEMPLATES/architecture.md" "$MEM/docs/architecture.md"
   ln -sfn "$MEM" "$TARGET/.claude-local"
@@ -43,8 +43,6 @@ else
   echo "==> Team-visible docs scaffold in $TARGET/docs"
   copy_if_absent "$TEMPLATES/docs-index.md"   "$TARGET/docs/index.md"
   copy_if_absent "$TEMPLATES/architecture.md" "$TARGET/docs/architecture.md"
-  mkdir -p "$TARGET/docs/tickets"
-  copy_if_absent "$TEMPLATES/ticket.md"       "$TARGET/docs/tickets/_TEMPLATE.md"
 fi
 
 echo ""
