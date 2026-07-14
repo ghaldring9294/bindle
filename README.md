@@ -1,13 +1,44 @@
 # bindle
 
-Portable, opinionated Claude Code configuration. Clone on any machine, run the
-installer, and your conventions, hooks, agents, and context architecture follow you.
+A **file-based, git-portable, agentic-retrieval RAG system** for Claude Code. Clone it on any
+machine, run the installer, and your conventions and context architecture follow you — while
+Bindle manages the private *layer* repos that carry your craft and memory.
 
 Bindle is the **orchestrator**: install it once, and it scaffolds and manages your **private
 layer repos** — a personal layer plus one professional layer per employer/client — so every
 piece of craft and memory is born in the right place. The layers are separate private repos;
 nothing employer-specific ever lives in this public base. (Already have a tangled `~/.claude`?
 Migration below is a one-time on-ramp; new work is born clean.)
+
+## What Bindle is
+
+Every word in that one-liner is load-bearing:
+
+- **RAG (retrieval-augmented generation).** A model's weights are frozen; the only lever you have
+  at inference is *what goes into its context window, and when*. Everything else — `CLAUDE.md`,
+  memory files, docs — is content you retrieve into that window. Bindle is the discipline for
+  curating that retrieval: keep the always-loaded layer tiny, and page in the rest on demand.
+- **Agentic-retrieval.** Retrieval is driven by *the agent reading an index and choosing what to
+  open*. `MEMORY.md` and `docs/index.md` are tables of contents; Claude scans them and `Read`s only
+  what's relevant. No vector database, no embedding search, no similarity score — the model
+  navigates, the way you would.
+- **File-based.** The corpus is plain Markdown you can read, `grep`, diff, and edit by hand. No
+  service to run, no index to rebuild, no infra to operate. `ls memory/feedback/` shows you every
+  behavioral rule Claude has learned.
+- **git-portable.** Because it's just files, git moves it — across your machines, and (via separate
+  *layer* repos) across trust boundaries. Your craft travels with you; employer context stays where
+  it belongs. A wrong `git push` structurally cannot cross a domain, because the domains are
+  different repos.
+
+### What it is *not*
+
+Bindle does not compete with memory *infrastructure* — vector/graph stores like Mem0, Zep, or
+Cognee wired in over MCP. Those win on recall accuracy and scale, but they're **employer-bound and
+non-portable**: you can't `git clone` your company's memory service to your next job. Bindle
+optimizes for the opposite property — **portable craft that crosses the boundary with the person.**
+The two compose: an infra server can be the retrieval *engine* at work, while Bindle governs *where
+memory lives, its format, and the trust boundary*. Borrow patterns from that world; keep the
+substrate files.
 
 ## Quick start
 
@@ -24,6 +55,7 @@ installer, never committed here).
 
 ## The methodology: context is a database problem
 
+If RAG is *what* Bindle is, this is *how* it keeps the retrieved context small and cheap.
 Claude Code's context window is a scarce, priced resource. Treat it like one.
 This setup applies database engineering to agent context:
 
