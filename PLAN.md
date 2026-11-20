@@ -23,6 +23,8 @@ Carry craft between personal and work, in both directions, without crossing the 
 5. **Each sidecar lives with its projects' git.** Personal projects on personal git; work projects on the employer's git (a private repo in the work org). The base comes from personal git on every machine, because it holds no context.
 6. **Tag every memory `boundary: craft | context | both`** as it's written. `both` means a general lesson learned on a specific problem: on migration, promote a rewritten general rule and leave the specifics behind.
 7. **Migrate secure-first.** Move a mixed setup into the professional layer first, then promote craft to personal one piece at a time, reviewed memory by memory.
+   - **Rebuild the personal principles from the live setup, not the July copy.** `bindle-personal/CLAUDE.personal.md` duplicates the working principles from July, and the live global `CLAUDE.md` has grown since (summaries of always-on rules, a lessons index, new sections). At migration, derive `CLAUDE.personal.md` from the current live file minus anything domain-specific, then delete the duplicate so there is one source.
+   - **Skills can go into `bindle-personal/skills/` now**, hand-linked into `~/.claude/skills/` until the installer runs. First one: `doc-style` (Nov 2026), working through a symlink.
 
 ## Open questions
 
