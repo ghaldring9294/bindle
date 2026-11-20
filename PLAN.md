@@ -26,7 +26,8 @@ Carry craft between personal and work, in both directions, without crossing the 
 ## Open questions
 
 - **Memory transport.** July copied a layer's memory into `~/.claude/projects/<slug>/memory/`. That drifts: Claude writes new memories into that folder and the repo goes stale. Options:
-  1. *(preferred)* The memory folder **is** a git checkout of the domain's memory repo: one copy, git is the sync.
+  0. *(test first, found 2026-11-20)* The native **`autoMemoryDirectory`** setting (Claude Code v2.1.74+) moves auto-memory to an absolute path, so a project's memory can live directly in its sidecar checkout: no copy, no symlink, and it's how Claude Code is built. It's honoured in user and local settings, not committed project settings, by design, so a shared repo can't redirect someone's memory. Open bug reports say it's sometimes ignored (the system prompt still names the default path; `settings.local.json` not always read), so confirm on the installed version where a test memory actually lands.
+  1. *(preferred if 0 fails)* The memory folder **is** a git checkout of the domain's memory repo: one copy, git is the sync.
   2. Copy, plus a Stop hook that syncs back and commits. Works, more moving parts.
   3. Symlink the folder into the layer repo. July notes say symlinks broke headless detail reads; re-test first, since it's the tidiest if it works now.
 
@@ -35,9 +36,25 @@ Carry craft between personal and work, in both directions, without crossing the 
 - **Where do layer rules live** once memory is its own checkout: in the same repo as the memory, or beside it?
 - **Skills first.** New general skills go straight into `bindle-personal/skills/` and get hand-linked until the overlay installer is in use. Candidates: doc style (living versus snapshot docs, one home per fact), a doc registry and drift audit, a QA handoff, PM meeting prep, a single pre-commit review step, a ship checklist.
 
+## Prior art (quick search, 2026-11-20)
+
+The problem is common; the trust-domain boundary is rarely the focus. Not vetted for maturity or security.
+
+- **Claude Code itself** has no built-in memory sync. Feature requests ask for export/import or account sync and note that memory is keyed to absolute paths ([#25739](https://github.com/anthropics/claude-code/issues/25739)). The native lever is `autoMemoryDirectory` ([memory docs](https://code.claude.com/docs/en/memory)).
+- **Sync everything to one private repo:** [claude-sync](https://github.com/renefichtmueller/claude-sync) (selective include/exclude), claude-brain ([write-up](https://dev.to/toroleapinc/i-built-a-tool-to-sync-your-claude-code-brain-across-machines-5a1o)), [git-based global memory](https://dev.classmethod.jp/en/articles/claude-code-global-memory-with-git), [hook-based pull/push](https://dev.to/fillip_kosorukov/keeping-claude-code-context-alive-across-a-desktop-a-laptop-and-a-vps-2epa). Portable, but one store: no boundary.
+- **Closest to bindle:**
+  - [dotai](https://pypi.org/project/dotai-cli): personal context in its own folder, never writes team files, repo-level instructions win over personal ones.
+  - [dotagents](https://pkg.go.dev/github.com/yourconscience/dotagents): public tool and private config as separate repos (like base versus layer).
+  - [agentic-stack](https://www.skills.sh/aradotso/ai-agent-skills/agentic-stack-portable-agent-memory): a portable `.agent/` folder with layered memory across tools.
+  - [skills via chezmoi](https://dev.to/dotwee/one-skills-brain-for-codex-claude-cursor-and-copilot-with-chezmoi-2p3k): one skills source for several agents.
+- **Separate config directories per life:** ["One Claude, two lives"](https://dev.to/charlieseay/one-claude-two-lives-1cmp) keeps work and personal on separate machines and data; others use a separate config dir (for example `~/.claude-work`, via `CLAUDE_CONFIG_DIR`). A hard boundary, but nothing carries craft across.
+- **Team versus personal inside one repo:** [what's shared versus private on a team](https://medium.com/@binu_thayamkery/claude-code-on-a-team-whats-shared-what-s-private-and-how-not-to-step-on-each-other-11ebcea8d01c): `~/.claude/CLAUDE.md` is personal, the repo holds team rules.
+
+**What bindle adds:** the boundary is structural (one repo per trust domain, so a wrong push can't cross), and craft versus context is decided per memory as it's written (`boundary:` tags), so methods travel while each domain's knowledge stays put. None of the above found does both.
+
 ## Next steps
 
-1. Answer the memory transport question (test symlinks, check Claude Code's current options).
+1. Answer the memory transport question: test `autoMemoryDirectory` first (where does a test memory land?), then symlinks.
 2. Write the first skills in `bindle-personal/skills/`.
 3. Create the professional layer for the current employer on its git host; migrate secure-first.
 4. Finish the overlay installer and install on one machine end to end.
@@ -45,4 +62,4 @@ Carry craft between personal and work, in both directions, without crossing the 
 ## Log
 
 - **2026-07-08 to 07-14:** base, personal layer, memory taxonomy, `bindle` CLI, README framing.
-- **2026-11-20:** sidecar model, hosting rule, memory boundary tags, memory transport options (this file).
+- **2026-11-20:** sidecar model, hosting rule, memory boundary tags, memory transport options (this file). Quick prior-art search: found `autoMemoryDirectory` (native memory location) and related tools; none combine a structural trust boundary with per-memory craft/context tagging.
