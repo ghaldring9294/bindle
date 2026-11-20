@@ -50,6 +50,18 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **Separate config directories per life:** ["One Claude, two lives"](https://dev.to/charlieseay/one-claude-two-lives-1cmp) keeps work and personal on separate machines and data; others use a separate config dir (for example `~/.claude-work`, via `CLAUDE_CONFIG_DIR`). A hard boundary, but nothing carries craft across.
 - **Team versus personal inside one repo:** [what's shared versus private on a team](https://medium.com/@binu_thayamkery/claude-code-on-a-team-whats-shared-what-s-private-and-how-not-to-step-on-each-other-11ebcea8d01c): `~/.claude/CLAUDE.md` is personal, the repo holds team rules.
 
+**Review them properly before building** (each solves a slice; a cohesive design looks at all of it). Compare every tool on the same dimensions, borrow what's solved, and keep bindle's effort on what isn't:
+
+| Dimension | Question |
+| --- | --- |
+| Memory transport | How does accumulated memory move between machines? Copy, sync, checkout, native setting? |
+| Craft sharing | How do skills, agents and commands travel? Across agent tools (Claude, Codex, Cursor)? |
+| Trust boundary | Is personal versus employer context separated, and is the separation structural or by convention? |
+| Multi-machine | What happens with the same project at different paths, or a new machine? |
+| Team coexistence | Does it stay out of team repos and shared settings? |
+| Lifecycle | How are stale memories reviewed, promoted or retired? |
+| Native fit | Does it use Claude Code's own mechanisms or work around them? |
+
 **What bindle adds:** the boundary is structural (one repo per trust domain, so a wrong push can't cross), and craft versus context is decided per memory as it's written (`boundary:` tags), so methods travel while each domain's knowledge stays put. None of the above found does both.
 
 ## Next steps
