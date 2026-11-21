@@ -83,6 +83,19 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - **Where do layer rules live** once memory is its own checkout: in the same repo as the memory, or beside it?
 - **Skills first.** New general skills go straight into `bindle-personal/skills/` and get hand-linked until the overlay installer is in use. Candidates: doc style (living versus snapshot docs, one home per fact), a doc registry and drift audit, a QA handoff, PM meeting prep, a single pre-commit review step, a ship checklist.
 
+## Adopted from July
+
+July's tracker (kept locally as an archive) reached the same model: every layer the same shape, personal just the always-on one. What it couldn't do natively, it built (a symlink farm, per-layer installers, memory copying); plugins and `autoMemoryDirectory` now replace those. These July ideas still hold:
+
+- **Identify a project by its git remote, not its path.** The remote (`host/owner/name`) picks the project's notes folder in `projects/`, so the same repo at a different path or on another machine finds the same notes. The path stays only for what Claude Code itself keys to it (sessions, trust).
+- **Enforce the boundary in code, not by care.** A pre-push check in each bindle that refuses content from another domain (a denylist of domain terms, kept in machine-local settings, never in the base), a remote allowlist so a bindle can only push to its own domain's git host, and a pre-commit check that blocks committing a project's private files (`CLAUDE.local.md`, sidecar links) into a team repo.
+- **A skill plus a domain addendum.** A general skill lives in personal; a short addendum in a domain bindle tailors it with that domain's specifics (for example, `doc-style` in personal and SP's doc registry as an SP addendum). Craft stays general; context stays home. Decide how an addendum loads (a skill that references the base one, or a file the base skill looks for).
+- **Freshness stamps for derived docs.** Record the commit a doc was built from and the sources it read; `git diff --name-only <commit>..HEAD -- <sources>` says whether it's stale and which part to recheck. Same idea as doc-style's registry and drift audit, found twice.
+- **Use Claude Code's native memory format.** Flat `MEMORY.md` index plus one file per memory with `type:` frontmatter, plus bindle's `boundary:` tag. Retire the base's July taxonomy template (type folders): the July A/B showed no quality or cost win, and forcing one structure across projects isn't a goal. A different view of the memories is a derived doc, made on request.
+- **Practical craft to carry** (candidates for personal, as needed): an idempotent MCP bootstrap script (`claude mcp add --scope user`, no secrets), secrets handling (`${VAR}` from a gitignored `secrets.env`, which is still how this machine works), and an adversarial review skill.
+
+Left behind: the memory A/B harness and its results; the cost ledger and statusline already live in their own repos.
+
 ## Prior art (quick search, 2026-11-20)
 
 The problem is common; the trust-domain boundary is rarely the focus. Not vetted for maturity or security.
@@ -134,3 +147,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-20:** sidecar model, hosting rule, memory boundary tags, memory transport options (this file). Quick prior-art search: found `autoMemoryDirectory` (native memory location) and related tools; none combine a structural trust boundary with per-memory craft/context tagging.
 - **2026-11-21:** one model for all bindles (personal is just mine), attached per folder as home (one, writable memory) or companion (tooling plus read-only memory); promotion as a skill. Spike on v2.1.329 confirmed `autoMemoryDirectory` in local settings, plugin skills and hooks enabled per folder, and companion memory via the plugin's SessionStart hook (10k-character cap). External `@imports` from a project CLAUDE.md didn't load headless; recheck interactively.
 - **2026-11-21:** renamed home/companion to on/writable: every attached bindle is on, one is writable. Attach per folder rather than user scope, so a bindle can be off in a folder that doesn't want it.
+- **2026-11-21:** reshaped `bindle-personal` into the bindle layout (plugin, memory hook, `rules.md`). Reviewed July's PROJECT.md (archived locally): adopted git-remote identity, code-enforced boundary guards, skill addendums, freshness stamps and the native memory format; left the A/B behind.
