@@ -454,6 +454,7 @@ class MemoryHookTest(BindleTest):
         self.run_cli("attach", b, f, "--writable")
         out = self.run_hook(b, f)
         self.assertIn("Bindle personal is on and writable", out)
+        self.assertIn("projects/<project>/", out)
         self.assertNotIn("a personal fact", out)
 
     # An agent has to know not to edit a read-only bindle even before it holds any memories.

@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.3.1 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/session-start.sh`).
+
+- The writable bindle's session-start line tells the session to file a memory about one project in `projects/<project>/` (listed in that folder's `index.md`), with one pointer line per project in `MEMORY.md`, so the always-loaded index stays short.
+
 ## 0.3.0 (2026-11-21)
 
 **Run `bindle upgrade`** (new managed hook `rules.sh`, changed `hooks.json`), then **re-run `bindle attach`** for each read-only bindle so it gets locked (`bindle doctor` lists them).
