@@ -12,6 +12,7 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 - `templates/bindle/`: what `bindle new` copies. Files listed in `MANAGED` (in `bin/bindle`) are copied byte for byte into every bindle and `bindle doctor` flags drift, so change them only here, deliberately, then update existing bindles.
 - `templates/bindle/hooks/lib.sh`: the one implementation of sync, the writable check and the secret check, shared by the hooks and the CLI.
 - `tests/`: `python3 -m unittest discover -s tests` (fast, fake `claude`); `tests/e2e.sh` (real Claude Code in a scratch folder; costs a few short sessions).
+- `global/skills/bindle-promote/`: the promotion skill (`bindle install` links it into `~/.claude/skills/`). Drafting is judgment; `bindle outbox add` and `bindle collect` do every write and check.
 - `MIGRATION.md`: instructions an agent follows to move an existing setup into bindles.
 - `CHANGELOG.md` and `VERSION` (in `bin/bindle`): bump the version and add an entry for each release; say "run `bindle upgrade`" when managed files or the layout change. Tag releases `vX.Y.Z`.
 

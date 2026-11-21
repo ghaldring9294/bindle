@@ -9,6 +9,8 @@ Help the user with bindle: $ARGUMENTS
 - `bindle attach <bindle> [<folder>] [--writable]`: turn a bindle on for a folder; `--writable` makes it the one new memories go to.
 - `bindle detach <name-or-path> [<folder>]`: turn it off.
 - `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
+- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`: the source's reviewed items, leak-checked.
+- `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle. For drafting, use the `/bindle-promote` skill.
 - `bindle doctor [<folder>]`: what's on, which is writable, unsaved memories, drift.
 
 Rules:

@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.4.0 (2026-11-21)
+
+**Run `bindle install` again** (it now links the `/bindle-promote` skill) and **`bindle upgrade`** (sync includes `outbox/`; new template files `private-terms.txt` and `outbox/`).
+
+- Promotion through an outbox: `/bindle-promote` drafts general rewrites in the source domain's session; `bindle outbox add` stores an approved draft after a leak check (the source's `private-terms.txt`, whole words; a term ending in punctuation, like a ticket prefix `ACME-`, matches what follows) and the secret check; `bindle collect <source> --into <target> --items …` rechecks, copies memories (with an index line), skills or commands into the target, marks them collected, and commits both bindles. Naming the items puts them in Claude Code's permission prompt.
+- Bindles have an `audience` (private, shared, public) and `writes` (implicit, explicit): `bindle new --audience shared --writes explicit` makes a craft bindle; `attach --writable` refuses an explicit bindle.
+- `outbox/` syncs along with `memory/`, so items prepared on one machine can be collected on another.
+
 ## 0.3.2 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/session-start.sh`).

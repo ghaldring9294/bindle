@@ -25,6 +25,8 @@ bindle attach ~/acme/.bindle ~/acme --writable
 bindle attach ~/bindle-personal ~/acme       # personal on too, read-only
 bindle doctor ~/acme
 bindle sync ~/acme                           # pull, and push the writable bindle's memories
+bindle outbox add ~/acme/.bindle draft.md --name small-prs --description "keep PRs small"
+bindle collect ~/acme/.bindle --into ~/bindle-personal --items small-prs
 bindle detach personal ~/acme
 ```
 
@@ -43,6 +45,10 @@ bindle detach personal ~/acme
 The first two entries turn on the bindle's skills, commands and hooks; `autoMemoryDirectory` (only with `--writable`) sends new memories into the bindle. Because the bindle's path is recorded, moving a bindle means attaching it again; `bindle doctor` points it out.
 
 **Sync.** A bindle with `"sync": true` in `bindle.json` (or created with `bindle new --sync`) keeps itself in sync through its own hooks: every session start pulls the latest from its remote; every session end commits changes under `memory/` in the writable bindle and pushes them. Only `memory/` is committed automatically; skills, rules and notes stay deliberate commits. A memory that looks like it holds a secret is never committed, and `bindle doctor` reports it. Offline or conflicted, the hooks give up quietly and `doctor` shows what's waiting. `bindle sync [<folder>]` does the same by hand, whether or not sync is on.
+
+**Promotion.** Material moves between bindles only as text you reviewed and approved as general. In the source domain's session, `/bindle-promote` drafts a general rewrite of a lesson (or a skill), you approve it, and `bindle outbox add` stores it in the source's `outbox/` after checking it against the source's `private-terms.txt` and for secrets. `bindle collect <source> --into <target> --items <names>` then moves it into the target, from the same session or later. Nothing else crosses: no session reads another domain's memories.
+
+**Sharing craft.** A craft bindle (`bindle new craft --audience shared --writes explicit`) holds finished, general tooling and receives things only through `collect`. Attach it where you want the tooling (at work, say, instead of your personal bindle), or anyone with access can install it as a plain plugin: `/plugin marketplace add <git url>`.
 
 On a new machine: clone your bindles, then run `attach` once per folder.
 

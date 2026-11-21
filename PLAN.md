@@ -30,7 +30,7 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - **Toggling happens per launch folder,** not mid-session. A folder (a domain root, such as `~/acme`) attaches bindles in its `.claude/settings.local.json`. Switching clients means launching from another folder, which also separates session lists and permissions. That's a feature: the boundary is the folder.
 - **Every attached bindle is on; exactly one is writable.** Attaching a bindle to a folder (once, with `bindle attach <bindle> <folder>`) turns it on whenever Claude launches from that folder: its skills, hooks and memory all load. The **writable** bindle is the one new memories are written to, and its notes and rules are this folder's. The others are read-only there. At `~/acme`, both bindles are on and Acme is writable; in personal projects, personal is writable.
 - **One writable memory per session enforces the boundary.** A work session can't write into the personal repo. Craft moves between bindles only through promotion.
-- **Every bindle has two properties** (decided 2026-11-21; not built yet), set in `bindle.json`:
+- **Every bindle has two properties** (decided 2026-11-21; built in v0.4.0), set in `bindle.json`:
   - **`audience`**: `private` (one person or one domain), `shared` (named people), or `public`. Sets the leak check's strictness when promoting into it: `shared` and `public` also check the promoter's personal terms, not just the source domain's. Visibility itself is the git host's setting.
   - **`writes`**: `implicit` (can be a folder's writable bindle: sessions save memories into it and sync pushes them) or `explicit` (only `bindle collect` puts anything in; `attach` refuses `--writable`).
 
@@ -157,7 +157,7 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 1. ~~Answer the memory transport question.~~ Done 2026-11-21 (spike).
 2. ~~Settle the open design points in "The model".~~ Where bindles live and the read-only memory cap are settled; rules loading is being tested (see Open questions).
 3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
-4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Rules loading and the read-only lock done too (v0.3.0). Still to build: the `promote` skill and `bindle collect`, the `~/bindles/` collective view, and ~~a cleanup pass on personal's migrated memories~~ (done 2026-11-21: 22 memories into five `projects/<name>/` folders; `MEMORY.md` down to one general line and five pointers).
+4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Rules loading and the read-only lock done too (v0.3.0). Promotion built too (v0.4.0: `/bindle-promote`, `outbox add`, `collect`, `audience`/`writes`). Still to build: the `~/bindles/` collective view, and ~~a cleanup pass on personal's migrated memories~~ (done 2026-11-21: 22 memories into five `projects/<name>/` folders; `MEMORY.md` down to one general line and five pointers).
 4a. ~~**Test on the personal laptop.**~~ Done 2026-11-21. clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
 4b. **Write personal's `rules.md`:** rebuild it from the live global CLAUDE.md minus anything work-specific, under 9,000 characters (it now loads in every session where personal is on).
 5. Create the work bindle and migrate secure-first: on the next work laptop (no rush on this one).
@@ -199,3 +199,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** `bindle upgrade` (managed files, obsolete files, missing template files, layout migrations; commits only what it touched), `--version`, CHANGELOG.md, tagged v0.2.0.
 - **2026-11-21:** v0.3.0: rules load through each bindle's hook; read-only bindles locked with an Edit deny rule. Both verified with real Claude Code.
 - **2026-11-21:** personal's memories organized by project; v0.3.1 tells sessions to file project memories in `projects/<project>/`.
+- **2026-11-21:** v0.4.0: promotion (outbox, leak check against `private-terms.txt`, `collect`, `/bindle-promote`), `audience`/`writes`. At work, the craft bindle is on instead of personal.
