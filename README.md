@@ -27,6 +27,20 @@ bindle doctor ~/acme
 bindle detach personal ~/acme
 ```
 
+`attach` takes two paths: **the bindle, and the folder it's for** (the folder you launch Claude from). It writes one file in that folder, `.claude/settings.local.json`, pointing back at the bindle. Nothing is copied or linked:
+
+```json
+{
+  "extraKnownMarketplaces": {
+    "bindle-acme": { "source": { "source": "directory", "path": "/Users/you/acme/.bindle" } }
+  },
+  "enabledPlugins": { "acme@bindle-acme": true },
+  "autoMemoryDirectory": "/Users/you/acme/.bindle/memory"
+}
+```
+
+The first two entries turn on the bindle's skills, commands and hooks; `autoMemoryDirectory` (only with `--writable`) sends new memories into the bindle. Because the bindle's path is recorded, moving a bindle means attaching it again; `bindle doctor` points it out.
+
 On a new machine: clone your bindles, then run `attach` once per folder.
 
 Migrating an existing setup: open Claude Code and say "Read MIGRATION.md in the bindle repo and migrate my setup."

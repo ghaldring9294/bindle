@@ -201,6 +201,16 @@ def declared_bindles(settings):
     return out
 
 
+def missing_bindles(settings):
+    """Local marketplaces this folder declares whose folder is gone, usually a bindle that moved."""
+    out = []
+    for market, entry in settings.get("extraKnownMarketplaces", {}).items():
+        source = entry.get("source", {})
+        if source.get("source") == "directory" and source.get("path") and not Path(source["path"]).exists():
+            out.append((market, source["path"]))
+    return out
+
+
 def cmd_doctor(args):
     folder = real(args.folder or Path.cwd())
     problems = []
@@ -214,10 +224,17 @@ def cmd_doctor(args):
     enabled = settings.get("enabledPlugins", {})
     memory_dir = settings.get("autoMemoryDirectory")
     bindles = declared_bindles(settings)
+    missing = missing_bindles(settings)
     writable = None
 
-    if not bindles:
+    if not bindles and not missing:
         print("  No bindles attached.")
+    for market, path in missing:
+        state = "was on" if any(k.endswith(f"@{market}") and v for k, v in enabled.items()) else "declared"
+        print(f"  {market}: {state}, but nothing is at {path}")
+        problems.append(f"{market}: no bindle at {path}. If it moved, attach it again from its new path.")
+    if memory_dir and not real(memory_dir).is_dir():
+        problems.append(f"memories are set to go to {memory_dir}, which doesn't exist")
     for b in bindles:
         on = bool(enabled.get(plugin_id(b)))
         is_writable = bool(memory_dir) and real(memory_dir) == real(b["memory"])
@@ -300,19 +317,20 @@ def main(argv=None):
     s.add_argument("--at", help="where to create it (default: ./.bindle)")
     s.set_defaults(fn=cmd_new)
 
-    s = sub.add_parser("attach", help="turn a bindle on for a folder")
-    s.add_argument("bindle", help="path to the bindle")
-    s.add_argument("folder", nargs="?", help="default: the current folder")
+    s = sub.add_parser("attach", help="turn a bindle on for the folder you launch Claude from",
+                       description="Turn a bindle on for a folder: sessions started from that folder load the bindle. Writes the folder's .claude/settings.local.json; nothing is copied or linked.")
+    s.add_argument("bindle", help="path to the bindle repo")
+    s.add_argument("folder", nargs="?", help="the folder you launch Claude from (default: here)")
     s.add_argument("--writable", action="store_true", help="new memories in this folder go to this bindle")
     s.set_defaults(fn=cmd_attach)
 
     s = sub.add_parser("detach", help="turn a bindle off for a folder")
-    s.add_argument("bindle", help="its name or path")
-    s.add_argument("folder", nargs="?", help="default: the current folder")
+    s.add_argument("bindle", help="the bindle's name or path")
+    s.add_argument("folder", nargs="?", help="the folder you launch Claude from (default: here)")
     s.set_defaults(fn=cmd_detach)
 
     s = sub.add_parser("doctor", help="show what's on in a folder and any problems")
-    s.add_argument("folder", nargs="?", help="default: the current folder")
+    s.add_argument("folder", nargs="?", help="the folder you launch Claude from (default: here)")
     s.set_defaults(fn=cmd_doctor)
 
     args = p.parse_args(argv)

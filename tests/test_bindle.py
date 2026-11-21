@@ -189,6 +189,19 @@ class DoctorTest(BindleTest):
         self.assertIn("1 uncommitted change(s)", out)
         self.assertIn("no remote", out)
 
+    # attach stores the bindle's absolute path, so moving the bindle silently breaks the folder;
+    # doctor must say so instead of reporting nothing attached.
+    def test_flags_a_bindle_that_moved_after_attaching(self):
+        b, f = self.make_bindle("personal"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        b.rename(self.tmp / "moved")
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 1)
+        self.assertIn("bindle-personal: was on, but nothing is at", out)
+        self.assertIn("attach it again", out)
+        self.assertIn("doesn't exist", out)
+        self.assertNotIn("No bindles attached", out)
+
     def test_an_empty_folder_has_nothing_attached(self):
         _, out = self.run_cli("doctor", self.folder())
         self.assertIn("No bindles attached", out)
