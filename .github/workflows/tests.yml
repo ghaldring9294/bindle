@@ -15,6 +15,7 @@ jobs:
           - { os: macos-latest, python: "3.9" }
           - { os: macos-latest, python: "3.x" }
           - { os: ubuntu-latest, python: "3.x" }
+          - { os: windows-latest, python: "3.x" }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
