@@ -48,6 +48,16 @@ On a new machine: clone your bindles, then run `attach` once per folder.
 
 Migrating an existing setup: open Claude Code and say "Read MIGRATION.md in the bindle repo and migrate my setup."
 
+## Updating
+
+```
+git -C <path-to>/bindle pull      # the CLI on PATH is a link into this repo, so this updates it
+bindle doctor <folder>            # says if a bindle needs upgrading
+bindle upgrade <bindle>           # copies new managed files into it and commits; then push the bindle
+```
+
+See [CHANGELOG.md](CHANGELOG.md) for what changed in each version.
+
 ## Tests
 
 ```

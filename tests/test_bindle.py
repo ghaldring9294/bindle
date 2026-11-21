@@ -291,6 +291,76 @@ class InstallTest(BindleTest):
         self.assertFalse((self.home / ".local/bin/bindle").exists())
 
 
+class UpgradeTest(BindleTest):
+    """Base updates reach existing bindles only through upgrade, since each bindle carries its own copies."""
+
+    def test_brings_a_drifted_or_old_bindle_up_to_date_and_commits(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f)
+        (b / "hooks/lib.sh").write_text("# old\n")
+        (b / "hooks/print-memory.sh").write_text("# obsolete\n")
+        (b / "AGENTS.md").unlink()
+        bindle.git(b, "add", "-A")
+        bindle.git(b, "commit", "-qm", "an old bindle")
+        self.assertEqual(self.run_cli("upgrade", b)[0], 0)
+        self.assertEqual((b / "hooks/lib.sh").read_bytes(), (bindle.TEMPLATE / "hooks/lib.sh").read_bytes())
+        self.assertFalse((b / "hooks/print-memory.sh").exists())
+        self.assertIn("acme bindle", (b / "AGENTS.md").read_text())
+        self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
+        self.assertEqual(self.run_cli("doctor", f)[0], 0)
+
+    # Upgrade owns only its files; a person's own edits must stay theirs.
+    def test_never_overwrites_or_commits_the_bindles_own_files(self):
+        b = self.make_bindle("acme")
+        (b / "README.md").write_text("my readme\n")
+        (b / "memory/fact.md").write_text("unsaved\n")
+        (b / "hooks/lib.sh").write_text("# old\n")
+        self.run_cli("upgrade", b)
+        self.assertEqual((b / "README.md").read_text(), "my readme\n")
+        status = bindle.git(b, "status", "--porcelain")
+        self.assertIn("README.md", status)
+        self.assertIn("memory/fact.md", status)
+        self.assertNotIn("lib.sh", status)
+
+    def test_dry_run_changes_nothing(self):
+        b = self.make_bindle("acme")
+        (b / "hooks/lib.sh").write_text("# old\n")
+        code, out = self.run_cli("upgrade", b, "--dry-run")
+        self.assertIn("update hooks/lib.sh", out)
+        self.assertEqual((b / "hooks/lib.sh").read_text(), "# old\n")
+
+    def test_an_up_to_date_bindle_gets_no_commit(self):
+        b = self.make_bindle("acme")
+        head = bindle.git(b, "rev-parse", "HEAD")
+        _, out = self.run_cli("upgrade", b)
+        self.assertIn("up to date", out)
+        self.assertEqual(bindle.git(b, "rev-parse", "HEAD"), head)
+
+    def test_refuses_a_bindle_from_a_newer_version(self):
+        b = self.make_bindle("acme")
+        meta = json.loads((b / "bindle.json").read_text())
+        meta["layout"] = bindle.LAYOUT + 1
+        (b / "bindle.json").write_text(json.dumps(meta))
+        code, out = self.run_cli("upgrade", b)
+        self.assertEqual(code, 1)
+        self.assertIn("git pull bindle", out)
+
+    def test_upgrades_every_bindle_attached_to_the_current_folder(self):
+        acme, personal, f = self.make_bindle("acme"), self.make_bindle("personal"), self.folder()
+        self.run_cli("attach", acme, f, "--writable")
+        self.run_cli("attach", personal, f)
+        for b in (acme, personal):
+            (b / "hooks/lib.sh").write_text("# old\n")
+        cwd = os.getcwd()
+        os.chdir(f)
+        try:
+            self.run_cli("upgrade")
+        finally:
+            os.chdir(cwd)
+        for b in (acme, personal):
+            self.assertEqual((b / "hooks/lib.sh").read_bytes(), (bindle.TEMPLATE / "hooks/lib.sh").read_bytes())
+
+
 class MemoryHookTest(BindleTest):
     """Runs the real hook script: it decides whether a session sees this bindle's memory twice."""
 

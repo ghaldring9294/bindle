@@ -193,3 +193,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** collaborators keep their own bindles; shared knowledge goes in the project repo. Sharing and collaboration added to the scenario docs, to write at MVP.
 - **2026-11-21:** planned a public demo repo that doubles as the end-to-end test fixture.
 - **2026-11-21:** enclosing-repo guard (local exclude on `new`, `doctor` warning); agent orientation (AGENTS.md everywhere, a writable/read-only line per bindle at session start).
+- **2026-11-21:** `bindle upgrade` (managed files, obsolete files, missing template files, layout migrations; commits only what it touched), `--version`, CHANGELOG.md, tagged v0.2.0.

@@ -19,9 +19,14 @@ from pathlib import Path
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
+VERSION = "0.2.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/lib.sh", "hooks/session-start.sh", "hooks/session-end.sh", "hooks/hooks.json"]
+# Managed files from earlier versions; `bindle upgrade` removes them.
+OBSOLETE = ["hooks/print-memory.sh"]
+# Layout migrations: {from_layout: function(bindle_root)}, each moving a bindle up one layout.
+MIGRATIONS = {}
 
 
 class BindleError(Exception):
@@ -264,12 +269,14 @@ def cmd_doctor(args):
         for rel in MANAGED:
             copy = b["root"] / rel
             if not copy.exists():
-                problems.append(f"{b['name']}: {rel} is missing")
+                problems.append(f"{b['name']}: {rel} is missing; run `bindle upgrade {b['root']}`")
             elif not filecmp.cmp(copy, TEMPLATE / rel, shallow=False):
-                problems.append(f"{b['name']}: {rel} differs from bindle's template")
+                problems.append(f"{b['name']}: {rel} differs from bindle's template; run `bindle upgrade {b['root']}`")
         problems.extend(enclosing_repo_problems(b))
-        if b["layout"] != LAYOUT:
-            problems.append(f"{b['name']}: layout {b['layout']}, this bindle expects {LAYOUT}")
+        if (b["layout"] or 0) < LAYOUT:
+            problems.append(f"{b['name']}: layout {b['layout']}, current is {LAYOUT}; run `bindle upgrade {b['root']}`")
+        elif b["layout"] > LAYOUT:
+            problems.append(f"{b['name']}: layout {b['layout']} is newer than this bindle ({LAYOUT}); git pull bindle")
 
     if memory_dir and not writable:
         print(f"  Memory: {memory_dir} (not a bindle attached here)")
@@ -379,6 +386,77 @@ def git_health(root):
     return lines
 
 
+def upgrade_plan(b):
+    """What `bindle upgrade` would change in a bindle: managed files that differ or are missing, obsolete
+    managed files to remove, and template files the bindle doesn't have yet (never overwriting its own)."""
+    root, plan = b["root"], []
+    for rel in MANAGED:
+        copy = root / rel
+        if not copy.exists():
+            plan.append(("add", rel))
+        elif not filecmp.cmp(copy, TEMPLATE / rel, shallow=False):
+            plan.append(("update", rel))
+    for rel in OBSOLETE:
+        if (root / rel).exists():
+            plan.append(("remove", rel))
+    for src in sorted(TEMPLATE.rglob("*")):
+        rel = src.relative_to(TEMPLATE).as_posix()
+        if src.is_file() and rel not in MANAGED and not (root / rel).exists():
+            plan.append(("add", rel))
+    return plan
+
+
+def cmd_upgrade(args):
+    if args.bindle:
+        bindles = [load_bindle(args.bindle)]
+    else:
+        folder = real(Path.cwd())
+        bindles = declared_bindles(read_json(settings_path(folder)))
+        if not bindles:
+            raise BindleError(f"No bindles are attached to {folder}; pass a bindle's path.")
+    for b in bindles:
+        layout = b["layout"] or 0
+        if layout > LAYOUT:
+            raise BindleError(f"{b['name']} has layout {layout}, newer than this bindle ({LAYOUT}). git pull bindle first.")
+        plan = upgrade_plan(b)
+        steps = [f"migrate layout {n} -> {n + 1}" for n in range(layout, LAYOUT)]
+        if not plan and not steps:
+            print(f"{b['name']}: up to date (bindle {VERSION})")
+            continue
+        print(f"{b['name']}: {'would change' if args.dry_run else 'upgrading'} ({b['root']})")
+        for line in steps + [f"{action} {rel}" for action, rel in plan]:
+            print(f"  {line}")
+        if args.dry_run:
+            continue
+        for n in range(layout, LAYOUT):
+            MIGRATIONS[n](b["root"])
+        touched = []
+        for action, rel in plan:
+            out = b["root"] / rel
+            if action == "remove":
+                out.unlink()
+            elif rel in MANAGED:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(TEMPLATE / rel, out)
+            else:
+                out.parent.mkdir(parents=True, exist_ok=True)
+                out.write_text((TEMPLATE / rel).read_text().replace("{{name}}", b["name"]))
+                shutil.copymode(TEMPLATE / rel, out)
+            touched.append(rel)
+        if steps:
+            meta = read_json(b["root"] / "bindle.json")
+            meta["layout"] = LAYOUT
+            write_json(b["root"] / "bindle.json", meta)
+            touched.append("bindle.json")
+        # Commit only what upgrade touched, so a person's own uncommitted work stays theirs.
+        git(b["root"], "add", "-A", "--", *touched)
+        if git(b["root"], "commit", "-q", "-m", f"Upgrade bindle files to bindle {VERSION}", "--", *touched) is not None:
+            print(f"  committed (push when ready; sync pushes only memory/)")
+        else:
+            print("  changed, not committed (no git identity here?)")
+    return 0
+
+
 def cmd_install(args):
     """Puts the bindle command on PATH and links its /bindle command into ~/.claude. Nothing else:
     bindle never takes over ~/.claude's settings or CLAUDE.md."""
@@ -400,6 +478,7 @@ def cmd_install(args):
 
 def main(argv=None):
     p = argparse.ArgumentParser(prog="bindle", description="Create bindles and turn them on for folders.")
+    p.add_argument("--version", action="version", version=f"bindle {VERSION}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("install", help="link bindle onto PATH and /bindle into ~/.claude/commands")
@@ -422,6 +501,11 @@ def main(argv=None):
     s.add_argument("bindle", help="the bindle's name or path")
     s.add_argument("folder", nargs="?", help="the folder you launch Claude from (default: here)")
     s.set_defaults(fn=cmd_detach)
+
+    s = sub.add_parser("upgrade", help="bring a bindle's managed files and layout up to this bindle version")
+    s.add_argument("bindle", nargs="?", help="path to the bindle (default: every bindle attached to this folder)")
+    s.add_argument("--dry-run", action="store_true", help="show what would change")
+    s.set_defaults(fn=cmd_upgrade)
 
     s = sub.add_parser("sync", help="pull the bindles that are on, and commit and push the writable one's memories")
     s.add_argument("folder", nargs="?", help="the folder you launch Claude from (default: here)")
