@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.4.2 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/rules.sh`). A read-only bindle is locked in folders where it's attached, so upgrade it yourself or from a folder where it isn't attached.
+
+- A bindle's rules arrive framed as standing instructions to follow like CLAUDE.md, not as plain hook output.
+
 ## 0.4.1 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/session-start.sh`).

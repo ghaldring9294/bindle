@@ -258,6 +258,7 @@ class RulesTest(BindleTest):
         self.run_cli("attach", acme, f, "--writable")
         self.run_cli("attach", personal, f)
         self.assertIn("Use Acme's ticket prefix.", self.run_rules(acme, f))
+        self.assertIn("Follow them as you would CLAUDE.md", self.run_rules(acme, f))
         self.assertIn("Prefer small PRs.", self.run_rules(personal, f))
 
     # Past the hook cap, Claude Code shows only the first 2,000 characters and the rest is silently lost.

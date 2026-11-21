@@ -7,5 +7,5 @@ set -uo pipefail
 
 rules="${root}/rules.md"
 [ -s "$rules" ] || exit 0
-echo "Rules from the $(bindle_name) bindle (${rules}):"
+echo "Standing instructions from the $(bindle_name) bindle (${rules}). Follow them as you would CLAUDE.md:"
 cat "$rules"
