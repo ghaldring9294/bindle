@@ -11,7 +11,7 @@ import os
 import re
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 WINDOWS = os.name == "nt"
 
@@ -128,7 +128,8 @@ def lock_rules(root):
 
 def rule_path(root):
     """A path in Claude Code's permission-rule form: POSIX, and on Windows the drive as /c (C:\\x -> /c/x)."""
-    p = Path(root).as_posix()
+    s = str(root)
+    p = PureWindowsPath(s).as_posix() if re.match(r"^[A-Za-z]:[\\/]", s) else Path(s).as_posix()
     m = re.match(r"^([A-Za-z]):/(.*)$", p)
     return f"/{m.group(1).lower()}/{m.group(2)}" if m else p
 

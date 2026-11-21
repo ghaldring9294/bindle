@@ -16,6 +16,14 @@ from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, R
 INSTALLED_MARK = "Installed by bindle install"
 
 
+def quote(path):
+    """Quote a path for copy-and-paste: POSIX shells on macOS and Linux; PowerShell and cmd on Windows."""
+    s = str(path)
+    if WINDOWS:
+        return f'"{s}"' if any(c in s for c in ' &()[]{}^=;!\'+,`~') else s
+    return shlex.quote(s)
+
+
 def cmd_install(args):
     """Puts the bindle command on PATH and links /bindle and /bindle-promote into ~/.claude. Nothing else:
     bindle never takes over ~/.claude's settings or CLAUDE.md. Where symlinks aren't allowed (Windows without
@@ -125,7 +133,7 @@ def cmd_new(args):
         print(f"  inside the repo {excluded[0]}: added {excluded[1]} to its .git/info/exclude (local, never committed)")
     print("  sync: " + ("on (memories pull at session start and push at session end, once a remote is set)"
                         if args.sync else "off (turn on with \"sync\": true in bindle.json)"))
-    print(f"Turn it on for a folder: bindle attach {shlex.quote(str(dest))} <folder> [--writable]")
+    print(f"Turn it on for a folder: bindle attach {quote(str(dest))} <folder> [--writable]")
 
 
 def cmd_attach(args):
@@ -270,7 +278,7 @@ def cmd_doctor(args):
         state = "was on" if any(k.endswith(f"@{market}") and v for k, v in enabled.items()) else "declared"
         print(f"  {market}: {state}, but nothing is at {path}")
         problems.append(f"{market}: no bindle at {path}. If it moved, attach it from its new path; "
-                        f"to remove it, run `bindle detach {shlex.quote(market)} {shlex.quote(str(folder))}`.")
+                        f"to remove it, run `bindle detach {quote(market)} {quote(str(folder))}`.")
     if memory_dir and not real(memory_dir).is_dir():
         problems.append(f"memories are set to go to {memory_dir}, which doesn't exist")
     deny = settings.get("permissions", {}).get("deny", [])
@@ -315,10 +323,10 @@ def cmd_doctor(args):
         locked = all(r in deny for r in lock_rules(b["root"]))
         if on and not writable_here and not locked:
             problems.append(f"{b['name']} is read-only here but not locked against edits; "
-                            f"run `bindle attach {shlex.quote(str(b['root']))} {shlex.quote(str(folder))}` again")
+                            f"run `bindle attach {quote(str(b['root']))} {quote(str(folder))}` again")
         if writable_here and any(r in deny for r in lock_rules(b["root"])):
             problems.append(f"{b['name']} is writable but locked, so memories can't be saved; "
-                            f"run `bindle attach {shlex.quote(str(b['root']))} {shlex.quote(str(folder))} --writable` again")
+                            f"run `bindle attach {quote(str(b['root']))} {quote(str(folder))} --writable` again")
         rules = b["root"] / "rules.md"
         if rules.exists() and len(rules.read_text(encoding="utf-8", errors="ignore")) > RULES_LIMIT:
             problems.append(f"{b['name']}: rules.md is over {RULES_LIMIT} characters; the session-start hook can show only {HOOK_OUTPUT_LIMIT:,}")
@@ -340,7 +348,7 @@ def cmd_doctor(args):
 
     fixes = []
     for b in {str(b["root"]): b for b in needs_upgrade}.values():
-        root = shlex.quote(str(b["root"]))
+        root = quote(str(b["root"]))
         # Push too when the bindle has an upstream, so other machines get the upgrade with their next pull.
         push = f" && git -C {root} push" if hooks().has_upstream(b["root"]) else ""
         fixes.append(f"bindle upgrade {root}{push}")

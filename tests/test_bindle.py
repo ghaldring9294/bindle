@@ -19,6 +19,15 @@ sys.path.insert(0, str(HERE.parent))
 import bindle  # noqa: E402
 
 
+def git_bash():
+    """The bash Claude Code runs hooks with: Git Bash on Windows (not WSL's bash.exe, which comes first on PATH)."""
+    if os.name == "nt":
+        for p in (Path(os.environ.get("ProgramFiles", r"C:\\Program Files")) / "Git" / "bin" / "bash.exe",):
+            if p.exists():
+                return str(p)
+    return "bash"
+
+
 def rmtree(path):
     """Deletes a folder; git marks object files read-only, which Windows refuses to delete without a chmod."""
     import stat
@@ -79,7 +88,7 @@ class NewTest(BindleTest):
         self.assertEqual(json.loads((b / ".claude-plugin/marketplace.json").read_text())["name"], "bindle-acme")
         for d in ["memory", "notes", "projects", "skills", "commands", "agents"]:
             self.assertTrue((b / d).is_dir(), d)
-        self.assertNotIn("{{name}}", "".join(p.read_text() for p in b.rglob("*") if p.is_file() and ".git/" not in str(p)))
+        self.assertNotIn("{{name}}", "".join(p.read_text(encoding="utf-8") for p in b.rglob("*") if p.is_file() and ".git" not in p.parts))
 
     # Doctor detects drift by comparing managed files to the template byte for byte; any
     # substitution in them would make every bindle look drifted.
@@ -230,6 +239,7 @@ class AttachTest(BindleTest):
 
     # Claude Code reads settings.local.json at the repo root, so attaching to a subfolder of a
     # repo would silently configure the whole repo instead.
+    @unittest.skipIf(os.name == "nt", "on Windows, Claude Code reads settings in the launch folder, so a subfolder is fine")
     def test_refuses_a_folder_inside_someone_elses_git_repo(self):
         b, repo = self.make_bindle("acme"), self.folder("repo")
         subprocess.run(["git", "init", "-q", str(repo)], check=True)
@@ -252,7 +262,7 @@ class LockTest(BindleTest):
     def test_a_read_only_bindle_is_locked_against_edits(self):
         b, f = self.make_bindle("personal"), self.folder()
         self.run_cli("attach", b, f)
-        self.assertEqual(self.deny(f), [f"Edit(/{b}/**)"])
+        self.assertEqual(self.deny(f), [f"Edit(/{bindle.core.rule_path(b)}/**)"])
 
     # Memories are written with the Write tool; locking the writable bindle would silently stop them.
     def test_the_writable_bindle_is_never_locked(self):
@@ -349,7 +359,7 @@ class DoctorTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("bindle_hook.py differs", out)
-        self.assertIn(f"bindle upgrade {b}", out)
+        self.assertIn(f"bindle upgrade {bindle.commands.quote(b)}", out)
         self.assertNotIn("&& git -C", out)
 
     # Unsaved memories are the main way work gets lost between machines.
@@ -498,7 +508,8 @@ class UpgradeTest(BindleTest):
         (b / "hooks/bindle_hook.py").write_text("# old\n")
         (b / "hooks/hooks.json").write_text("{}\n")
         _, out = self.run_cli("doctor", f)
-        self.assertIn(f"bindle upgrade {b} && git -C {b} push", out)
+        q = bindle.commands.quote(b)
+        self.assertIn(f"bindle upgrade {q} && git -C {q} push", out)
         self.assertEqual(out.count(f"bindle upgrade {b}"), 1)
 
     def test_upgrades_every_bindle_attached_to_the_current_folder(self):
@@ -837,7 +848,22 @@ class ReviewRegressionTest(BindleTest):
         self.run_cli("attach", b, f)
         (b / "hooks/bindle_hook.py").write_text("# old\n")
         _, out = self.run_cli("doctor", f)
-        self.assertIn(f"bindle upgrade '{b}'", out)
+        self.assertIn(f"bindle upgrade {bindle.commands.quote(b)}", out)
+
+
+class DiagnoseTest(BindleTest):
+    def test_print_enclosing_repo_values(self):  # temporary: Windows CI diagnosis
+        repo = self.folder("project")
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        dest = repo / ".bindle"
+        dest.mkdir()
+        h = bindle.core.hooks()
+        top = h.git(repo, "rev-parse", "--show-toplevel")
+        print("\nDIAG top:", repr(top.stdout), top.returncode, repr(top.stderr[:200]))
+        print("DIAG enclosing:", bindle.core.enclosing_repo(dest))
+        ci = h.git(repo, "check-ignore", "-q", ".bindle/")
+        print("DIAG check-ignore:", ci.returncode, repr(ci.stderr[:200]))
+        print("DIAG git-path:", repr(h.git_out(repo, "rev-parse", "--git-path", "info/exclude")))
 
 
 class PortabilityTest(BindleTest):
@@ -852,7 +878,7 @@ class PortabilityTest(BindleTest):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(f)}
-        out = subprocess.run(["bash", str(b / "hooks/run"), "session-start"], env=env, capture_output=True, text=True)
+        out = subprocess.run([git_bash(), str(b / "hooks/run"), "session-start"], env=env, capture_output=True, text=True)
         self.assertIn("is on and writable", out.stdout, out.stderr)
 
 
@@ -950,7 +976,7 @@ class MemoryHookTest(BindleTest):
         self.run_cli("attach", b, f, "--writable")
         out = self.run_hook(b, f)
         self.assertIn("Notes for this domain are in", out)
-        self.assertIn("notes/README.md", out)
+        self.assertIn(str(Path("notes") / "README.md"), out)
         g = self.folder("elsewhere")
         self.run_cli("attach", b, g)
         self.assertNotIn("Notes for this domain", self.run_hook(b, g))
