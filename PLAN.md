@@ -4,7 +4,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 
 ## Where it stands (2026-11-21, v0.5.1)
 
-- **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 101 unit tests in CI (macOS and Linux) plus an end-to-end test against real Claude Code.
+- **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 104 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on two machines:** a personal laptop with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git.
 - **Docs:** README (usage), docs/design.md (design), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents), CHANGELOG.md.
 
