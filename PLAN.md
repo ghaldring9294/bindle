@@ -30,6 +30,20 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - **Toggling happens per launch folder,** not mid-session. A folder (a domain root, such as `~/acme`) attaches bindles in its `.claude/settings.local.json`. Switching clients means launching from another folder, which also separates session lists and permissions. That's a feature: the boundary is the folder.
 - **Every attached bindle is on; exactly one is writable.** Attaching a bindle to a folder (once, with `bindle attach <bindle> <folder>`) turns it on whenever Claude launches from that folder: its skills, hooks and memory all load. The **writable** bindle is the one new memories are written to, and its notes and rules are this folder's. The others are read-only there. At `~/acme`, both bindles are on and Acme is writable; in personal projects, personal is writable.
 - **One writable memory per session enforces the boundary.** A work session can't write into the personal repo. Craft moves between bindles only through promotion.
+- **Every bindle has two properties** (decided 2026-11-21; not built yet), set in `bindle.json`:
+  - **`audience`**: `private` (one person or one domain), `shared` (named people), or `public`. Sets the leak check's strictness when promoting into it: `shared` and `public` also check the promoter's personal terms, not just the source domain's. Visibility itself is the git host's setting.
+  - **`writes`**: `implicit` (can be a folder's writable bindle: sessions save memories into it and sync pushes them) or `explicit` (only `bindle collect` puts anything in; `attach` refuses `--writable`).
+
+  | Bindle | audience | writes |
+  |---|---|---|
+  | Personal | private | implicit |
+  | A work or client domain | private | implicit |
+  | Craft (finished skills, hooks, workflows) | shared now, public later | explicit |
+  | A project setup shared with a collaborator | shared | implicit |
+
+  **Sharing craft is just a craft bindle.** Every bindle is already a valid one-plugin marketplace, so anyone with access installs it with `/plugin marketplace add <git url>`, no bindle needed; you attach it like any other bindle. It starts as one plugin (`craft:<name>`) and can split later. Promotion into it moves skills, commands and hooks as well as memories (same outbox and `collect`; the one real extension). A skill is moved, not copied, so each has one home. Mechanisms are craft (e.g. the goal loop's hooks and check runner); the checks themselves stay in their repo or domain.
+
+  **A shared implicit bindle** is team memory: both people's sessions write to it and sync merges by rebase (separate files merge cleanly; a real conflict stops). Open: conventions for whose memory is whose, and editing shared notes.
 - **Promotion goes through an outbox, and can happen in one session** (decided 2026-11-21). The boundary protects one thing: nothing reaches another bindle unless the person reviewed it and it's general. The gate is the write, and the write is code.
   1. **Prepare (judgment, reviewed).** In the source domain's session, `bindle:promote` drafts a general rewrite of a `boundary: craft | both` memory and runs a **leak check**: a deterministic scan against a list of the domain's own terms (repo names, ticket prefixes, product names), kept in that domain's bindle. The person approves the wording; approved rewrites go to the source bindle's `outbox/`. Optional second opinion: a subagent given only the drafted text (no domain context) flags anything that looks organization-specific, reading it as an outsider would.
   2. **Collect (no judgment).** `bindle collect <source> --into <target>` is a CLI command, so Claude Code asks the person's permission each run. It reruns the leak check, copies only approved outbox items into the target's memory, updates its index, marks them collected, and lets sync push. It can run in the same session as step 1, or later from the target's own folder; it can sweep several bindles' outboxes, since they hold only reviewed, general text.
@@ -168,3 +182,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** memory sync: session hooks in each bindle (pull at start, commit `memory/` and push at end, secret check), `bindle sync`, `bindle new --sync`. Personal on sync. Tests: 31 unit, end to end with real Claude Code.
 - **2026-11-21:** promotion design: a two-step outbox (prepare in the source domain, collect in the target); never read across bindles' memories. Proposed deny rules for read-only bindles.
 - **2026-11-21:** promotion can happen in one session: prepare into the source's outbox with a leak check, then `bindle collect` (code, permission-gated) writes into the target. Read-only bindles locked by deny rules (decided, not built). Subagents only as an optional outsider reviewer, never as the writer.
+- **2026-11-21:** every bindle has `audience` (private, shared, public) and `writes` (implicit, explicit). Sharing craft is a craft bindle (shared, explicit), installable without bindle; shared implicit bindles are team memory.
