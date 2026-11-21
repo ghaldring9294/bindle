@@ -1,169 +1,39 @@
 # bindle
 
-A **file-based, git-portable, agentic-retrieval RAG system** for Claude Code. Clone it on any
-machine, run the installer, and your conventions and context architecture follow you — while
-Bindle manages the private *layer* repos that carry your craft and memory.
+Carry your Claude Code setup (skills, hooks, memory, notes) between machines, while keeping each domain's context in its own place.
 
-Bindle is the **orchestrator**: install it once, and it scaffolds and manages your **private
-layer repos** — a personal layer plus one professional layer per employer/client — so every
-piece of craft and memory is born in the right place. The layers are separate private repos;
-nothing employer-specific ever lives in this public base. (Already have a tangled `~/.claude`?
-Migration below is a one-time on-ramp; new work is born clean.)
+- **A bindle** is one domain's layer: a git repo shaped as a Claude Code plugin, with its own `memory/`, `notes/` and `rules.md`. Your personal bindle is just the one that's yours; an employer or each client gets their own, on their own git.
+- **Folders turn bindles on.** Attach bindles to the folder you launch Claude from. Every attached bindle is on there (its skills, hooks and memory load), and **one is writable**: new memories land in its `memory/`. A work session can't write into your personal bindle.
+- **Craft moves deliberately.** A lesson learned in one domain reaches another only through promotion, rewritten without the specifics.
 
-## What Bindle is
+It uses Claude Code's own mechanisms: plugins for tooling, `autoMemoryDirectory` for memory, a SessionStart hook for read-only memory. See [PLAN.md](PLAN.md) for the design and what was verified.
 
-Every word in that one-liner is load-bearing:
-
-- **RAG (retrieval-augmented generation).** A model's weights are frozen; the only lever you have
-  at inference is *what goes into its context window, and when*. Everything else — `CLAUDE.md`,
-  memory files, docs — is content you retrieve into that window. Bindle is the discipline for
-  curating that retrieval: keep the always-loaded layer tiny, and page in the rest on demand.
-- **Agentic-retrieval.** Retrieval is driven by *the agent reading an index and choosing what to
-  open*. `MEMORY.md` and `docs/index.md` are tables of contents; Claude scans them and `Read`s only
-  what's relevant. No vector database, no embedding search, no similarity score — the model
-  navigates, the way you would.
-- **File-based.** The corpus is plain Markdown you can read, `grep`, diff, and edit by hand. No
-  service to run, no index to rebuild, no infra to operate. `ls memory/feedback/` shows you every
-  behavioral rule Claude has learned.
-- **git-portable.** Because it's just files, git moves it — across your machines, and (via separate
-  *layer* repos) across trust boundaries. Your craft travels with you; employer context stays where
-  it belongs. A wrong `git push` structurally cannot cross a domain, because the domains are
-  different repos.
-
-### What it is *not*
-
-Bindle does not compete with memory *infrastructure* — vector/graph stores like Mem0, Zep, or
-Cognee wired in over MCP. Those win on recall accuracy and scale, but they're **employer-bound and
-non-portable**: you can't `git clone` your company's memory service to your next job. Bindle
-optimizes for the opposite property — **portable craft that crosses the boundary with the person.**
-The two compose: an infra server can be the retrieval *engine* at work, while Bindle governs *where
-memory lives, its format, and the trust boundary*. Borrow patterns from that world; keep the
-substrate files.
-
-## Quick start
-
-```bash
-git clone <this-repo> ~/bindle
-cd ~/bindle
-./bin/install.sh                              # once: links base config + puts `bindle` on your PATH
-bindle init-layer acme --scope professional   # scaffold a secure domain layer (its own private repo)
-bindle init-project ~/code/some-repo          # link a project to your context
-```
-
-Machine-specific settings go in `~/.claude/settings.local.json` (created by the
-installer, never committed here).
-
-## The methodology: context is a database problem
-
-If RAG is *what* Bindle is, this is *how* it keeps the retrieved context small and cheap.
-Claude Code's context window is a scarce, priced resource. Treat it like one.
-This setup applies database engineering to agent context:
-
-| Database concept | Context equivalent |
-|---|---|
-| Index | `docs/index.md` — one line per doc; agent scans 30 lines instead of grepping |
-| Materialized view | `architecture.md`, mermaid ERDs — maintained summaries, refreshed on change |
-| Query planner | Tier rules in CLAUDE.md — read cheap maps first, open source files surgically |
-| Cache invalidation | Stable/volatile split — prompt caching rewards unchanged prefixes |
-| Append-only log | Ticket decision logs — append, don't rewrite, so the prefix stays cached |
-
-### The tiers
-
-- **Tier 0 — Index.** `docs/index.md`: table of contents for all project docs.
-- **Tier 1 — Summaries.** `architecture.md` (stable: data model mermaid, conventions,
-  system boundaries), module one-pagers, ticket TL;DRs.
-- **Tier 2 — Source.** Opened only after tiers 0–1 say where to look.
-
-### Cache-aware rules
-
-1. **Stable before volatile.** Architecture docs change rarely → load early, stay cached.
-   Ticket files churn → load late. The always-loaded layer (the `CLAUDE.md` `@import` chain)
-   is the highest-value cache surface — never interpolate dynamic values (dates, IDs, counts)
-   into it, or the whole session's cached prefix invalidates.
-2. **Append, don't rewrite.** Ticket updates go to the end of a `## Decision log`
-   section. Editing the top of a file invalidates everything after it.
-3. **Measure everything.** Optimizations without numbers are vibes. Pair this with a
-   per-session cost ledger — the companion [`claude-cost-ledger`](https://github.com/ghaldring9294/claude-cost-ledger)
-   repo is a drop-in `Stop` hook that writes one row per session to `claude-costs.md`.
-
-## Layout
+## Install
 
 ```
-global/          → CLAUDE.md, settings.json, the /bindle command — symlinked into ~/.claude
-templates/       → tiered doc templates dropped into projects by init-project.sh
-bin/             → bindle (front-door dispatcher), install.sh, init-layer.sh, init-project.sh
-MIGRATION.md     → instructions for Claude Code to migrate an existing setup into this structure
+git clone git@github.com:ghaldring9294/bindle.git
+bindle/bin/bindle install        # links bindle into ~/.local/bin
 ```
 
-## What's optional (and what isn't)
+Requires Claude Code v2.1.74+, git and Python 3.9+.
 
-Two kinds of thing live here, and they aren't equal:
+## Use
 
-- **Boundaries are the frame — mandatory and structural.** The trust-domain separation,
-  the `.claude-local` privacy convention, and the craft/context split are the *point* of
-  the toolkit. Don't remove them.
-- **Opinionated *craft* lives in a layer, not here.** Base ships **no user craft** — commands, agents,
-  and skills are farmed into `~/.claude` by a layer's own installer (personal or professional). (The one
-  command base ships is its own `/bindle` front-door — the orchestrator operating itself, not craft.) The
-  `/ticket` workflow moved to the personal layer; cost tracking and the statusline became their own repos.
-  Base stays opinion-free except for conventions anchored to a Claude-native default (memory taxonomy,
-  tiered retrieval).
-- **Conventions are format, not features.** Tiered retrieval and the memory taxonomy are how context is
-  shaped for transport; they're base because a shared format is what makes transported context portable.
-
-There's no plugin system: the substrate is files, so "add a feature" means keep its files and
-"remove it" means delete them. Keep what you use.
-
-| Convention | Lives in | Opt out by |
-|---|---|---|
-| Tiered retrieval | tier rules in `global/CLAUDE.md`, `templates/docs-index.md` + `architecture.md` | stop maintaining `docs/index.md` |
-| Memory taxonomy | `templates/memory-taxonomy.md` + the *Memory taxonomy* section of `global/CLAUDE.md` | organize memory however you like |
-
-## Personal per-project context (`.claude-local/`)
-
-Team repos stay pristine. Personal context lives in `.claude-local/`, which is:
-
-- ignored **globally** via `git config core.excludesFile` (no team .gitignore edits)
-- a **symlink** into a professional layer's `projects/<name>/`, so it's versioned and portable
-- taught to Claude via the global CLAUDE.md: read it first, never reference it in
-  code, commits, or PR descriptions
-
-## Security boundaries
-
-- No secrets in this repo. Ever. Machine/auth specifics live in `settings.local.json`.
-- Employer/project knowledge lives in a **professional layer** repo (private), not here.
-- Keep separate layer repos per trust domain (personal vs. each employer/client) so a wrong
-  `git push` can't cross the boundary.
-
-## Layers, and migrating into them
-
-Craft and memory live in **layer** repos, scaffolded with `bin/init-layer.sh` — each its own
-private git repo, stored locally or on the appropriate (personal vs. company) git host:
-
-- **personal** — cross-domain craft; loads on every machine (always-on). This is what you carry
-  between your own machines, or onto a work box.
-- **professional** — a secure employer/client domain; loads only inside that domain's projects
-  (scoped). One per company; never overlaps personal or another professional layer.
-
-### Migrating an existing setup
-
-Most people adopting bindle start where its author did: a **mixed** `~/.claude` — personal craft and
-employer/client context tangled together. The recommended path for that (the common case):
-
-1. **Create the professional (secure) layer and migrate everything into it:**
-   `init-layer <company> --scope professional --from ~/.claude/projects/<slug>/memory`. Everything
-   lands in that layer's `memory/_incoming/` for sorting — secure-by-default, nothing leaks to a
-   broader layer by omission.
-2. **Promote genuinely cross-domain craft into a personal layer, piece by piece** — each move a
-   deliberate "yes, this is safe to carry everywhere."
-
-Already have *clean, personal-only* craft — e.g. carrying it between your own machines or onto a work
-box? Skip step 1 and migrate straight into a **personal** layer; that's exactly what it's for.
-
-```bash
-./bin/init-layer.sh acme --scope professional --from ~/.claude/projects/<slug>/memory   # common: mixed → secure first
-./bin/init-layer.sh me   --scope personal                                               # then promote cross-domain craft
+```
+bindle new acme --at ~/acme/.bindle          # create a bindle (no remote is set)
+bindle attach ~/acme/.bindle ~/acme --writable
+bindle attach ~/bindle-personal ~/acme       # personal on too, read-only
+bindle doctor ~/acme
+bindle detach personal ~/acme
 ```
 
-Either way, `init-layer --from` **warns and asks you to confirm before copying** — the destination is
-a trust decision, and nothing is copied until you confirm.
+On a new machine: clone your bindles, then run `attach` once per folder.
+
+Migrating an existing setup: open Claude Code and say "Read MIGRATION.md in the bindle repo and migrate my setup."
+
+## Tests
+
+```
+python3 -m unittest discover -s tests   # fast, uses a fake claude
+tests/e2e.sh                            # real Claude Code in a scratch folder (two short sessions)
+```

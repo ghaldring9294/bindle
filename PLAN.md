@@ -2,12 +2,11 @@
 
 Where bindle stands, what's decided, and what's open. Update this when a decision changes; append to the log at the bottom.
 
-## Where it stopped (July 2026)
+## Where it stands (2026-11-21)
 
-- **Base (this repo):** installer, the `bindle` CLI (`init-layer`, `init-project`), tiered retrieval and the memory taxonomy. Largely done.
-- **Personal layer (`bindle-personal`):** scaffolded, with an overlay installer and the `/ticket` workflow. `skills/` and `agents/` are empty.
-- **Professional layers:** designed (`init-layer <name> --scope professional`), never created for a real employer.
-- **Not installed** on the main work machine; `~/.claude` there is still the "mixed" setup MIGRATION.md describes.
+- **Base (this repo):** the `bindle` CLI in Python (standard library, 3.9+): `install`, `new`, `attach`, `detach`, `doctor`. A bindle template in `templates/bindle/`. 22 unit tests with a fake `claude`, plus `tests/e2e.sh` against the real CLI (passed: read-only personal memory and skill visible in a work folder, new memories written to the writable bindle only, gone after detach). July's `init-layer`, `init-project`, overlay installer, global CLAUDE.md/settings and memory taxonomy are removed (git history keeps them).
+- **Personal (`bindle-personal`):** in the bindle layout, matching the template; `doc-style` skill and `/ticket` command. Memory empty until migration.
+- **Not attached anywhere yet.** First real test: the personal laptop (clone both, `bindle install`, attach personal to a folder). The Acme bindle waits for a new work laptop.
 
 ## Goal
 
@@ -31,6 +30,15 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - **Toggling happens per launch folder,** not mid-session. A folder (a domain root, such as `~/acme`) attaches bindles in its `.claude/settings.local.json`. Switching clients means launching from another folder, which also separates session lists and permissions. That's a feature: the boundary is the folder.
 - **Every attached bindle is on; exactly one is writable.** Attaching a bindle to a folder (once, with `bindle attach <bindle> <folder>`) turns it on whenever Claude launches from that folder: its skills, hooks and memory all load. The **writable** bindle is the one new memories are written to, and its notes and rules are this folder's. The others are read-only there. At `~/acme`, both bindles are on and Acme is writable; in personal projects, personal is writable.
 - **One writable memory per session enforces the boundary.** A work session can't write into the personal repo. Craft moves between bindles only through promotion: a reviewed step, run from a folder where the *target* bindle is writable, that reads the source's `boundary: craft | both` memories and proposes general rewrites one by one. It's a skill (`bindle:promote`), with the CLI for the deterministic parts.
+
+### Build decisions (2026-11-21)
+
+- **A bindle is marked by `bindle.json`** (`name`, `layout`), so tools can tell a bindle from any other plugin and migrate old layouts later.
+- **Each bindle carries its own copy of the managed files** (`hooks/print-memory.sh`, `hooks/hooks.json`), byte-identical to the base template, so a bindle works on a machine without the base. `bindle doctor` flags a copy that drifted.
+- **A local plugin runs in place:** `CLAUDE_PLUGIN_ROOT` is the bindle's own folder, not a cache (verified), so edits take effect at the next session and the hook can compare paths directly.
+- **`detach` leaves the marketplace declared** in the folder's settings; removing a marketplace in Claude Code is machine-wide and would break other folders.
+- **`attach` refuses a folder inside another git repo**, since Claude Code would write the settings at that repo's root.
+- **`install` only links** the CLI onto PATH and `/bindle` into `~/.claude/commands`. bindle never takes over `~/.claude`'s settings or CLAUDE.md.
 
 ### How each part loads (verified 2026-11-21, Claude Code v2.1.329)
 
@@ -128,9 +136,10 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 
 1. ~~Answer the memory transport question.~~ Done 2026-11-21 (spike).
 2. Settle the open design points in "The model" (rules loading interactively, the read-only memory cap, where bindles live).
-3. Reshape `bindle-personal` into the bindle layout (plugin manifest, `memory/`, `rules.md`); write the first skills there.
-4. Base CLI: `new`, `attach` (on, or on and writable), `doctor` (what's active here, where memory lands), then the `promote` skill.
-5. Create the Acme bindle locally and migrate secure-first; push to the work org later.
+3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
+4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. Still to build: the `promote` skill, and the `~/bindles/` collective view.
+4a. **Test on the personal laptop:** clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
+5. Create the Acme bindle and migrate secure-first: on the next work laptop (no rush on this one).
 6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
    - **Employee:** personal and Acme both on at `~/acme`, Acme writable.
    - **Freelancer:** clients Acme and Globex in separate folders. Personal is on in both, the client is writable, and switching clients means launching from the other folder.
@@ -148,3 +157,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** one model for all bindles (personal is just mine), attached per folder as home (one, writable memory) or companion (tooling plus read-only memory); promotion as a skill. Spike on v2.1.329 confirmed `autoMemoryDirectory` in local settings, plugin skills and hooks enabled per folder, and companion memory via the plugin's SessionStart hook (10k-character cap). External `@imports` from a project CLAUDE.md didn't load headless; recheck interactively.
 - **2026-11-21:** renamed home/companion to on/writable: every attached bindle is on, one is writable. Attach per folder rather than user scope, so a bindle can be off in a folder that doesn't want it.
 - **2026-11-21:** reshaped `bindle-personal` into the bindle layout (plugin, memory hook, `rules.md`). Reviewed July's PROJECT.md (archived locally): adopted git-remote identity, code-enforced boundary guards, skill addendums, freshness stamps and the native memory format; left the A/B behind.
+- **2026-11-21:** built the CLI (`install`, `new`, `attach`, `detach`, `doctor`) and the bindle template; removed July's commands and templates; personal brought in line with the template. Unit and end-to-end tests pass.

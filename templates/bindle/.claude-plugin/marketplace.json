@@ -1,0 +1,8 @@
+{
+  "name": "bindle-{{name}}",
+  "description": "The {{name}} bindle as a single-plugin marketplace.",
+  "owner": { "name": "{{name}}" },
+  "plugins": [
+    { "name": "{{name}}", "source": "./", "description": "The {{name}} bindle." }
+  ]
+}

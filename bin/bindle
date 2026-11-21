@@ -1,41 +1,327 @@
-#!/usr/bin/env bash
-# bindle — the orchestrator's front door. Thin router over the bin/*.sh scripts,
-# so `bindle <command>` works from anywhere once it's symlinked onto PATH.
-set -euo pipefail
+#!/usr/bin/env python3
+"""bindle: create bindles and turn them on for folders.
 
-# Resolve this script through any symlinks to find the repo's bin/ (portable — no `readlink -f`).
-src="${BASH_SOURCE[0]}"
-while [ -L "$src" ]; do
-  dir="$(cd -P "$(dirname "$src")" && pwd)"
-  src="$(readlink "$src")"
-  case "$src" in /*) ;; *) src="$dir/$src" ;; esac
-done
-BIN="$(cd -P "$(dirname "$src")" && pwd)"
+A bindle is one domain's layer (skills, hooks, memory, notes) in its own git repo, shaped as a
+Claude Code plugin. A folder turns bindles on in its .claude/settings.local.json: every attached
+bindle is on there, and at most one is writable (new memories land in its memory/ folder).
+See PLAN.md. Standard library only; runs on Python 3.9+.
+"""
+import argparse
+import filecmp
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
 
-usage() {
-  cat <<'EOF'
-bindle — portable Claude Code orchestrator
+BASE = Path(os.path.realpath(__file__)).parent.parent
+TEMPLATE = BASE / "templates" / "bindle"
+LAYOUT = 1
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
+MANAGED = ["hooks/print-memory.sh", "hooks/hooks.json"]
 
-Usage: bindle <command> [args]
 
-Commands:
-  install                 Link base config into ~/.claude (run once per machine)
-  init-layer <name> --scope personal|professional [--label ..] [--dir ..] [--from <mem>] [--yes]
-                          Scaffold a private layer repo (personal = always-on; professional = scoped/secure)
-  init-project <repo> [--local <name>]
-                          Link a project to your context (docs scaffold, or .claude-local -> a layer)
-  help                    Show this
+class BindleError(Exception):
+    pass
 
-Layers are separate private repos created LOCALLY — you point them at remotes yourself
-(professional layers: local, or an approved secure host only). See README + MIGRATION.md.
-EOF
-}
 
-cmd="${1:-help}"; [ $# -gt 0 ] && shift || true
-case "$cmd" in
-  install)         exec "$BIN/install.sh" "$@" ;;
-  init-layer)      exec "$BIN/init-layer.sh" "$@" ;;
-  init-project)    exec "$BIN/init-project.sh" "$@" ;;
-  help|-h|--help)  usage ;;
-  *) echo "bindle: unknown command '$cmd'" >&2; echo >&2; usage >&2; exit 1 ;;
-esac
+# ---------- helpers ----------
+
+def read_json(path):
+    path = Path(path)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text() or "{}")
+    except json.JSONDecodeError as e:
+        raise BindleError(f"{path} isn't valid JSON ({e}); fix it by hand first.")
+
+
+def write_json(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2) + "\n")
+
+
+def real(path):
+    return Path(os.path.realpath(os.path.expanduser(str(path))))
+
+
+def settings_path(folder):
+    return Path(folder) / ".claude" / "settings.local.json"
+
+
+def load_bindle(path):
+    """The bindle at path: its name, marketplace name and paths. Raises if path isn't a bindle."""
+    root = real(path)
+    meta = read_json(root / "bindle.json")
+    if not meta.get("name"):
+        raise BindleError(f"{root} isn't a bindle (no bindle.json with a name).")
+    market = read_json(root / ".claude-plugin" / "marketplace.json").get("name")
+    if not market:
+        raise BindleError(f"{root} has no .claude-plugin/marketplace.json name.")
+    return {"name": meta["name"], "market": market, "root": root, "memory": root / "memory",
+            "layout": meta.get("layout")}
+
+
+def git(folder, *args):
+    r = subprocess.run(["git", "-C", str(folder), *args], capture_output=True, text=True)
+    return r.stdout.strip() if r.returncode == 0 else None
+
+
+def check_folder(folder):
+    """Claude Code reads settings.local.json at the git repo root, so a folder inside a repo it
+    isn't the root of would get its settings written somewhere else."""
+    folder = real(folder)
+    if not folder.is_dir():
+        raise BindleError(f"{folder} isn't a folder.")
+    top = git(folder, "rev-parse", "--show-toplevel")
+    if top and real(top) != folder:
+        raise BindleError(
+            f"{folder} is inside the git repo {top}. Claude Code reads settings at the repo root, "
+            f"so attach to {top} instead, or to a folder that isn't inside a repo.")
+    return folder
+
+
+def claude(folder, *args):
+    exe = os.environ.get("BINDLE_CLAUDE", "claude")
+    r = subprocess.run([exe, *args], cwd=str(folder), capture_output=True, text=True)
+    if r.returncode != 0:
+        raise BindleError(f"`claude {' '.join(args)}` failed:\n{(r.stderr or r.stdout).strip()}")
+    return r.stdout
+
+
+def plugin_id(b):
+    return f"{b['name']}@{b['market']}"
+
+
+# ---------- commands ----------
+
+def cmd_new(args):
+    name = args.name
+    if not NAME_RE.match(name):
+        raise BindleError("Name must be lowercase letters, digits and hyphens, e.g. acme or personal.")
+    dest = real(args.at) if args.at else Path.cwd() / ".bindle"
+    if dest.exists() and any(dest.iterdir()):
+        raise BindleError(f"{dest} already exists and isn't empty.")
+
+    for src in sorted(TEMPLATE.rglob("*")):
+        rel = src.relative_to(TEMPLATE)
+        out = dest / rel
+        if src.is_dir():
+            out.mkdir(parents=True, exist_ok=True)
+            continue
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if str(rel) in MANAGED:
+            shutil.copy2(src, out)  # managed files stay byte-identical to the template
+        else:
+            out.write_text(src.read_text().replace("{{name}}", name))
+            shutil.copymode(src, out)
+
+    git(dest, "init", "-q")
+    git(dest, "add", "-A")
+    committed = git(dest, "commit", "-q", "-m", f"Create the {name} bindle") is not None
+    print(f"Created the {name} bindle at {dest}")
+    print("  committed" if committed else "  files staged, not committed (no git identity here)")
+    print("  no remote set: push it to the domain's own git host when you're ready")
+    print(f"Turn it on for a folder: bindle attach {dest} <folder> [--writable]")
+
+
+def cmd_attach(args):
+    b = load_bindle(args.bindle)
+    folder = check_folder(args.folder or Path.cwd())
+    sp = settings_path(folder)
+    settings = read_json(sp)
+
+    if args.writable:
+        current = settings.get("autoMemoryDirectory")
+        if current and real(current) != real(b["memory"]):
+            raise BindleError(
+                f"{folder} already writes memories to {current}. A folder has one writable bindle: "
+                f"detach that one first, or attach {b['name']} without --writable.")
+
+    if b["market"] not in settings.get("extraKnownMarketplaces", {}):
+        claude(folder, "plugin", "marketplace", "add", str(b["root"]), "--scope", "local")
+    if not read_json(sp).get("enabledPlugins", {}).get(plugin_id(b)):
+        claude(folder, "plugin", "install", plugin_id(b), "--scope", "local")
+
+    if args.writable:
+        settings = read_json(sp)  # claude rewrote it
+        settings["autoMemoryDirectory"] = str(b["memory"])
+        write_json(sp, settings)
+        b["memory"].mkdir(exist_ok=True)
+
+    print(f"{b['name']} is on in {folder}" + (", and writable" if args.writable else ""))
+    print("Takes effect in the next session started from that folder.")
+
+
+def cmd_detach(args):
+    folder = check_folder(args.folder or Path.cwd())
+    sp = settings_path(folder)
+    settings = read_json(sp)
+    b = find_attached(settings, args.bindle)
+
+    if settings.get("enabledPlugins", {}).get(plugin_id(b)):
+        claude(folder, "plugin", "uninstall", plugin_id(b), "--scope", "local")
+    # The marketplace declaration stays: removing a marketplace is machine-wide in Claude Code.
+    settings = read_json(sp)
+    current = settings.get("autoMemoryDirectory")
+    if current and real(current) == real(b["memory"]):
+        del settings["autoMemoryDirectory"]
+        write_json(sp, settings)
+        print(f"{folder} no longer writes memories to {b['name']}; it uses Claude Code's default memory folder.")
+    print(f"{b['name']} is off in {folder}.")
+
+
+def find_attached(settings, ref):
+    """A bindle given by path, or by name among the bindles this folder declares."""
+    if Path(os.path.expanduser(ref)).exists():
+        return load_bindle(ref)
+    for b in declared_bindles(settings):
+        if b["name"] == ref:
+            return b
+    raise BindleError(f"No bindle named {ref} is attached here; pass its path instead.")
+
+
+def declared_bindles(settings):
+    out = []
+    for market, entry in settings.get("extraKnownMarketplaces", {}).items():
+        source = entry.get("source", {})
+        if source.get("source") != "directory" or not source.get("path"):
+            continue
+        try:
+            b = load_bindle(source["path"])
+        except BindleError:
+            continue
+        if b["market"] == market:
+            out.append(b)
+    return out
+
+
+def cmd_doctor(args):
+    folder = real(args.folder or Path.cwd())
+    problems = []
+    print(f"Folder: {folder}")
+
+    top = git(folder, "rev-parse", "--show-toplevel")
+    if top and real(top) != folder:
+        problems.append(f"inside the git repo {top}: Claude Code reads settings from there, not here")
+
+    settings = read_json(settings_path(folder))
+    enabled = settings.get("enabledPlugins", {})
+    memory_dir = settings.get("autoMemoryDirectory")
+    bindles = declared_bindles(settings)
+    writable = None
+
+    if not bindles:
+        print("  No bindles attached.")
+    for b in bindles:
+        on = bool(enabled.get(plugin_id(b)))
+        is_writable = bool(memory_dir) and real(memory_dir) == real(b["memory"])
+        writable = b if is_writable else writable
+        state = ("on, writable" if is_writable else "on") if on else "off (declared, not enabled)"
+        if is_writable and not on:
+            problems.append(f"{b['name']} is writable but its plugin isn't enabled")
+        memories = len([p for p in b["memory"].glob("*.md") if p.name != "MEMORY.md"]) if b["memory"].is_dir() else 0
+        print(f"  {b['name']}: {state}")
+        print(f"    {b['root']}  ({memories} memories)")
+        for line in git_health(b["root"]):
+            print(f"    {line}")
+        for rel in MANAGED:
+            copy = b["root"] / rel
+            if not copy.exists():
+                problems.append(f"{b['name']}: {rel} is missing")
+            elif not filecmp.cmp(copy, TEMPLATE / rel, shallow=False):
+                problems.append(f"{b['name']}: {rel} differs from bindle's template")
+        if b["layout"] != LAYOUT:
+            problems.append(f"{b['name']}: layout {b['layout']}, this bindle expects {LAYOUT}")
+
+    if memory_dir and not writable:
+        print(f"  Memory: {memory_dir} (not a bindle attached here)")
+    elif not memory_dir:
+        print("  Memory: Claude Code's default folder (no writable bindle)")
+
+    if problems:
+        print("Problems:")
+        for p in problems:
+            print(f"  - {p}")
+        return 1
+    print("No problems found.")
+    return 0
+
+
+def git_health(root):
+    if git(root, "rev-parse", "--git-dir") is None:
+        return ["not a git repo"]
+    lines = []
+    dirty = git(root, "status", "--porcelain") or ""
+    if dirty:
+        lines.append(f"{len(dirty.splitlines())} uncommitted change(s)")
+    if not git(root, "remote"):
+        lines.append("no remote (local only)")
+    else:
+        ahead = git(root, "rev-list", "--count", "@{upstream}..HEAD")
+        if ahead and ahead != "0":
+            lines.append(f"{ahead} commit(s) not pushed")
+    return lines
+
+
+def cmd_install(args):
+    """Puts the bindle command on PATH and links its /bindle command into ~/.claude. Nothing else:
+    bindle never takes over ~/.claude's settings or CLAUDE.md."""
+    bindir = Path.home() / ".local" / "bin"
+    links = [(bindir / "bindle", BASE / "bin" / "bindle"),
+             (Path.home() / ".claude" / "commands" / "bindle.md", BASE / "global" / "commands" / "bindle.md")]
+    for link, target in links:
+        if link.exists() and not link.is_symlink():
+            raise BindleError(f"{link} exists and isn't a symlink; move it aside first.")
+    for link, target in links:
+        link.parent.mkdir(parents=True, exist_ok=True)
+        if link.is_symlink():
+            link.unlink()
+        link.symlink_to(target)
+        print(f"Linked {link} -> {target}")
+    if str(bindir) not in os.environ.get("PATH", "").split(os.pathsep):
+        print(f'Add {bindir} to PATH: export PATH="$HOME/.local/bin:$PATH"')
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(prog="bindle", description="Create bindles and turn them on for folders.")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("install", help="link bindle onto PATH and /bindle into ~/.claude/commands")
+    s.set_defaults(fn=cmd_install)
+
+    s = sub.add_parser("new", help="create a bindle repo")
+    s.add_argument("name")
+    s.add_argument("--at", help="where to create it (default: ./.bindle)")
+    s.set_defaults(fn=cmd_new)
+
+    s = sub.add_parser("attach", help="turn a bindle on for a folder")
+    s.add_argument("bindle", help="path to the bindle")
+    s.add_argument("folder", nargs="?", help="default: the current folder")
+    s.add_argument("--writable", action="store_true", help="new memories in this folder go to this bindle")
+    s.set_defaults(fn=cmd_attach)
+
+    s = sub.add_parser("detach", help="turn a bindle off for a folder")
+    s.add_argument("bindle", help="its name or path")
+    s.add_argument("folder", nargs="?", help="default: the current folder")
+    s.set_defaults(fn=cmd_detach)
+
+    s = sub.add_parser("doctor", help="show what's on in a folder and any problems")
+    s.add_argument("folder", nargs="?", help="default: the current folder")
+    s.set_defaults(fn=cmd_doctor)
+
+    args = p.parse_args(argv)
+    try:
+        return args.fn(args) or 0
+    except BindleError as e:
+        print(f"bindle: {e}", file=sys.stderr)
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
