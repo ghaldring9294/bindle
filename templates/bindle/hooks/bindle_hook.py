@@ -277,7 +277,13 @@ def main(argv):
     command = argv[1] if len(argv) > 1 else ""
     try:
         if command == "session-start":
-            changed_code = sync_pull(root, Log(root)) if sync_enabled(root) else []
+            changed_code = []
+            if sync_enabled(root):
+                if writable_here(root, project_dir):
+                    # A session that ended without SessionEnd (a closed app, a killed terminal) leaves memories
+                    # uncommitted; commit and push them before anything else.
+                    sync_push(root, Log(root))
+                changed_code = sync_pull(root, Log(root))
             if changed_code:
                 print(f"Warning: bindle {bindle_name(root)} just pulled changes to files that run code on this machine "
                       f"({', '.join(changed_code)}). They take effect from the next session. Tell the person, so they "

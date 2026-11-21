@@ -47,7 +47,7 @@ bindle/bin/bindle install
 
 ## Quick start
 
-Create a personal bindle and turn it on for the folder you keep side projects in.
+Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works.
 
 1. **Create the bindle.** It's a local git repo; bindle never sets a remote.
    ```
@@ -251,7 +251,8 @@ Start with `bindle doctor <folder>`; it explains most problems and prints the fi
 |---|---|
 | `doctor` says nothing is at a bindle's path | The bindle moved. Attach it again from its new path. |
 | A skill shows up twice | An old copy is still in `~/.claude/skills/`. Remove it; the bindle provides it now. |
-| Memories didn't reach the other machine | The session end may have been skipped (a killed terminal); the next session start pushes it. Check `.git/bindle-sync.log` in the bindle, or run `bindle sync`. |
+| Memories didn't reach the other machine | Closing the app or killing the terminal can skip the end-of-session sync; the next session start in that folder commits and pushes them. `bindle sync` does it now. `doctor` shows the last sync result. |
+| Sync says "push failed" | Usually credentials. With two GitHub accounts on one machine (say work and personal), the credential manager may offer the wrong one. Put the account in the remote URL so git asks for it once and remembers it per repo: `git -C <bindle> remote set-url origin https://<user>@github.com/<user>/<repo>.git`, then `git -C <bindle> push` by hand. Over SSH, use a host alias per account. |
 | Sync refused to commit | A memory looks like it holds a credential. `doctor` names the file; remove the secret. |
 | "attach refuses a folder inside a git repo" | Claude Code reads settings at the repo root. Attach the repo root, or a folder that isn't inside a repo. |
 | "read-only but not locked" | The bindle was attached before locks existed. Run the same `bindle attach` again. |

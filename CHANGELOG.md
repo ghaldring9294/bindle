@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.6.1 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/bindle_hook.py`); for a bindle that's read-only where it's attached, run it yourself.
+
+- Session start in the writable bindle commits and pushes memories a previous session left uncommitted. Closing the Claude app can skip SessionEnd (seen on Windows), so this no longer leaves memories behind.
+- README: troubleshooting for two GitHub accounts on one machine.
+
 ## 0.6.0 (2026-11-21)
 
 **Run `bindle upgrade`** (new managed `hooks/run`, changed `hooks/hooks.json`, `.gitattributes` gains an LF rule); for a bindle that's read-only where it's attached, run it yourself. Windows support.

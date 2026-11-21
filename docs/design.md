@@ -77,7 +77,7 @@ A plugin installed from a local directory runs in place: `CLAUDE_PLUGIN_ROOT` is
 ## Memory and sync
 
 **Sync** is opt-in per bindle (`"sync": true`) and lives in the bindle's own hooks, so it works on any machine where the bindle is attached, with or without the bindle tool installed.
-- **Session start:** pull with fast-forward only, after pushing commits an earlier session left behind (a killed terminal skips SessionEnd).
+- **Session start:** in the writable bindle, first commit and push memories an earlier session left (closing the app or killing a terminal can skip SessionEnd); then pull with fast-forward only.
 - **Session end, in the writable bindle only:** commit `memory/` and `outbox/`, rebase onto the remote and push. Without a remote it commits locally.
 - **Never blocks a session.** Failures go to the bindle's sync log (`git rev-parse --git-path bindle-sync.log`), and `doctor` reports what's waiting. Sync skips while a merge or rebase is in progress.
 - **Indexes merge by union.** Two machines adding memories both append to `MEMORY.md`; `.gitattributes` uses git's union driver for `memory/MEMORY.md` and `projects/*/index.md`, so both lines survive instead of stopping the rebase.
@@ -153,7 +153,7 @@ What bindle adds: the structure decides where things go (one repo per domain, on
 
 ## Open questions
 
-- **Windows, on a real machine.** CI passes on Windows (v0.6.0); still to confirm with Claude Code itself: hooks through Git Bash, `autoMemoryDirectory` with a `C:\\` path, and the `//c/` lock rule.
+- **Windows lock rule.** Windows is verified on a real PC (hooks, memory path, sync); the `//c/` lock rule hasn't been seen there yet, since it needs a read-only bindle.
 - **Per-repo notes loading automatically** (a repo's `CLAUDE.local.md` importing its `projects/<repo>/` index), with projects identified by their git remote rather than their path, so the same repo at a different path finds the same notes.
 - **Skill addendums:** how a domain's short addendum tailors a general skill from craft (a skill that references the base one, or a file the base skill looks for).
 - **More guardrails in the same spirit:** warn when a bindle's remote isn't on its domain's host; warn when a project's private files are committed to a team repo.

@@ -1126,6 +1126,13 @@ class SyncTest(BindleTest):
         self.hook(self.laptop, self.laptop_folder, "session-start.sh")
         self.assertIn("left behind", bindle.git(self.remote, "log", "--format=%s"))
 
+    # Closing the Claude app can skip SessionEnd; the next session start must not leave those memories behind.
+    def test_session_start_commits_memories_a_skipped_session_end_left(self):
+        (self.laptop / "memory/loose.md").write_text("written, never committed\n")
+        self.hook(self.laptop, self.laptop_folder, "session-start.sh")
+        self.assertEqual(bindle.git(self.laptop, "status", "--porcelain"), "")
+        self.assertIn("memory/loose.md", bindle.git(self.remote, "log", "--name-only", "--format="))
+
     def test_bindle_sync_does_the_same_by_hand_even_with_sync_off(self):
         meta = json.loads((self.laptop / "bindle.json").read_text())
         meta["sync"] = False
