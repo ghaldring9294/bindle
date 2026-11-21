@@ -29,18 +29,16 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
     projects/<repo>/       per-project sidecar (later)
   ```
 - **Toggling happens per launch folder,** not mid-session. A folder (a domain root, such as `~/acme`) attaches bindles in its `.claude/settings.local.json`. Switching clients means launching from another folder, which also separates session lists and permissions. That's a feature: the boundary is the folder.
-- **Two ways to attach a bindle:**
-  - **Home** (exactly one per folder): its memory is the writable auto-memory, and its notes and rules are this folder's. New memories land here.
-  - **Companion** (any number): its tooling plus a read-only view of its memory index. Personal is a companion at `~/acme`, and home in personal projects.
-- **One writable memory per session enforces the boundary.** A work session can't write into the personal repo. Craft moves between bindles only through promotion: a reviewed step, run from the *target* bindle's home, that reads the source's `boundary: craft | both` memories and proposes general rewrites one by one. It's a skill (`bindle:promote`), with the CLI for the deterministic parts.
+- **Every attached bindle is on; exactly one is writable.** Attaching a bindle to a folder (once, with `bindle attach <bindle> <folder>`) turns it on whenever Claude launches from that folder: its skills, hooks and memory all load. The **writable** bindle is the one new memories are written to, and its notes and rules are this folder's. The others are read-only there. At `~/acme`, both bindles are on and Acme is writable; in personal projects, personal is writable.
+- **One writable memory per session enforces the boundary.** A work session can't write into the personal repo. Craft moves between bindles only through promotion: a reviewed step, run from a folder where the *target* bindle is writable, that reads the source's `boundary: craft | both` memories and proposes general rewrites one by one. It's a skill (`bindle:promote`), with the CLI for the deterministic parts.
 
 ### How each part loads (verified 2026-11-21, Claude Code v2.1.329)
 
 | Part | Native mechanism | How it's toggled | Verified |
 |---|---|---|---|
 | Skills, agents, commands, hooks, MCP servers | The bindle is a **plugin**, installed from its own repo used as a marketplace (local directory or private git URL) | `claude plugin install <b>@<b> --scope local` writes `enabledPlugins` (and the marketplace) into the folder's `settings.local.json`; personal can be user scope if it should be on everywhere | Spike: the skill and SessionStart hook were active in the attached folder and absent in a sibling. Skills are namespaced (`<bindle>:<skill>`) |
-| Home memory | `autoMemoryDirectory` (absolute or `~/`) | Folder's `settings.local.json` | Spike: the session reported that path as its memory dir, wrote there, nothing in the default location; a fresh session recalled it |
-| Companion memory (read-only) | The bindle plugin's own SessionStart hook prints `${CLAUDE_PLUGIN_ROOT}/memory/MEMORY.md` | Comes with the plugin | Spike: recalled in the attached folder. Hook output is capped at **10,000 characters** (today's work index is ~15.6k), so companion indexes stay small or the hook prints only `boundary: craft` lines |
+| Writable memory | `autoMemoryDirectory` (absolute or `~/`) | Folder's `settings.local.json` | Spike: the session reported that path as its memory dir, wrote there, nothing in the default location; a fresh session recalled it |
+| Read-only memory (other bindles that are on) | The bindle plugin's own SessionStart hook prints `${CLAUDE_PLUGIN_ROOT}/memory/MEMORY.md` | Comes with the plugin | Spike: recalled in the attached folder. Hook output is capped at **10,000 characters** (today's work index is ~15.6k), so read-only indexes stay small or the hook prints only `boundary: craft` lines |
 | Rules | Plugins can't carry a CLAUDE.md. Personal rules: `~/.claude/CLAUDE.md` (user scope, loads everywhere). Domain rules: the domain root's `CLAUDE.md`, importing `@<bindle>/rules.md` | Which folder you launch from | Docs: imports outside the working directory show a one-time approval dialog. In the spike (headless) a project CLAUDE.md with an external import loaded nothing; recheck interactively |
 | Notes | Plain folders | Inside the launch folder, or `--add-dir` | Not tested; nothing special needed |
 | Per-project sidecar | `CLAUDE.local.md` (supported, gitignored) importing `@<bindle>/projects/<repo>/…` | Per repo | Docs only |
@@ -55,7 +53,7 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 
 **Don't move existing folders.** Path-keyed today: Claude's memory folder and session history, trust in `~/.claude.json`, Docker/Sail mounts, git worktrees, symlinks into `~/Projects`. Migrating memory into `<root>/.bindle/memory/` removes the biggest of these, so migrate first and reorganize later, if ever.
 
-**Companion memory cap:** 10,000 characters is fine for now; revisit if an index outgrows it.
+**Read-only memory cap:** 10,000 characters is fine for now; revisit if an index outgrows it.
 
 **Notes cross boundaries the way memories do.** Most notes are domain context and stay in the domain bindle. A note that's really craft (process ideas, a workflow roadmap) is promoted to personal like a memory: rewritten without the domain's specifics.
 
@@ -116,9 +114,9 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 ## Next steps
 
 1. ~~Answer the memory transport question.~~ Done 2026-11-21 (spike).
-2. Settle the open design points in "The model" (rules loading interactively, the companion memory cap, where bindles live).
+2. Settle the open design points in "The model" (rules loading interactively, the read-only memory cap, where bindles live).
 3. Reshape `bindle-personal` into the bindle layout (plugin manifest, `memory/`, `rules.md`); write the first skills there.
-4. Base CLI: `new`, `attach` (home or companion), `doctor` (what's active here, where memory lands), then the `promote` skill.
+4. Base CLI: `new`, `attach` (on, or on and writable), `doctor` (what's active here, where memory lands), then the `promote` skill.
 5. Create the Acme bindle locally and migrate secure-first; push to the work org later.
 
 ## Log
@@ -126,3 +124,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-07-08 to 07-14:** base, personal layer, memory taxonomy, `bindle` CLI, README framing.
 - **2026-11-20:** sidecar model, hosting rule, memory boundary tags, memory transport options (this file). Quick prior-art search: found `autoMemoryDirectory` (native memory location) and related tools; none combine a structural trust boundary with per-memory craft/context tagging.
 - **2026-11-21:** one model for all bindles (personal is just mine), attached per folder as home (one, writable memory) or companion (tooling plus read-only memory); promotion as a skill. Spike on v2.1.329 confirmed `autoMemoryDirectory` in local settings, plugin skills and hooks enabled per folder, and companion memory via the plugin's SessionStart hook (10k-character cap). External `@imports` from a project CLAUDE.md didn't load headless; recheck interactively.
+- **2026-11-21:** renamed home/companion to on/writable: every attached bindle is on, one is writable. Attach per folder rather than user scope, so a bindle can be off in a folder that doesn't want it.
