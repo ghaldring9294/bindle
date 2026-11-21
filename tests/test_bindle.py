@@ -8,6 +8,7 @@ import importlib.util
 import io
 import json
 import os
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -91,6 +92,60 @@ class NewTest(BindleTest):
         self.assertEqual(self.run_cli("new", "Acme Corp", "--at", self.tmp / "x")[0], 1)
         self.make_bindle("acme")
         self.assertEqual(self.run_cli("new", "acme", "--at", self.tmp / "bindle-acme")[0], 1)
+
+
+class EnclosingRepoTest(BindleTest):
+    """A bindle inside a project repo must never be committable into that repo."""
+
+    def project_repo(self):
+        repo = self.folder("project")
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        return repo
+
+    def test_new_inside_a_repo_excludes_the_bindle_locally(self):
+        repo = self.project_repo()
+        self.assertEqual(self.run_cli("new", "acme", "--at", repo / ".bindle")[0], 0)
+        self.assertEqual(bindle.git(repo, "status", "--porcelain"), "")
+        self.assertIn("/.bindle/", (repo / ".git/info/exclude").read_text())
+        self.assertFalse((repo / ".gitignore").exists())
+
+    def test_new_outside_a_repo_touches_nothing_else(self):
+        self.make_bindle("acme")
+        self.assertFalse((self.tmp / ".git").exists())
+
+    def test_doctor_flags_a_bindle_the_repo_would_commit(self):
+        repo = self.project_repo()
+        self.run_cli("new", "acme", "--at", repo / ".bindle")
+        (repo / ".git/info/exclude").write_text("")
+        self.run_cli("attach", repo / ".bindle", repo, "--writable")
+        code, out = self.run_cli("doctor", repo)
+        self.assertEqual(code, 1)
+        self.assertIn("not ignored there", out)
+
+    def test_doctor_flags_a_bindle_the_repo_already_tracks(self):
+        repo = self.project_repo()
+        self.run_cli("new", "acme", "--at", repo / ".bindle")
+        (repo / ".git/info/exclude").write_text("")
+        shutil.rmtree(repo / ".bindle/.git")
+        bindle.git(repo, "add", "-A")
+        self.run_cli("attach", repo / ".bindle", repo)
+        code, out = self.run_cli("doctor", repo)
+        self.assertEqual(code, 1)
+        self.assertIn("tracked by the repo", out)
+
+    # The demo repo folds its bindle in on purpose; doctor must not cry wolf there.
+    def test_a_demo_bindle_may_be_tracked(self):
+        repo = self.project_repo()
+        self.run_cli("new", "demo", "--at", repo / ".bindle")
+        (repo / ".git/info/exclude").write_text("")
+        shutil.rmtree(repo / ".bindle/.git")
+        meta = json.loads((repo / ".bindle/bindle.json").read_text())
+        meta["demo"] = True
+        (repo / ".bindle/bindle.json").write_text(json.dumps(meta))
+        bindle.git(repo, "add", "-A")
+        self.run_cli("attach", repo / ".bindle", repo)
+        code, out = self.run_cli("doctor", repo)
+        self.assertEqual(code, 0, out)
 
 
 class AttachTest(BindleTest):

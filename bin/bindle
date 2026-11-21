@@ -125,12 +125,15 @@ def cmd_new(args):
         meta["sync"] = True
         write_json(dest / "bindle.json", meta)
 
+    excluded = exclude_from_enclosing_repo(dest)
     git(dest, "init", "-q")
     git(dest, "add", "-A")
     committed = git(dest, "commit", "-q", "-m", f"Create the {name} bindle") is not None
     print(f"Created the {name} bindle at {dest}")
     print("  committed" if committed else "  files staged, not committed (no git identity here)")
     print("  no remote set: push it to the domain's own git host when you're ready")
+    if excluded:
+        print(f"  inside the repo {excluded[0]}: added {excluded[1]} to its .git/info/exclude (local, never committed)")
     print("  sync: " + ("on (memories pull at session start and push at session end, once a remote is set)"
                         if args.sync else "off (turn on with \"sync\": true in bindle.json)"))
     print(f"Turn it on for a folder: bindle attach {dest} <folder> [--writable]")
@@ -264,6 +267,7 @@ def cmd_doctor(args):
                 problems.append(f"{b['name']}: {rel} is missing")
             elif not filecmp.cmp(copy, TEMPLATE / rel, shallow=False):
                 problems.append(f"{b['name']}: {rel} differs from bindle's template")
+        problems.extend(enclosing_repo_problems(b))
         if b["layout"] != LAYOUT:
             problems.append(f"{b['name']}: layout {b['layout']}, this bindle expects {LAYOUT}")
 
@@ -279,6 +283,47 @@ def cmd_doctor(args):
         return 1
     print("No problems found.")
     return 0
+
+
+def enclosing_repo(path):
+    """The git repo a path sits inside (not counting a repo at the path itself), and the path relative to it."""
+    top = git(Path(path).parent, "rev-parse", "--show-toplevel")
+    if not top:
+        return None
+    return real(top), Path(path).relative_to(real(top)).as_posix()
+
+
+def exclude_from_enclosing_repo(dest):
+    """A bindle inside a project repo would show up as untracked there, and one `git add -A` would push
+    private memories into that repo. Exclude it locally (.git/info/exclude), leaving the team's .gitignore alone."""
+    found = enclosing_repo(dest)
+    if not found:
+        return None
+    top, rel = found
+    if git(top, "check-ignore", "-q", rel + "/") is not None:
+        return None  # already ignored
+    exclude = Path(git(top, "rev-parse", "--git-path", "info/exclude"))
+    exclude = exclude if exclude.is_absolute() else top / exclude
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    with exclude.open("a") as f:
+        f.write(f"\n# bindle: a private bindle lives here\n/{rel}/\n")
+    return top, f"/{rel}/"
+
+
+def enclosing_repo_problems(b):
+    found = enclosing_repo(b["root"])
+    if not found:
+        return []
+    top, rel = found
+    if git(top, "ls-files", "--", rel):
+        if read_json(b["root"] / "bindle.json").get("demo") is True:
+            return []  # a demo bindle is folded into its repo on purpose
+        return [f"{b['name']}: tracked by the repo {top}, so its memories get pushed with that repo. "
+                f"Remove it from that repo (git rm -r --cached {rel}) and exclude it."]
+    if git(top, "check-ignore", "-q", rel + "/") is None:
+        return [f"{b['name']}: inside the repo {top} and not ignored there, so `git add -A` would commit it. "
+                f"Add /{rel}/ to {top}/.git/info/exclude."]
+    return []
 
 
 def lib(b, script, extra_env=None):
