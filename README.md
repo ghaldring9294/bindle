@@ -127,6 +127,8 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 /plugin marketplace add git@github.com:you/bindle-craft.git
 ```
 
+**The same tools on every machine.** Put the domain's MCP servers in its bindle's `.mcp.json` (see [Configuration](#configuration)), with secrets as environment variables. On each machine, set the variables once; every folder the bindle is attached to then has the same tools.
+
 **Working with a friend on a project.** You each keep your own bindles. Anything you both need goes into the project's repo itself (its `CLAUDE.md` and docs), where it's reviewed like code.
 
 ## Commands
@@ -189,11 +191,32 @@ AGENTS.md              orientation for AI agents working in the bindle
 
 A read-only bindle gets a permission rule instead of `autoMemoryDirectory`: `"permissions": { "deny": ["Edit(//Users/you/bindles/craft/**)"] }`.
 
+**MCP servers.** To have the same tools on every machine where a domain is attached, put its MCP servers in the bindle's `.mcp.json`. Claude Code starts them in every session where the bindle is on, and their tools are named `mcp__plugin_<bindle>_<server>__<tool>`. Keep secrets out of the file: refer to environment variables, which each machine sets (from a password manager or your shell profile), and use `${CLAUDE_PLUGIN_ROOT}` for files inside the bindle.
+
+```json
+{
+  "mcpServers": {
+    "tracker": {
+      "command": "npx",
+      "args": ["-y", "some-tracker-mcp"],
+      "env": { "TRACKER_TOKEN": "${ACME_TRACKER_TOKEN}" }
+    },
+    "helper": {
+      "command": "python3",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/servers/helper.py"]
+    }
+  }
+}
+```
+
+A server that only exists on one machine (a local path, a tool installed in one place) stays in that machine's own setup (`claude mcp add --scope user`), with a line in the bindle's `notes/` saying how to add it. Connectors that come with your Claude account follow your login and need no setup. A read-only bindle's servers run code on your machine, so `doctor` lists them under Warnings.
+
 **What's in git, and what isn't:**
 
 | In git (carried to every machine) | Not in git (stays on the machine) |
 |---|---|
 | Each bindle's memories (committed at session end with sync on) | Uncommitted edits in a bindle (`doctor` shows them) |
+| A bindle's MCP server definitions (`.mcp.json`) | The secrets they read from environment variables |
 | Everything else you commit in a bindle | `notes/scratch/` and anything else a bindle ignores |
 | The bindle tool itself | Your Claude Code setup outside bindles: `~/.claude/CLAUDE.md`, `settings.json`, skills not in a bindle, MCP servers, session history |
 | | A folder's attach settings (recreated with `bindle attach`) |

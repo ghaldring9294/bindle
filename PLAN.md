@@ -65,6 +65,8 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - **Upgrading a locked bindle is the person's step.** Where a bindle is read-only, a session can't change it, including through `bindle upgrade` in the shell (Claude Code's safety check blocks it as working around the lock, seen 2026-11-21). The person runs the upgrade, or it's done from a folder where that bindle isn't attached.
 - **`install` only links** the CLI onto PATH and `/bindle` into `~/.claude/commands`. bindle never takes over `~/.claude`'s settings or CLAUDE.md.
 
+- **MCP servers travel in the bindle's `.mcp.json`** (verified 2026-11-21): Claude Code starts a plugin's servers wherever the plugin is on, expands `${ENV_VAR}` from the machine's environment and `${CLAUDE_PLUGIN_ROOT}` to the bindle, and names tools `mcp__plugin_<bindle>_<server>__<tool>`. Secrets stay per machine as environment variables; machine-specific servers stay in the machine's own setup with a note in the bindle; account connectors need nothing. A read-only bindle's servers appear in `doctor`'s trust warnings.
+
 ### How each part loads (verified 2026-11-21, Claude Code v2.1.329)
 
 | Part | Native mechanism | How it's toggled | Verified |
@@ -212,3 +214,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** v0.5.0: hooks are one Python file the CLI imports; CLI split into a package; promotion hardened (hash, validation, no symlinks, leak check on names); wider secret check; review bugs fixed with regression tests (95 tests); e2e passed with the Python hooks.
 - **2026-11-21:** principle recorded: guardrails that keep the person honest, not gates; hard stops only for what can't be undone. No inbound term check for personal; the boundary rule goes in personal's `rules.md` instead.
 - **2026-11-21:** v0.5.1: trust warnings for code a read-only bindle runs (attach, doctor's Warnings section, and the session start when a pull changes such code).
+- **2026-11-21:** MCP servers in a bindle's `.mcp.json` verified end to end (a tiny Python server started where the bindle was attached, with a secret from the environment); documented in the README.
