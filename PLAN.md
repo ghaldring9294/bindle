@@ -2,13 +2,17 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-21, v0.5.1)
+## Where it stands (2026-11-21, v0.6.1)
 
 - **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 104 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
-- **In use on two machines:** a personal laptop with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git.
+- **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
 - **Docs:** README (usage), docs/design.md (design), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents), CHANGELOG.md.
 
 ## Next steps
+
+**Pick up here (2026-11-21):**
+- **Windows read-only test** (the last unverified piece on Windows): on the PC, clone craft, attach it read-only to a scratch folder, start Claude Code there, and check the session says craft is read-only, `/craft:doc-style` is listed, and a request to create a file inside craft is refused (the `//c/` lock rule). Then detach.
+- **README: MCP on Windows.** A bindle's `.mcp.json` servers don't go through bindle's Python launcher, so `"command": "python3"` hits the Microsoft Store stub on Windows. Add a note to the MCP section: for servers that must run everywhere, use `node`/`npx` or a command that exists on every machine.
 
 1. **Write personal's `rules.md`** from the live global instructions, minus anything domain-specific, under 9,000 characters, including the boundary rule (work appears in personal only at a high, public level).
 2. ~~**Windows support.**~~ Done in v0.6.0, and verified on a Windows PC with Claude Code (in the desktop app): install, attach, detach after a move, skills, hooks through Git Bash, `autoMemoryDirectory` with a `C:\\` path, and a memory synced to GitHub. Not yet seen on Windows: the `//c/` lock rule (needs a read-only bindle there).
