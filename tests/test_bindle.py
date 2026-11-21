@@ -148,6 +148,41 @@ class EnclosingRepoTest(BindleTest):
         self.assertEqual(code, 0, out)
 
 
+class NotesTest(BindleTest):
+    def test_scratch_notes_are_ignored_but_their_readme_is_kept(self):
+        b = self.make_bindle("acme")
+        self.assertIn("notes/scratch/README.md", bindle.git(b, "ls-files"))
+        (b / "notes/scratch/dump.txt").write_text("throwaway\n")
+        self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
+
+    def test_doctor_flags_a_secret_in_a_note(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        (b / "notes/logins.md").write_text("api_key = abcdefghijklmnopqrstuvwx\n")
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 1)
+        self.assertIn("notes/logins.md may hold a secret; move it to secure storage", out)
+
+    # Ignored files never leave the machine; flagging them would only be noise.
+    def test_doctor_ignores_secrets_in_files_git_ignores(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        (b / "notes/scratch/tmp.md").write_text("token: abcdefghijklmnopqrstuvwx\n")
+        self.assertEqual(self.run_cli("doctor", f)[0], 0)
+
+    def test_upgrade_adds_missing_ignore_rules_without_touching_the_bindles_own(self):
+        b = self.make_bindle("acme")
+        (b / ".gitignore").write_text("*.out\n")
+        (b / "notes/scratch/README.md").unlink()
+        bindle.git(b, "add", "-A"); bindle.git(b, "commit", "-qm", "an old bindle")
+        self.run_cli("upgrade", b)
+        ignore = (b / ".gitignore").read_text()
+        self.assertTrue(ignore.startswith("*.out\n"))
+        self.assertIn("notes/scratch/*", ignore)
+        self.assertTrue((b / "notes/scratch/README.md").exists())
+        self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
+
+
 class AttachTest(BindleTest):
     def test_attach_turns_the_plugin_on_without_making_it_writable(self):
         b, f = self.make_bindle("personal"), self.folder()
@@ -603,6 +638,13 @@ class MemoryHookTest(BindleTest):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
         self.assertNotIn("uncommitted", self.run_hook(b, f))
+
+    # Notes are committed by hand, so a secret could ride along with `git add -A`; flag it first.
+    def test_flags_a_secret_in_an_uncommitted_note(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        (b / "notes/logins.md").write_text("password: abcdefghijklmnopqrstuvwx\n")
+        self.assertIn("notes/logins.md may hold a secret", self.run_hook(b, f))
 
     def test_says_nothing_about_notes_when_there_are_none(self):
         b, f = self.make_bindle("acme"), self.folder()

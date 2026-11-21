@@ -1,3 +1,7 @@
 .DS_Store
 __pycache__/
 secrets.env
+
+# Machine-local scratch notes (see notes/scratch/README.md)
+notes/scratch/*
+!notes/scratch/README.md

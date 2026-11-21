@@ -18,8 +18,12 @@ if writable_here; then
     count="$(printf '%s\n' "$pending" | grep -c .)"
     in_notes="$(printf '%s\n' "$pending" | grep -c ' notes/')"
     echo "Bindle ${name} has ${count} uncommitted change(s) (${in_notes} in notes). Remind the person to commit what's ready: git -C ${root} add -A && git -C ${root} commit."
+    risky=""
+    while IFS= read -r f; do [ -n "$f" ] && [ -n "$(cd "$root" && secret_hits "$f")" ] && risky="$risky $f"; done <<< "$(g ls-files -mo --exclude-standard -- notes 2>/dev/null)"
+    risky="${risky# }"
+    [ -n "$risky" ] && echo "Before committing: ${risky} may hold a secret. Suggest moving it to secure storage (a password manager) and leaving a pointer in the note."
   fi
-  if [ -n "$(ls -A "${root}/notes" 2>/dev/null | grep -v '^\.gitkeep$')" ]; then
+  if [ -n "$(find "${root}/notes" -type f ! -name .gitkeep ! -path '*/notes/scratch/README.md' 2>/dev/null | head -1)" ]; then
     readme=""; [ -f "${root}/notes/README.md" ] && readme=" Start at ${root}/notes/README.md."
     echo "Notes for this domain are in ${root}/notes (read them when relevant; they aren't loaded automatically).${readme}"
   fi

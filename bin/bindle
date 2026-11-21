@@ -19,7 +19,7 @@ from pathlib import Path
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.4.3"
+VERSION = "0.4.4"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/lib.sh", "hooks/session-start.sh", "hooks/rules.sh", "hooks/session-end.sh", "hooks/hooks.json"]
@@ -296,7 +296,10 @@ def cmd_doctor(args):
         if last:
             print(f"    last sync: {last}")
         for hit in secret_hits(b):
-            problems.append(f"{b['name']}: {hit} may hold a secret; sync won't push memories until it's removed")
+            if hit.startswith("notes/"):
+                problems.append(f"{b['name']}: {hit} may hold a secret; move it to secure storage (e.g. a password manager) and leave a pointer in the note")
+            else:
+                problems.append(f"{b['name']}: {hit} may hold a secret; sync won't push memories until it's removed")
         for line in git_health(b["root"]):
             print(f"    {line}")
         for rel in MANAGED:
@@ -383,9 +386,16 @@ def lib(b, script, extra_env=None):
 
 
 def secret_hits(b):
+    """Committable files in memory/, outbox/ and notes/ that look like they hold a credential. Files git
+    ignores (scratch notes, local query outputs) never leave the machine, so they aren't checked."""
     if not (b["root"] / "hooks" / "lib.sh").exists():
         return []
-    return [line for line in lib(b, 'cd "$root" && secret_hits memory').stdout.splitlines() if line]
+    files = (git(b["root"], "ls-files", "-co", "--exclude-standard", "--", "memory", "outbox", "notes") or "").splitlines()
+    if not files:
+        return []
+    r = subprocess.run(["bash", "-c", '. "$CLAUDE_PLUGIN_ROOT/hooks/lib.sh"; cd "$root" && secret_hits "$@"', "_", *files],
+                       env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(b["root"])}, capture_output=True, text=True)
+    return [line for line in r.stdout.splitlines() if line]
 
 
 def last_sync(root):
@@ -445,6 +455,12 @@ def upgrade_plan(b):
         rel = src.relative_to(TEMPLATE).as_posix()
         if src.is_file() and rel not in MANAGED and not (root / rel).exists():
             plan.append(("add", rel))
+    # A bindle's .gitignore is its own, so upgrade only appends template rules it lacks.
+    own = (root / ".gitignore").read_text().splitlines() if (root / ".gitignore").exists() else []
+    missing = [l for l in (TEMPLATE / ".gitignore").read_text().splitlines()
+               if l.strip() and not l.startswith("#") and l not in own]
+    if missing and (root / ".gitignore").exists():
+        plan.append(("ignore", ", ".join(missing)))
     return plan
 
 
@@ -475,6 +491,13 @@ def cmd_upgrade(args):
         touched = []
         for action, rel in plan:
             out = b["root"] / rel
+            if action == "ignore":
+                lines = [l for l in (TEMPLATE / ".gitignore").read_text().splitlines()
+                         if l.strip() and not l.startswith("#") and l not in (b["root"] / ".gitignore").read_text().splitlines()]
+                with (b["root"] / ".gitignore").open("a") as f:
+                    f.write("\n# Added by bindle upgrade\n" + "\n".join(lines) + "\n")
+                touched.append(".gitignore")
+                continue
             if action == "remove":
                 out.unlink()
             elif rel in MANAGED:

@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.4.4 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/session-start.sh`; adds `notes/scratch/` and its ignore rules); for a bindle that's read-only where it's attached, run it yourself.
+
+- `notes/scratch/`: machine-local notes, ignored by git (its README is kept), never carried to other machines.
+- Secrets in notes: `doctor` checks committable notes (and memory and outbox) for credentials and suggests moving them to secure storage with a pointer; the session start flags an uncommitted note that looks like it holds one. Files git ignores aren't checked.
+- `bindle upgrade` appends template ignore rules a bindle's `.gitignore` lacks, never rewriting its own rules.
+
 ## 0.4.3 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/session-start.sh`); for a bindle that's read-only where it's attached, run it yourself.
