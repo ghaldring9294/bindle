@@ -341,6 +341,8 @@ class DoctorTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("lib.sh differs", out)
+        self.assertIn(f"bindle upgrade {b}", out)
+        self.assertNotIn("&& git -C", out)
 
     # Unsaved memories are the main way work gets lost between machines.
     def test_reports_uncommitted_memories_and_a_missing_remote(self):
@@ -451,6 +453,20 @@ class UpgradeTest(BindleTest):
         code, out = self.run_cli("upgrade", b)
         self.assertEqual(code, 1)
         self.assertIn("git pull bindle", out)
+
+    # The fix for a bindle with a remote includes the push, so the other machines get it too.
+    def test_doctor_offers_a_copy_paste_fix_that_pushes(self):
+        b, f = self.make_bindle("craft"), self.folder()
+        remote = self.tmp / "craft.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(b), str(remote)], check=True)
+        bindle.git(b, "remote", "add", "origin", str(remote)); bindle.git(b, "fetch", "-q", "origin")
+        bindle.git(b, "branch", "-q", "-u", "origin/" + bindle.git(b, "rev-parse", "--abbrev-ref", "HEAD"))
+        self.run_cli("attach", b, f)
+        (b / "hooks/lib.sh").write_text("# old\n")
+        (b / "hooks/rules.sh").write_text("# old\n")
+        _, out = self.run_cli("doctor", f)
+        self.assertIn(f"bindle upgrade {b} && git -C {b} push", out)
+        self.assertEqual(out.count(f"bindle upgrade {b}"), 1)
 
     def test_upgrades_every_bindle_attached_to_the_current_folder(self):
         acme, personal, f = self.make_bindle("acme"), self.make_bindle("personal"), self.folder()

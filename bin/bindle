@@ -19,7 +19,7 @@ from pathlib import Path
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.4.4"
+VERSION = "0.4.5"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/lib.sh", "hooks/session-start.sh", "hooks/rules.sh", "hooks/session-end.sh", "hooks/hooks.json"]
@@ -271,6 +271,7 @@ def cmd_doctor(args):
     bindles = declared_bindles(settings)
     missing = missing_bindles(settings)
     writable = None
+    needs_upgrade = []
 
     if not bindles and not missing:
         print("  No bindles attached.")
@@ -305,9 +306,11 @@ def cmd_doctor(args):
         for rel in MANAGED:
             copy = b["root"] / rel
             if not copy.exists():
-                problems.append(f"{b['name']}: {rel} is missing; run `bindle upgrade {b['root']}`")
+                problems.append(f"{b['name']}: {rel} is missing")
+                needs_upgrade.append(b)
             elif not filecmp.cmp(copy, TEMPLATE / rel, shallow=False):
-                problems.append(f"{b['name']}: {rel} differs from bindle's template; run `bindle upgrade {b['root']}`")
+                problems.append(f"{b['name']}: {rel} differs from bindle's template")
+                needs_upgrade.append(b)
         problems.extend(enclosing_repo_problems(b))
         deny = settings.get("permissions", {}).get("deny", [])
         locked = all(r in deny for r in lock_rules(b))
@@ -319,7 +322,8 @@ def cmd_doctor(args):
         if rules.exists() and len(rules.read_text()) > RULES_LIMIT:
             problems.append(f"{b['name']}: rules.md is over {RULES_LIMIT} characters; the session-start hook can show only 10,000")
         if (b["layout"] or 0) < LAYOUT:
-            problems.append(f"{b['name']}: layout {b['layout']}, current is {LAYOUT}; run `bindle upgrade {b['root']}`")
+            problems.append(f"{b['name']}: layout {b['layout']}, current is {LAYOUT}")
+            needs_upgrade.append(b)
         elif b["layout"] > LAYOUT:
             problems.append(f"{b['name']}: layout {b['layout']} is newer than this bindle ({LAYOUT}); git pull bindle")
 
@@ -328,6 +332,14 @@ def cmd_doctor(args):
     elif not memory_dir:
         print("  Memory: Claude Code's default folder (no writable bindle)")
 
+    fixes = []
+    for b in {str(b["root"]): b for b in needs_upgrade}.values():
+        # Push too when the bindle has a remote, so other machines get the upgrade with their next pull.
+        push = f" && git -C {b['root']} push" if git(b["root"], "rev-parse", "--abbrev-ref", "@{upstream}") else ""
+        fixes.append(f"bindle upgrade {b['root']}{push}")
+    if fixes:
+        problems.append("to fix, run (in Claude Code, prefix it with ! so it runs as you; a read-only bindle is locked to Claude):\n      "
+                        + "\n      ".join(fixes))
     if problems:
         print("Problems:")
         for p in problems:

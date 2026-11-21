@@ -2,6 +2,10 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.4.5 (2026-11-21)
+
+- `doctor` ends with a copy-and-paste command for each bindle that needs upgrading (`bindle upgrade <path>`, plus `&& git -C <path> push` when it has a remote), noting that in Claude Code it's prefixed with `!` because a read-only bindle is locked to Claude.
+
 ## 0.4.4 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/session-start.sh`; adds `notes/scratch/` and its ignore rules); for a bindle that's read-only where it's attached, run it yourself.
