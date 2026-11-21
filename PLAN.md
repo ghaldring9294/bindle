@@ -39,11 +39,10 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
   | Personal | private | implicit |
   | A work or client domain | private | implicit |
   | Craft (finished skills, hooks, workflows) | shared now, public later | explicit |
-  | A project setup shared with a collaborator | shared | implicit |
 
   **Sharing craft is just a craft bindle.** Every bindle is already a valid one-plugin marketplace, so anyone with access installs it with `/plugin marketplace add <git url>`, no bindle needed; you attach it like any other bindle. It starts as one plugin (`craft:<name>`) and can split later. Promotion into it moves skills, commands and hooks as well as memories (same outbox and `collect`; the one real extension). A skill is moved, not copied, so each has one home. Mechanisms are craft (e.g. the goal loop's hooks and check runner); the checks themselves stay in their repo or domain.
 
-  **A shared implicit bindle** is team memory: both people's sessions write to it and sync merges by rebase (separate files merge cleanly; a real conflict stops). Open: conventions for whose memory is whose, and editing shared notes.
+  **Not pursued: shared team memory.** Knowledge a team shares belongs in the project repo itself (CLAUDE.md, docs), as reviewed commits. Bindle stays one person's layers; `shared` is for craft.
 - **Promotion goes through an outbox, and can happen in one session** (decided 2026-11-21). The boundary protects one thing: nothing reaches another bindle unless the person reviewed it and it's general. The gate is the write, and the write is code.
   1. **Prepare (judgment, reviewed).** In the source domain's session, `bindle:promote` drafts a general rewrite of a `boundary: craft | both` memory and runs a **leak check**: a deterministic scan against a list of the domain's own terms (repo names, ticket prefixes, product names), kept in that domain's bindle. The person approves the wording; approved rewrites go to the source bindle's `outbox/`. Optional second opinion: a subagent given only the drafted text (no domain context) flags anything that looks organization-specific, reading it as an outsider would.
   2. **Collect (no judgment).** `bindle collect <source> --into <target>` is a CLI command, so Claude Code asks the person's permission each run. It reruns the leak check, copies only approved outbox items into the target's memory, updates its index, marks them collected, and lets sync push. It can run in the same session as step 1, or later from the target's own folder; it can sweep several bindles' outboxes, since they hold only reviewed, general text.
@@ -183,3 +182,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** promotion design: a two-step outbox (prepare in the source domain, collect in the target); never read across bindles' memories. Proposed deny rules for read-only bindles.
 - **2026-11-21:** promotion can happen in one session: prepare into the source's outbox with a leak check, then `bindle collect` (code, permission-gated) writes into the target. Read-only bindles locked by deny rules (decided, not built). Subagents only as an optional outsider reviewer, never as the writer.
 - **2026-11-21:** every bindle has `audience` (private, shared, public) and `writes` (implicit, explicit). Sharing craft is a craft bindle (shared, explicit), installable without bindle; shared implicit bindles are team memory.
+- **2026-11-21:** dropped shared team memory: a team's shared knowledge belongs in the project repo as reviewed commits.
