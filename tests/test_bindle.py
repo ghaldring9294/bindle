@@ -855,15 +855,17 @@ class DiagnoseTest(BindleTest):
     def test_print_enclosing_repo_values(self):  # temporary: Windows CI diagnosis
         repo = self.folder("project")
         subprocess.run(["git", "init", "-q", str(repo)], check=True)
-        dest = repo / ".bindle"
-        dest.mkdir()
+        code, out = self.run_cli("new", "acme", "--at", repo / ".bindle")
+        print("\nDIAG new:", code, repr(out[-300:]))
+        ex = repo / ".git" / "info" / "exclude"
+        print("DIAG exclude:", repr(ex.read_bytes()[-200:]) if ex.exists() else "missing")
         h = bindle.core.hooks()
-        top = h.git(repo, "rev-parse", "--show-toplevel")
-        print("\nDIAG top:", repr(top.stdout), top.returncode, repr(top.stderr[:200]))
-        print("DIAG enclosing:", bindle.core.enclosing_repo(dest))
-        ci = h.git(repo, "check-ignore", "-q", ".bindle/")
-        print("DIAG check-ignore:", ci.returncode, repr(ci.stderr[:200]))
-        print("DIAG git-path:", repr(h.git_out(repo, "rev-parse", "--git-path", "info/exclude")))
+        print("DIAG status:", repr(h.git_out(repo, "status", "--porcelain")))
+        ci = h.git(repo, "check-ignore", "-v", ".bindle/")
+        print("DIAG check-ignore after:", ci.returncode, repr(ci.stdout), repr(ci.stderr[:200]))
+        b = bindle.core.load_bindle(repo / ".bindle")
+        print("DIAG problems:", bindle.core.enclosing_repo_problems(b))
+        print("DIAG ls-files:", repr(h.git_out(repo, "ls-files", "--", ".bindle")))
 
 
 class PortabilityTest(BindleTest):
