@@ -106,6 +106,11 @@ class AttachTest(BindleTest):
         self.run_cli("attach", b, f, "--writable")
         self.assertEqual(self.settings(f)["autoMemoryDirectory"], str(b / "memory"))
 
+    def test_accepts_the_writeable_spelling_too(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.assertEqual(self.run_cli("attach", b, f, "--writeable")[0], 0)
+        self.assertEqual(self.settings(f)["autoMemoryDirectory"], str(b / "memory"))
+
     # One writable bindle per folder is what keeps a work session from writing into personal.
     def test_a_second_writable_bindle_is_refused(self):
         acme, personal, f = self.make_bindle("acme"), self.make_bindle("personal"), self.folder()

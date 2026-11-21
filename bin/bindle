@@ -321,7 +321,7 @@ def main(argv=None):
                        description="Turn a bindle on for a folder: sessions started from that folder load the bindle. Writes the folder's .claude/settings.local.json; nothing is copied or linked.")
     s.add_argument("bindle", help="path to the bindle repo")
     s.add_argument("folder", nargs="?", help="the folder you launch Claude from (default: here)")
-    s.add_argument("--writable", action="store_true", help="new memories in this folder go to this bindle")
+    s.add_argument("--writable", "--writeable", action="store_true", help="new memories in this folder go to this bindle")
     s.set_defaults(fn=cmd_attach)
 
     s = sub.add_parser("detach", help="turn a bindle off for a folder")
