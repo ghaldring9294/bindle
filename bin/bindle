@@ -71,7 +71,8 @@ def load_bindle(path):
     if not market:
         raise BindleError(f"{root} has no .claude-plugin/marketplace.json name.")
     return {"name": meta["name"], "market": market, "root": root, "memory": root / "memory",
-            "layout": meta.get("layout"), "sync": meta.get("sync") is True}
+            "layout": meta.get("layout"), "sync": meta.get("sync") is True,
+            "audience": meta.get("audience", "private"), "writes": meta.get("writes", "implicit")}
 
 
 def git(folder, *args):
@@ -146,10 +147,9 @@ def cmd_new(args):
         else:
             out.write_text(src.read_text().replace("{{name}}", name))
             shutil.copymode(src, out)
-    if args.sync:
-        meta = read_json(dest / "bindle.json")
-        meta["sync"] = True
-        write_json(dest / "bindle.json", meta)
+    meta = read_json(dest / "bindle.json")
+    meta.update({"sync": bool(args.sync), "audience": args.audience, "writes": args.writes})
+    write_json(dest / "bindle.json", meta)
 
     excluded = exclude_from_enclosing_repo(dest)
     git(dest, "init", "-q")
@@ -171,6 +171,10 @@ def cmd_attach(args):
     sp = settings_path(folder)
     settings = read_json(sp)
 
+    if args.writable and b["writes"] == "explicit":
+        raise BindleError(
+            f"{b['name']} takes explicit writes only (things arrive through `bindle collect`), so it can't be "
+            f"a folder's writable bindle. Attach it without --writable.")
     if args.writable:
         current = settings.get("autoMemoryDirectory")
         if current and real(current) != real(b["memory"]):
@@ -281,6 +285,8 @@ def cmd_doctor(args):
         is_writable = bool(memory_dir) and real(memory_dir) == real(b["memory"])
         writable = b if is_writable else writable
         state = ("on, writable" if is_writable else "on, read-only") if on else "off (declared, not enabled)"
+        if b["audience"] != "private" or b["writes"] != "implicit":
+            state += f", {b['audience']}, {b['writes']} writes"
         if is_writable and not on:
             problems.append(f"{b['name']} is writable but its plugin isn't enabled")
         memories = len([p for p in b["memory"].glob("*.md") if p.name != "MEMORY.md"]) if b["memory"].is_dir() else 0
@@ -493,12 +499,156 @@ def cmd_upgrade(args):
     return 0
 
 
+# ---------- promotion: outbox and collect ----------
+
+KINDS = {"memory": "memory", "skill": "skills", "command": "commands"}
+SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+def private_terms(b):
+    """Words that identify the bindle's domain; anything leaving the bindle is checked against them."""
+    f = b["root"] / "private-terms.txt"
+    if not f.exists():
+        return []
+    return [t.strip() for t in f.read_text().splitlines() if t.strip() and not t.strip().startswith("#")]
+
+
+def leak_hits(b, paths):
+    """(file, term) pairs where a draft names the source domain, plus files that look like they hold a secret."""
+    hits = []
+    terms = private_terms(b)
+    files = [f for p in paths for f in ([p] if Path(p).is_file() else sorted(Path(p).rglob("*"))) if Path(f).is_file()]
+    for f in files:
+        text = Path(f).read_text(errors="ignore")
+        for t in terms:
+            # Whole words, except a term ending in punctuation (a ticket prefix like "ACME-") matches what follows it.
+            start = r"(?<![A-Za-z0-9])" if t[0].isalnum() else ""
+            end = r"(?![A-Za-z0-9])" if t[-1].isalnum() else ""
+            if re.search(start + re.escape(t) + end, text, re.I):
+                hits.append((str(f), t))
+    env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b["root"])}
+    out = subprocess.run(["bash", "-c", '. "$CLAUDE_PLUGIN_ROOT/hooks/lib.sh"; secret_hits "$@"', "_", *map(str, files)],
+                         env=env, capture_output=True, text=True).stdout
+    hits += [(line, "possible secret") for line in out.splitlines() if line]
+    return hits
+
+
+def outbox_items(b):
+    box = b["root"] / "outbox"
+    items = []
+    for meta_file in sorted(box.glob("*/item.json")) if box.is_dir() else []:
+        items.append({**read_json(meta_file), "dir": meta_file.parent, "slug": meta_file.parent.name})
+    return items
+
+
+def cmd_outbox_add(args):
+    b = load_bindle(args.bindle)
+    slug = args.name
+    if not SLUG_RE.match(slug):
+        raise BindleError("Name must be lowercase letters, digits, hyphens or underscores.")
+    src = Path(args.path)
+    if not src.exists():
+        raise BindleError(f"{src} doesn't exist.")
+    if args.kind == "memory" and not src.is_file():
+        raise BindleError("A memory is a single .md file.")
+    if args.kind == "skill" and not (src / "SKILL.md").is_file():
+        raise BindleError("A skill is a folder with a SKILL.md.")
+    hits = leak_hits(b, [src])
+    if hits:
+        raise BindleError("Not added; the draft still names this domain or looks like it holds a secret:\n"
+                          + "\n".join(f"  {f}: {t}" for f, t in hits))
+    dest = b["root"] / "outbox" / slug
+    if dest.exists():
+        raise BindleError(f"{dest} already exists; pick another name.")
+    dest.mkdir(parents=True)
+    target_name = "memory.md" if args.kind == "memory" else src.name
+    if src.is_dir():
+        shutil.copytree(src, dest / target_name)
+    else:
+        shutil.copy2(src, dest / target_name)
+    write_json(dest / "item.json", {"kind": args.kind, "file": target_name, "description": args.description,
+                                    "status": "approved", "collected_into": []})
+    git(b["root"], "add", "--", f"outbox/{slug}")
+    git(b["root"], "commit", "-q", "-m", f"Outbox: {slug}", "--", f"outbox/{slug}")
+    print(f"Added {args.kind} {slug} to {b['name']}'s outbox (leak check and secret check passed).")
+    print(f"Collect it: bindle collect {b['root']} --into <target bindle> --items {slug}")
+
+
+def cmd_outbox_list(args):
+    b = load_bindle(args.bindle)
+    items = outbox_items(b)
+    if not items:
+        print(f"{b['name']}'s outbox is empty.")
+    for it in items:
+        where = f" -> {', '.join(it['collected_into'])}" if it["collected_into"] else ""
+        print(f"  {it['slug']}: {it['kind']}, {it['status']}{where}. {it.get('description') or ''}")
+
+
+def cmd_collect(args):
+    source, target = load_bindle(args.source), load_bindle(args.into)
+    if source["root"] == target["root"]:
+        raise BindleError("Source and target are the same bindle.")
+    items = {it["slug"]: it for it in outbox_items(source)}
+    wanted = list(items) if args.all else [s.strip() for s in (args.items or "").split(",") if s.strip()]
+    if not wanted:
+        raise BindleError("Name the items (--items a,b) or pass --all, so the command shows exactly what moves.")
+    unknown = [s for s in wanted if s not in items]
+    if unknown:
+        raise BindleError(f"Not in {source['name']}'s outbox: {', '.join(unknown)}")
+    todo = [items[s] for s in wanted if target["name"] not in items[s]["collected_into"]]
+    if not todo:
+        print(f"Nothing to collect: already in {target['name']}.")
+        return 0
+
+    # Recheck at the moment of crossing: the outbox may have been edited since it was approved.
+    hits = leak_hits(source, [it["dir"] / it["file"] for it in todo])
+    if hits:
+        raise BindleError("Nothing collected; an item names the source domain or looks like it holds a secret:\n"
+                          + "\n".join(f"  {f}: {t}" for f, t in hits))
+    for it in todo:
+        out = target["root"] / KINDS[it["kind"]] / (f"{it['slug']}.md" if it["kind"] in ("memory", "command") else it["file"])
+        if out.exists():
+            raise BindleError(f"{out} already exists in {target['name']}; nothing collected.")
+
+    moved = []
+    for it in todo:
+        src = it["dir"] / it["file"]
+        if it["kind"] == "skill":
+            out = target["root"] / "skills" / it["file"]
+            shutil.copytree(src, out)
+        else:
+            out = target["root"] / KINDS[it["kind"]] / f"{it['slug']}.md"
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, out)
+        if it["kind"] == "memory":
+            index = target["root"] / "memory" / "MEMORY.md"
+            line = f"- [{it['slug']}]({it['slug']}.md) — {it.get('description') or 'promoted from ' + source['name']}\n"
+            with index.open("a") as f:
+                f.write(line)
+        moved.append(str(out.relative_to(target["root"])))
+        meta = read_json(it["dir"] / "item.json")
+        meta["status"] = "collected"
+        meta["collected_into"] = sorted(set(meta["collected_into"]) | {target["name"]})
+        write_json(it["dir"] / "item.json", meta)
+
+    names = ", ".join(it["slug"] for it in todo)
+    paths = moved + (["memory/MEMORY.md"] if any(it["kind"] == "memory" for it in todo) else [])
+    git(target["root"], "add", "--", *paths)
+    git(target["root"], "commit", "-q", "-m", f"Promote from {source['name']}: {names}", "--", *paths)
+    git(source["root"], "add", "--", "outbox")
+    git(source["root"], "commit", "-q", "-m", f"Outbox: collected into {target['name']}: {names}", "--", "outbox")
+    print(f"Collected into {target['name']}: " + ", ".join(moved))
+    print(f"Committed in both bindles. Sync pushes memory/ and outbox/; push {target['name']} yourself if it got a skill or command.")
+    return 0
+
+
 def cmd_install(args):
     """Puts the bindle command on PATH and links its /bindle command into ~/.claude. Nothing else:
     bindle never takes over ~/.claude's settings or CLAUDE.md."""
     bindir = Path.home() / ".local" / "bin"
     links = [(bindir / "bindle", BASE / "bin" / "bindle"),
-             (Path.home() / ".claude" / "commands" / "bindle.md", BASE / "global" / "commands" / "bindle.md")]
+             (Path.home() / ".claude" / "commands" / "bindle.md", BASE / "global" / "commands" / "bindle.md"),
+             (Path.home() / ".claude" / "skills" / "bindle-promote", BASE / "global" / "skills" / "bindle-promote")]
     for link, target in links:
         if link.exists() and not link.is_symlink():
             raise BindleError(f"{link} exists and isn't a symlink; move it aside first.")
@@ -524,7 +674,30 @@ def main(argv=None):
     s.add_argument("name")
     s.add_argument("--at", help="where to create it (default: ./.bindle)")
     s.add_argument("--sync", action="store_true", help="sync memories with the bindle's remote at session start and end")
+    s.add_argument("--audience", choices=["private", "shared", "public"], default="private", help="who can see it (default: private)")
+    s.add_argument("--writes", choices=["implicit", "explicit"], default="implicit",
+                   help="implicit: can be a folder's writable bindle; explicit: only `bindle collect` adds to it")
     s.set_defaults(fn=cmd_new)
+
+    s = sub.add_parser("outbox", help="a bindle's outbox: reviewed, general items waiting to be promoted")
+    osub = s.add_subparsers(dest="outbox_cmd", required=True)
+    o = osub.add_parser("add", help="add an approved draft (after a leak check and secret check)")
+    o.add_argument("bindle", help="the source bindle")
+    o.add_argument("path", help="the draft: a memory .md file, or a skill folder")
+    o.add_argument("--kind", choices=list(KINDS), default="memory")
+    o.add_argument("--name", required=True, help="the item's slug, e.g. small-prs")
+    o.add_argument("--description", default="", help="one line for the target's index")
+    o.set_defaults(fn=cmd_outbox_add)
+    o = osub.add_parser("list", help="show the outbox")
+    o.add_argument("bindle")
+    o.set_defaults(fn=cmd_outbox_list)
+
+    s = sub.add_parser("collect", help="move approved outbox items into another bindle")
+    s.add_argument("source", help="the bindle whose outbox to collect from")
+    s.add_argument("--into", required=True, help="the target bindle")
+    s.add_argument("--items", help="comma-separated item names")
+    s.add_argument("--all", action="store_true", help="every item not yet in the target")
+    s.set_defaults(fn=cmd_collect)
 
     s = sub.add_parser("attach", help="turn a bindle on for the folder you launch Claude from",
                        description="Turn a bindle on for a folder: sessions started from that folder load the bindle. Writes the folder's .claude/settings.local.json; nothing is copied or linked.")

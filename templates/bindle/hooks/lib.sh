@@ -45,17 +45,17 @@ sync_pull() {
   g pull -q --ff-only >>"$log" 2>&1 && say "pulled" || say "pull failed or not fast-forward; left as is"
 }
 
-# Commit memory/ changes and push them. Refuses when a memory looks like it holds a secret:
+# Commit memory/ and outbox/ changes and push them. Refuses when a memory looks like it holds a secret:
 # nothing is committed, so nothing can reach the remote, and `bindle doctor` reports it.
 sync_push() {
-  [ -n "$(g status --porcelain -- memory 2>/dev/null)" ] || { sync_push_leftovers; return 0; }
-  local hits; hits="$(cd "$root" && secret_hits memory)"
+  [ -n "$(g status --porcelain -- memory outbox 2>/dev/null)" ] || { sync_push_leftovers; return 0; }
+  local hits; hits="$(cd "$root" && secret_hits memory outbox)"
   if [ -n "$hits" ]; then
     say "refused: possible secret in $(echo "$hits" | tr '\n' ' ')"
     echo "bindle: not syncing $(bindle_name) memories; possible secret in: $hits" >&2
     return 0
   fi
-  g add -A -- memory && g commit -q -m "Memories from $(hostname -s) on $(date '+%Y-%m-%d')" -- memory >>"$log" 2>&1 \
+  g add -A -- memory outbox && g commit -q -m "Memories from $(hostname -s) on $(date '+%Y-%m-%d')" -- memory outbox >>"$log" 2>&1 \
     || { say "commit failed"; return 0; }
   say "committed memory changes"
   sync_push_leftovers

@@ -1,5 +1,7 @@
 {
   "name": "{{name}}",
   "layout": 1,
-  "sync": false
+  "sync": false,
+  "audience": "private",
+  "writes": "implicit"
 }

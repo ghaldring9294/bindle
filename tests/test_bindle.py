@@ -67,7 +67,7 @@ class BindleTest(unittest.TestCase):
 class NewTest(BindleTest):
     def test_scaffolds_a_plugin_shaped_bindle_named_throughout(self):
         b = self.make_bindle("acme")
-        self.assertEqual(json.loads((b / "bindle.json").read_text()), {"name": "acme", "layout": 1, "sync": False})
+        self.assertEqual(json.loads((b / "bindle.json").read_text()), {"name": "acme", "layout": 1, "sync": False, "audience": "private", "writes": "implicit"})
         self.assertEqual(json.loads((b / ".claude-plugin/plugin.json").read_text())["name"], "acme")
         self.assertEqual(json.loads((b / ".claude-plugin/marketplace.json").read_text())["name"], "bindle-acme")
         for d in ["memory", "notes", "projects", "skills", "commands", "agents"]:
@@ -350,7 +350,8 @@ class InstallTest(BindleTest):
         self.assertEqual(self.run_cli("install")[0], 0)
         self.assertEqual(os.readlink(self.home / ".local/bin/bindle"), str(bindle.BASE / "bin/bindle"))
         self.assertTrue((self.home / ".claude/commands/bindle.md").is_symlink())
-        self.assertEqual(sorted(p.name for p in (self.home / ".claude").iterdir()), ["commands"])
+        self.assertTrue((self.home / ".claude/skills/bindle-promote/SKILL.md").exists())
+        self.assertEqual(sorted(p.name for p in (self.home / ".claude").iterdir()), ["commands", "skills"])
 
     # A real file there is the person's own; replacing it would lose their work.
     def test_refuses_to_replace_a_real_file(self):
@@ -429,6 +430,117 @@ class UpgradeTest(BindleTest):
             os.chdir(cwd)
         for b in (acme, personal):
             self.assertEqual((b / "hooks/lib.sh").read_bytes(), (bindle.TEMPLATE / "hooks/lib.sh").read_bytes())
+
+
+class PromotionTest(BindleTest):
+    """Material crosses between bindles only as reviewed, general text, through the source's outbox."""
+
+    def setUp(self):
+        super().setUp()
+        self.acme = self.make_bindle("acme")
+        self.personal = self.make_bindle("personal")
+        (self.acme / "private-terms.txt").write_text("# terms\nAcme\nACME-\nwidgetd\n")
+        bindle.git(self.acme, "commit", "-qam", "terms")
+        self.draft = self.tmp / "draft.md"
+        self.draft.write_text("---\nname: small-prs\ndescription: keep PRs small\ntype: feedback\nboundary: craft\n---\nKeep PRs small.\n")
+
+    def add(self, *extra):
+        return self.run_cli("outbox", "add", self.acme, self.draft, "--name", "small-prs", "--description", "keep PRs small", *extra)
+
+    def test_an_approved_memory_reaches_the_target_with_an_index_line(self):
+        self.assertEqual(self.add()[0], 0)
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text())
+        self.assertIn("(small-prs.md) — keep PRs small", (self.personal / "memory/MEMORY.md").read_text())
+        item = json.loads((self.acme / "outbox/small-prs/item.json").read_text())
+        self.assertEqual((item["status"], item["collected_into"]), ("collected", ["personal"]))
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+        self.assertEqual(bindle.git(self.acme, "status", "--porcelain"), "")
+
+    # The leak check is the structural guard: a draft that still names the domain never enters the outbox.
+    def test_a_draft_naming_the_domain_is_refused(self):
+        self.draft.write_text("Keep PRs small, like we do on widgetd.\n")
+        code, out = self.add()
+        self.assertEqual(code, 1)
+        self.assertIn("widgetd", out)
+        self.assertFalse((self.acme / "outbox/small-prs").exists())
+
+    def test_terms_match_whole_words_case_insensitively(self):
+        self.draft.write_text("Ticket ACME-123 taught us this.\n")
+        self.assertEqual(self.add()[0], 1)
+        self.draft.write_text("Acmeological reasoning is fine.\n")
+        self.assertEqual(self.add()[0], 0)
+
+    def test_a_ticket_prefix_term_matches_ticket_keys(self):
+        (self.acme / "private-terms.txt").write_text("PROJ-\n")
+        self.draft.write_text("Fixed in PROJ-4512.\n")
+        self.assertEqual(self.add()[0], 1)
+
+    def test_a_draft_that_looks_like_a_secret_is_refused(self):
+        self.draft.write_text("token: abcdefghijklmnopqrstuvwxyz123456\n")
+        code, out = self.add()
+        self.assertEqual(code, 1)
+        self.assertIn("possible secret", out)
+
+    # The outbox could be edited after approval; collect checks again at the moment of crossing.
+    def test_collect_rechecks_an_outbox_item_edited_after_approval(self):
+        self.add()
+        (self.acme / "outbox/small-prs/memory.md").write_text("Edited later to mention Acme.\n")
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.assertEqual(code, 1)
+        self.assertFalse((self.personal / "memory/small-prs.md").exists())
+
+    # Naming the items puts them in Claude Code's permission prompt, which is the person's gate.
+    def test_collect_needs_named_items_or_all(self):
+        self.add()
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal)
+        self.assertEqual(code, 1)
+        self.assertIn("--items", out)
+
+    def test_collecting_twice_moves_nothing_the_second_time(self):
+        self.add()
+        self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        _, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.assertIn("already in personal", out)
+        lines = [l for l in (self.personal / "memory/MEMORY.md").read_text().splitlines() if "small-prs" in l]
+        self.assertEqual(len(lines), 1)
+
+    def test_a_skill_moves_as_a_folder(self):
+        skill = self.tmp / "review-checklist"
+        skill.mkdir()
+        (skill / "SKILL.md").write_text("---\nname: review-checklist\ndescription: x\n---\nCheck tests first.\n")
+        self.assertEqual(self.run_cli("outbox", "add", self.acme, skill, "--kind", "skill", "--name", "review-checklist")[0], 0)
+        self.assertEqual(self.run_cli("collect", self.acme, "--into", self.personal, "--items", "review-checklist")[0], 0)
+        self.assertIn("Check tests first.", (self.personal / "skills/review-checklist/SKILL.md").read_text())
+
+    def test_never_overwrites_something_already_in_the_target(self):
+        self.add()
+        (self.personal / "memory/small-prs.md").write_text("mine\n")
+        code, _ = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.assertEqual(code, 1)
+        self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
+
+
+class AudienceWritesTest(BindleTest):
+    def test_new_records_audience_and_writes(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "craft", "--audience", "shared", "--writes", "explicit")
+        meta = json.loads((self.tmp / "craft/bindle.json").read_text())
+        self.assertEqual((meta["audience"], meta["writes"]), ("shared", "explicit"))
+
+    # An explicit bindle only takes reviewed material; letting sessions write memories into it would bypass that.
+    def test_an_explicit_bindle_cannot_be_writable(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "craft", "--writes", "explicit")
+        code, out = self.run_cli("attach", self.tmp / "craft", self.folder(), "--writable")
+        self.assertEqual(code, 1)
+        self.assertIn("explicit writes only", out)
+        self.assertEqual(self.claude_calls(), [])
+
+    def test_doctor_shows_a_non_default_audience(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "craft", "--audience", "shared", "--writes", "explicit")
+        f = self.folder()
+        self.run_cli("attach", self.tmp / "craft", f)
+        self.assertIn("craft: on, read-only, shared, explicit writes, sync off", self.run_cli("doctor", f)[1])
 
 
 class MemoryHookTest(BindleTest):
@@ -515,6 +627,13 @@ class SyncTest(BindleTest):
         code, out = self.run_cli("doctor", self.laptop_folder)
         self.assertEqual(code, 1)
         self.assertIn("memory/oops.md may hold a secret", out)
+
+    # The outbox syncs too, so items prepared on one machine can be collected on another.
+    def test_outbox_changes_sync_with_memories(self):
+        (self.laptop / "outbox/item").mkdir(parents=True)
+        (self.laptop / "outbox/item/memory.md").write_text("general lesson\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertIn("outbox/item/memory.md", bindle.git(self.remote, "log", "--name-only", "--format="))
 
     # Skills and rules are deliberate commits; auto-sync must not ship half-finished work.
     def test_commits_only_memory(self):

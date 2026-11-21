@@ -1,0 +1,3 @@
+# Words that identify the {{name}} domain, one per line (case-insensitive, whole words).
+# Anything promoted out of this bindle is checked against them, so list names that must never leave it:
+# the organization, its products, repos, ticket prefixes, internal systems, people.
