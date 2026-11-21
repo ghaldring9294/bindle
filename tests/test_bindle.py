@@ -402,6 +402,18 @@ class InstallTest(BindleTest):
         self.assertFalse((self.home / ".local/bin/bindle").exists())
 
 
+class DocsTest(unittest.TestCase):
+    # The README is how people learn the commands; a command it doesn't list is one nobody finds.
+    def test_readme_lists_every_command(self):
+        readme = (bindle.BASE / "README.md").read_text()
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect"]
+        import argparse
+        sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
+        self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
+        for c in parser_cmds:
+            self.assertIn(f"`bindle {c}", readme, c)
+
+
 class UpgradeTest(BindleTest):
     """Base updates reach existing bindles only through upgrade, since each bindle carries its own copies."""
 

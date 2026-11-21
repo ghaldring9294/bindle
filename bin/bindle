@@ -703,6 +703,16 @@ def cmd_install(args):
 
 
 def main(argv=None):
+    p = build_parser()
+    args = p.parse_args(argv)
+    try:
+        return args.fn(args) or 0
+    except BindleError as e:
+        print(f"bindle: {e}", file=sys.stderr)
+        return 1
+
+
+def build_parser():
     p = argparse.ArgumentParser(prog="bindle", description="Create bindles and turn them on for folders.")
     p.add_argument("--version", action="version", version=f"bindle {VERSION}")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -764,12 +774,7 @@ def main(argv=None):
     s.add_argument("folder", nargs="?", help="the folder you launch Claude from (default: here)")
     s.set_defaults(fn=cmd_doctor)
 
-    args = p.parse_args(argv)
-    try:
-        return args.fn(args) or 0
-    except BindleError as e:
-        print(f"bindle: {e}", file=sys.stderr)
-        return 1
+    return p
 
 
 if __name__ == "__main__":
