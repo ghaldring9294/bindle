@@ -173,6 +173,7 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
    - **Working with a friend on a project:** each keeps their own personal bindle; what matters to both goes into the project repo.
 
    Write the docs once bindle reaches MVP (promote and collect built): a README that explains the model through these scenarios, so it's usable without reading PLAN.md.
+7. **A public demo repo (`bindle-demo`), at MVP.** A toy project with its own populated `.bindle/` (memories, a skill, rules, notes, per-project notes) and a README walkthrough: clone, `bindle attach .bindle . --writable`, start Claude, see it recall a memory and run the skill, watch a new memory land, then try detach, a second read-only bindle and `doctor`. Documentation people can run and inspect. Make it the end-to-end test fixture (`tests/e2e.sh` runs the walkthrough), so a change that breaks it fails the test. Public by construction: its domain is a toy.
 
 ## Log
 
@@ -188,3 +189,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** every bindle has `audience` (private, shared, public) and `writes` (implicit, explicit). Sharing craft is a craft bindle (shared, explicit), installable without bindle; shared implicit bindles are team memory.
 - **2026-11-21:** dropped shared team memory: a team's shared knowledge belongs in the project repo as reviewed commits.
 - **2026-11-21:** collaborators keep their own bindles; shared knowledge goes in the project repo. Sharing and collaboration added to the scenario docs, to write at MVP.
+- **2026-11-21:** planned a public demo repo that doubles as the end-to-end test fixture.
