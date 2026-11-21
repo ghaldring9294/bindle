@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.3.2 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/session-start.sh`).
+
+- A memory goes at the lowest level that covers everything it's about: only one project → `projects/<project>/`; spanning projects (how two repos interact, domain-wide conventions) → `memory/`.
+
 ## 0.3.1 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/session-start.sh`).
