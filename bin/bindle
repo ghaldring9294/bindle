@@ -19,7 +19,7 @@ from pathlib import Path
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.4.5"
+VERSION = "0.4.6"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/lib.sh", "hooks/session-start.sh", "hooks/rules.sh", "hooks/session-end.sh", "hooks/hooks.json"]
@@ -467,13 +467,20 @@ def upgrade_plan(b):
         rel = src.relative_to(TEMPLATE).as_posix()
         if src.is_file() and rel not in MANAGED and not (root / rel).exists():
             plan.append(("add", rel))
-    # A bindle's .gitignore is its own, so upgrade only appends template rules it lacks.
-    own = (root / ".gitignore").read_text().splitlines() if (root / ".gitignore").exists() else []
-    missing = [l for l in (TEMPLATE / ".gitignore").read_text().splitlines()
-               if l.strip() and not l.startswith("#") and l not in own]
-    if missing and (root / ".gitignore").exists():
-        plan.append(("ignore", ", ".join(missing)))
+    # A bindle's .gitignore and .gitattributes are its own, so upgrade only appends template lines they lack.
+    for name in LINE_MERGED:
+        missing = missing_lines(root, name)
+        if missing and (root / name).exists():
+            plan.append(("lines", name))
     return plan
+
+
+LINE_MERGED = [".gitignore", ".gitattributes"]
+
+
+def missing_lines(root, name):
+    own = (root / name).read_text().splitlines() if (root / name).exists() else []
+    return [l for l in (TEMPLATE / name).read_text().splitlines() if l.strip() and not l.startswith("#") and l not in own]
 
 
 def cmd_upgrade(args):
@@ -494,7 +501,7 @@ def cmd_upgrade(args):
             print(f"{b['name']}: up to date (bindle {VERSION})")
             continue
         print(f"{b['name']}: {'would change' if args.dry_run else 'upgrading'} ({b['root']})")
-        for line in steps + [f"{action} {rel}" for action, rel in plan]:
+        for line in steps + [f"add lines to {rel}: {', '.join(missing_lines(b['root'], rel))}" if action == "lines" else f"{action} {rel}" for action, rel in plan]:
             print(f"  {line}")
         if args.dry_run:
             continue
@@ -503,12 +510,10 @@ def cmd_upgrade(args):
         touched = []
         for action, rel in plan:
             out = b["root"] / rel
-            if action == "ignore":
-                lines = [l for l in (TEMPLATE / ".gitignore").read_text().splitlines()
-                         if l.strip() and not l.startswith("#") and l not in (b["root"] / ".gitignore").read_text().splitlines()]
-                with (b["root"] / ".gitignore").open("a") as f:
-                    f.write("\n# Added by bindle upgrade\n" + "\n".join(lines) + "\n")
-                touched.append(".gitignore")
+            if action == "lines":
+                with out.open("a") as f:
+                    f.write("\n# Added by bindle upgrade\n" + "\n".join(missing_lines(b["root"], rel)) + "\n")
+                touched.append(rel)
                 continue
             if action == "remove":
                 out.unlink()

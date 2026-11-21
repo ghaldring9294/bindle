@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.4.6 (2026-11-21)
+
+**Run `bindle upgrade`** (adds `.gitattributes`); for a bindle that's read-only where it's attached, run it yourself.
+
+- Fix: two machines adding memories between syncs both append to `MEMORY.md`, which stopped the rebase and left one machine's memory unpushed. `.gitattributes` now merges `memory/MEMORY.md` and `projects/*/index.md` with git's union driver, keeping both sides' lines.
+- `bindle upgrade` appends missing template lines to `.gitattributes` as well as `.gitignore`.
+
 ## 0.4.5 (2026-11-21)
 
 - `doctor` ends with a copy-and-paste command for each bindle that needs upgrading (`bindle upgrade <path>`, plus `&& git -C <path> push` when it has a remote), noting that in Claude Code it's prefixed with `!` because a read-only bindle is locked to Claude.

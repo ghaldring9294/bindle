@@ -173,12 +173,14 @@ class NotesTest(BindleTest):
     def test_upgrade_adds_missing_ignore_rules_without_touching_the_bindles_own(self):
         b = self.make_bindle("acme")
         (b / ".gitignore").write_text("*.out\n")
+        (b / ".gitattributes").unlink()
         (b / "notes/scratch/README.md").unlink()
         bindle.git(b, "add", "-A"); bindle.git(b, "commit", "-qm", "an old bindle")
         self.run_cli("upgrade", b)
         ignore = (b / ".gitignore").read_text()
         self.assertTrue(ignore.startswith("*.out\n"))
         self.assertIn("notes/scratch/*", ignore)
+        self.assertIn("merge=union", (b / ".gitattributes").read_text())
         self.assertTrue((b / "notes/scratch/README.md").exists())
         self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
 
@@ -732,6 +734,21 @@ class SyncTest(BindleTest):
         (self.laptop / "outbox/item/memory.md").write_text("general lesson\n")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("outbox/item/memory.md", bindle.git(self.remote, "log", "--name-only", "--format="))
+
+    # Both machines add a memory between syncs, so both append to MEMORY.md; the union merge keeps both lines
+    # instead of stopping the rebase and leaving one machine's memory unpushed.
+    def test_index_lines_added_on_two_machines_both_survive(self):
+        for root, folder, n in ((self.laptop, self.laptop_folder, "a"), (self.desktop, self.desktop_folder, "b")):
+            (root / f"memory/{n}.md").write_text(f"{n}\n")
+            with open(root / "memory/MEMORY.md", "a") as f:
+                f.write(f"- [{n}]({n}.md) — from {n}\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.hook(self.desktop, self.desktop_folder, "session-end.sh")
+        self.hook(self.laptop, self.laptop_folder, "session-start.sh")
+        index = (self.laptop / "memory/MEMORY.md").read_text()
+        self.assertIn("from a", index)
+        self.assertIn("from b", index)
+        self.assertEqual(bindle.git(self.desktop, "rev-list", "--count", "@{upstream}..HEAD"), "0")
 
     # Skills and rules are deliberate commits; auto-sync must not ship half-finished work.
     def test_commits_only_memory(self):

@@ -1,0 +1,3 @@
+# Indexes get a line per memory from every machine; keep both sides when they merge.
+memory/MEMORY.md merge=union
+projects/*/index.md merge=union
