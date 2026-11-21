@@ -58,6 +58,8 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - **`detach` leaves the marketplace declared** in the folder's settings; removing a marketplace in Claude Code is machine-wide and would break other folders.
 - **`attach` refuses a folder inside another git repo**, since Claude Code would write the settings at that repo's root.
 - **Sync lives in each bindle's hooks** (opt-in, `"sync": true`). SessionStart pulls (and pushes commits a killed session left behind), then prints the memory index: one script, because hooks for the same event run in parallel. SessionEnd commits only `memory/`, and only in the writable bindle, then rebases and pushes. It never blocks a session; failures go to `.git/bindle-sync.log` and `doctor`. A memory matching a credential pattern is never committed (a pushed secret can't be taken back). `notes/` doesn't sync automatically. Verified end to end: a headless session's memory reached the remote at SessionEnd.
+- **A bindle inside a project repo is excluded locally.** `bindle new` inside a git repo adds the bindle to that repo's `.git/info/exclude` (never the team's `.gitignore`), and `doctor` flags a bindle that an enclosing repo would commit or already tracks, so private memories can't ride along with a project's push. A demo bindle (`"demo": true`) may be tracked on purpose.
+- **Agents are told the rules where they work.** `AGENTS.md` (imported by a one-line `CLAUDE.md`) in the base and in every bindle explains what it is and its rules; at session start each bindle prints one line saying whether it's writable or read-only in this folder, and that a read-only bindle's files are off limits.
 - **`install` only links** the CLI onto PATH and `/bindle` into `~/.claude/commands`. bindle never takes over `~/.claude`'s settings or CLAUDE.md.
 
 ### How each part loads (verified 2026-11-21, Claude Code v2.1.329)
@@ -190,3 +192,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** dropped shared team memory: a team's shared knowledge belongs in the project repo as reviewed commits.
 - **2026-11-21:** collaborators keep their own bindles; shared knowledge goes in the project repo. Sharing and collaboration added to the scenario docs, to write at MVP.
 - **2026-11-21:** planned a public demo repo that doubles as the end-to-end test fixture.
+- **2026-11-21:** enclosing-repo guard (local exclude on `new`, `doctor` warning); agent orientation (AGENTS.md everywhere, a writable/read-only line per bindle at session start).
