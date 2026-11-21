@@ -118,6 +118,15 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 3. Reshape `bindle-personal` into the bindle layout (plugin manifest, `memory/`, `rules.md`); write the first skills there.
 4. Base CLI: `new`, `attach` (on, or on and writable), `doctor` (what's active here, where memory lands), then the `promote` skill.
 5. Create the Acme bindle locally and migrate secure-first; push to the work org later.
+6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
+   - **Employee:** personal and Acme both on at `~/acme`, Acme writable.
+   - **Freelancer:** clients Acme and Globex in separate folders. Personal is on in both, the client is writable, and switching clients means launching from the other folder.
+   - **Side project:** personal on and writable, nothing else.
+   - **A client that allows no outside tooling:** Initech's folder has only Initech on.
+   - **Promoting a lesson:** learned at Acme, carried into personal with `bindle:promote` from a folder where personal is writable.
+   - **Hackathon skill:** built in personal on Saturday, used at Acme on Monday.
+   - **New machine:** clone the bindles, run `attach` once per folder.
+   - **Per-project notes:** private notes about Acme's `api` repo, loaded through its `CLAUDE.local.md`.
 
 ## Log
 
