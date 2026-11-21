@@ -97,6 +97,7 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 5. **Each sidecar lives with its projects' git.** Personal projects on personal git; work projects on the employer's git (a private repo in the work org). The base comes from personal git on every machine, because it holds no context.
 6. **Tag every memory `boundary: craft | context | both`** as it's written. `both` means a general lesson learned on a specific problem: on migration, promote a rewritten general rule and leave the specifics behind.
 7. **Migrate secure-first.** Move a mixed setup into the professional layer first, then promote craft to personal one piece at a time, reviewed memory by memory.
+   - *(2026-11-21: personal's `rules.md` is empty now that rules load in every session; July's copy is in git history.)*
    - **Rebuild the personal principles from the live setup, not the July copy.** `bindle-personal/rules.md` (July's `CLAUDE.personal.md`) duplicates the working principles from July, and the live global `CLAUDE.md` has grown since (summaries of always-on rules, a lessons index, new sections). At migration, derive `rules.md` from the current live file minus anything domain-specific, then delete the duplicate so there is one source.
    - **Skills can go into `bindle-personal/skills/` now**, hand-linked into `~/.claude/skills/` until the installer runs. First one: `doc-style` (Nov 2026), working through a symlink.
 
@@ -156,6 +157,7 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
 4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Rules loading and the read-only lock done too (v0.3.0). Still to build: the `promote` skill and `bindle collect`, the `~/bindles/` collective view, and a cleanup pass on personal's migrated memories (keep, move to `projects/<name>/`, archive, or delete).
 4a. ~~**Test on the personal laptop.**~~ Done 2026-11-21. clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
+4b. **Write personal's `rules.md`:** rebuild it from the live global CLAUDE.md minus anything work-specific, under 9,000 characters (it now loads in every session where personal is on).
 5. Create the work bindle and migrate secure-first: on the next work laptop (no rush on this one).
 6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
    - **Employee:** personal and Acme both on at `~/acme`, Acme writable.
