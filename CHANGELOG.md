@@ -2,6 +2,15 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.6.0 (2026-11-21)
+
+**Run `bindle upgrade`** (new managed `hooks/run`, changed `hooks/hooks.json`, `.gitattributes` gains an LF rule); for a bindle that's read-only where it's attached, run it yourself. Windows support.
+
+- Windows: hooks run through `hooks/run`, which finds a working Python 3.9+ (`python3`, `python` or `py`; on Windows `python3` is often a Store stub). Lock rules use Claude Code's POSIX path form (`C:\\x` becomes `//c/x`). `install` falls back to copying where symlinks aren't allowed and writes a `bindle.cmd` launcher. `attach` accepts a folder inside a repo on Windows, where Claude Code reads settings in the launch folder. `doctor` quotes paths for PowerShell and cmd.
+- bindle always writes UTF-8 with LF line endings, and `.gitattributes` keeps a bindle's text files LF on every OS (CRLF made git misread a bindle's `.gitignore` on Windows, and breaks shell scripts).
+- Git output is read as UTF-8 on every OS.
+- CI runs on Windows too.
+
 ## 0.5.1 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/bindle_hook.py`); for a bindle that's read-only where it's attached, run it yourself.

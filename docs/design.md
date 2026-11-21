@@ -109,6 +109,7 @@ A read-only bindle is **visible, not sealed**: its rules and memory index are sh
 
 ## Implementation decisions
 
+- **Portable by construction.** Hooks run through `hooks/run`, a small bash script that picks a working Python (Claude Code runs hook commands in Git Bash on Windows, which git brings). Lock rules use Claude Code's POSIX path form, where Windows drives become `/c`. Files are always written UTF-8 with LF, and `.gitattributes` keeps them LF on Windows checkouts, since CRLF breaks bash scripts and made git misread `.gitignore`. On Windows, Claude Code reads `settings.local.json` in the launch folder rather than at the repo root.
 - **One implementation.** `templates/bindle/hooks/bindle_hook.py` runs the hooks and holds the writable check, sync and the secret check. The CLI imports it from the template, so the two can't disagree. It reads settings as JSON and compares resolved paths. An earlier version had bash hooks beside a Python CLI; they disagreed on paths with accents and on non-ASCII file names.
 - **Managed files are byte-identical copies.** Each bindle carries `hooks/bindle_hook.py` and `hooks/hooks.json`, so it works on a machine without the bindle tool. `doctor` flags a copy that differs, and `upgrade` replaces it.
 - **`upgrade` never overwrites a bindle's own files.** It replaces managed files, removes obsolete ones, adds template files a bindle lacks, appends missing template lines to `.gitignore` and `.gitattributes`, stamps the layout version, and commits only what it touched.
@@ -152,7 +153,7 @@ What bindle adds: the structure decides where things go (one repo per domain, on
 
 ## Open questions
 
-- **Windows.** Claude Code runs on Windows; bindle is tested on macOS and Linux. Still to check: how Claude Code runs hook commands there, how to call Python portably, `install` without symlinks, and how `//path` deny rules map onto drive letters.
+- **Windows, on a real machine.** CI passes on Windows (v0.6.0); still to confirm with Claude Code itself: hooks through Git Bash, `autoMemoryDirectory` with a `C:\\` path, and the `//c/` lock rule.
 - **Per-repo notes loading automatically** (a repo's `CLAUDE.local.md` importing its `projects/<repo>/` index), with projects identified by their git remote rather than their path, so the same repo at a different path finds the same notes.
 - **Skill addendums:** how a domain's short addendum tailors a general skill from craft (a skill that references the base one, or a file the base skill looks for).
 - **More guardrails in the same spirit:** warn when a bindle's remote isn't on its domain's host; warn when a project's private files are committed to a team repo.

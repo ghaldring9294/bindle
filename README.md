@@ -34,14 +34,16 @@ bindle uses Claude Code's own mechanisms rather than replacing them: plugins for
 
 ## Install
 
-You need Claude Code 2.1.74 or later, git, Python 3.9 or later, and bash. bindle is tested on macOS and Linux; Windows support is in progress.
+You need Claude Code 2.1.74 or later, git, and Python 3.9 or later. It runs on macOS, Linux and Windows.
 
 ```
 git clone https://github.com/ghaldring9294/bindle.git
 bindle/bin/bindle install
 ```
 
-`install` links the `bindle` command into `~/.local/bin` and adds two things to `~/.claude`: the `/bindle` command and the `/bindle-promote` skill. It never touches your settings or `CLAUDE.md`. If `~/.local/bin` isn't on your `PATH`, it tells you the line to add.
+`install` puts the `bindle` command in `~/.local/bin` and adds two things to `~/.claude`: the `/bindle` command and the `/bindle-promote` skill. It never touches your settings or `CLAUDE.md`. If `~/.local/bin` isn't on your `PATH`, it tells you how to add it.
+
+**On Windows:** install [Git for Windows](https://git-scm.com/download/win) (Claude Code runs hooks in its Git Bash) and Python from [python.org](https://www.python.org/downloads/), then run the same two lines from a terminal, with `python bindle\bin\bindle install` for the second. Without developer mode, Windows doesn't allow symlinks, so `install` copies files instead and writes a `bindle.cmd` launcher; run `bindle install` again after updating bindle. Add `%USERPROFILE%\.local\bin` to your `PATH`.
 
 ## Quick start
 
@@ -257,7 +259,7 @@ Start with `bindle doctor <folder>`; it explains most problems and prints the fi
 
 ## Limits
 
-- **Tested on macOS and Linux.** Windows support is in progress (Claude Code itself runs on Windows).
+- **Windows needs Git for Windows and Python.** Hooks run through Git Bash and find Python as `python3`, `python` or `py`. On Windows, Claude Code reads a folder's settings in that folder, so `attach` accepts a folder inside a repo there.
 - **Claude Code shows only the first 200 lines or 25 KB of `MEMORY.md`.** Keep the index short; put project memories in `projects/`.
 - **A read-only bindle's memory index is shown through a hook, capped at 10,000 characters.**
 - **A repo's notes don't load automatically when you work inside that repo.** Launch from the folder that holds your repos, and the session is told where the notes are.
