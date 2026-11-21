@@ -3,8 +3,6 @@
 `claude` is replaced by tests/fake_claude, so nothing here touches the machine's real plugin state.
 tests/e2e.sh runs the same flow against the real CLI."""
 import contextlib
-import importlib.machinery
-import importlib.util
 import io
 import json
 import os
@@ -14,11 +12,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+import sys
+
 HERE = Path(__file__).resolve().parent
-loader = importlib.machinery.SourceFileLoader("bindle_cli", str(HERE.parent / "bin" / "bindle"))
-spec = importlib.util.spec_from_loader("bindle_cli", loader)
-bindle = importlib.util.module_from_spec(spec)
-loader.exec_module(bindle)
+sys.path.insert(0, str(HERE.parent))
+import bindle  # noqa: E402
 
 
 class BindleTest(unittest.TestCase):
@@ -80,8 +78,7 @@ class NewTest(BindleTest):
         b = self.make_bindle("acme")
         for rel in bindle.MANAGED:
             self.assertEqual((b / rel).read_bytes(), (bindle.TEMPLATE / rel).read_bytes(), rel)
-        for script in ["lib.sh", "session-start.sh", "session-end.sh"]:
-            self.assertTrue(os.access(b / "hooks" / script, os.X_OK), script)
+        self.assertTrue(os.access(b / "hooks/bindle_hook.py", os.X_OK))
 
     def test_commits_but_never_sets_a_remote(self):
         b = self.make_bindle("acme")
@@ -286,7 +283,7 @@ class RulesTest(BindleTest):
 
     def run_rules(self, b, folder):
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(folder)}
-        return subprocess.run([str(b / "hooks/rules.sh")], env=env, capture_output=True, text=True).stdout
+        return subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "rules"], env=env, capture_output=True, text=True).stdout
 
     def test_rules_load_whether_the_bindle_is_writable_or_read_only(self):
         acme, personal, f = self.make_bindle("acme"), self.make_bindle("personal"), self.folder()
@@ -338,11 +335,11 @@ class DoctorTest(BindleTest):
     def test_flags_a_hook_that_drifted_from_the_template(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f)
-        with open(b / "hooks/lib.sh", "a") as h:
+        with open(b / "hooks/bindle_hook.py", "a") as h:
             h.write("# local edit\n")
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
-        self.assertIn("lib.sh differs", out)
+        self.assertIn("bindle_hook.py differs", out)
         self.assertIn(f"bindle upgrade {b}", out)
         self.assertNotIn("&& git -C", out)
 
@@ -364,7 +361,8 @@ class DoctorTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("bindle-personal: was on, but nothing is at", out)
-        self.assertIn("attach it again", out)
+        self.assertIn("attach it from its new path", out)
+        self.assertIn("bindle detach bindle-personal", out)
         self.assertIn("doesn't exist", out)
         self.assertNotIn("No bindles attached", out)
 
@@ -420,14 +418,14 @@ class UpgradeTest(BindleTest):
     def test_brings_a_drifted_or_old_bindle_up_to_date_and_commits(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f)
-        (b / "hooks/lib.sh").write_text("# old\n")
-        (b / "hooks/print-memory.sh").write_text("# obsolete\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n")
+        (b / "hooks/lib.sh").write_text("# obsolete\n")
         (b / "AGENTS.md").unlink()
         bindle.git(b, "add", "-A")
         bindle.git(b, "commit", "-qm", "an old bindle")
         self.assertEqual(self.run_cli("upgrade", b)[0], 0)
-        self.assertEqual((b / "hooks/lib.sh").read_bytes(), (bindle.TEMPLATE / "hooks/lib.sh").read_bytes())
-        self.assertFalse((b / "hooks/print-memory.sh").exists())
+        self.assertEqual((b / "hooks/bindle_hook.py").read_bytes(), (bindle.TEMPLATE / "hooks/bindle_hook.py").read_bytes())
+        self.assertFalse((b / "hooks/lib.sh").exists())
         self.assertIn("acme bindle", (b / "AGENTS.md").read_text())
         self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
         self.assertEqual(self.run_cli("doctor", f)[0], 0)
@@ -437,20 +435,20 @@ class UpgradeTest(BindleTest):
         b = self.make_bindle("acme")
         (b / "README.md").write_text("my readme\n")
         (b / "memory/fact.md").write_text("unsaved\n")
-        (b / "hooks/lib.sh").write_text("# old\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n")
         self.run_cli("upgrade", b)
         self.assertEqual((b / "README.md").read_text(), "my readme\n")
         status = bindle.git(b, "status", "--porcelain")
         self.assertIn("README.md", status)
         self.assertIn("memory/fact.md", status)
-        self.assertNotIn("lib.sh", status)
+        self.assertNotIn("bindle_hook.py", status)
 
     def test_dry_run_changes_nothing(self):
         b = self.make_bindle("acme")
-        (b / "hooks/lib.sh").write_text("# old\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n")
         code, out = self.run_cli("upgrade", b, "--dry-run")
-        self.assertIn("update hooks/lib.sh", out)
-        self.assertEqual((b / "hooks/lib.sh").read_text(), "# old\n")
+        self.assertIn("update hooks/bindle_hook.py", out)
+        self.assertEqual((b / "hooks/bindle_hook.py").read_text(), "# old\n")
 
     def test_an_up_to_date_bindle_gets_no_commit(self):
         b = self.make_bindle("acme")
@@ -476,8 +474,8 @@ class UpgradeTest(BindleTest):
         bindle.git(b, "remote", "add", "origin", str(remote)); bindle.git(b, "fetch", "-q", "origin")
         bindle.git(b, "branch", "-q", "-u", "origin/" + bindle.git(b, "rev-parse", "--abbrev-ref", "HEAD"))
         self.run_cli("attach", b, f)
-        (b / "hooks/lib.sh").write_text("# old\n")
-        (b / "hooks/rules.sh").write_text("# old\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n")
+        (b / "hooks/hooks.json").write_text("{}\n")
         _, out = self.run_cli("doctor", f)
         self.assertIn(f"bindle upgrade {b} && git -C {b} push", out)
         self.assertEqual(out.count(f"bindle upgrade {b}"), 1)
@@ -487,7 +485,7 @@ class UpgradeTest(BindleTest):
         self.run_cli("attach", acme, f, "--writable")
         self.run_cli("attach", personal, f)
         for b in (acme, personal):
-            (b / "hooks/lib.sh").write_text("# old\n")
+            (b / "hooks/bindle_hook.py").write_text("# old\n")
         cwd = os.getcwd()
         os.chdir(f)
         try:
@@ -495,7 +493,7 @@ class UpgradeTest(BindleTest):
         finally:
             os.chdir(cwd)
         for b in (acme, personal):
-            self.assertEqual((b / "hooks/lib.sh").read_bytes(), (bindle.TEMPLATE / "hooks/lib.sh").read_bytes())
+            self.assertEqual((b / "hooks/bindle_hook.py").read_bytes(), (bindle.TEMPLATE / "hooks/bindle_hook.py").read_bytes())
 
 
 class PromotionTest(BindleTest):
@@ -609,12 +607,221 @@ class AudienceWritesTest(BindleTest):
         self.assertIn("craft: on, read-only, shared, explicit writes, sync off", self.run_cli("doctor", f)[1])
 
 
+class ReviewRegressionTest(BindleTest):
+    """Each test reproduces a finding from the 2026-11-21 independent review."""
+
+    def hook(self, b, folder, command):
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(folder)}
+        return subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), command], env=env, capture_output=True, text=True)
+
+    def with_remote(self, b):
+        remote = self.tmp / f"{b.name}.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(b), str(remote)], check=True)
+        bindle.git(b, "remote", "add", "origin", str(remote))
+        bindle.git(b, "push", "-q", "-u", "origin", "HEAD")
+        return remote
+
+    # Writable detection used a regex built from the path: accents and brackets made it fail silently.
+    def test_writable_is_detected_for_paths_with_accents_brackets_and_spaces(self):
+        b = self.tmp / "José [1] x" / "bindle"
+        b.parent.mkdir()
+        self.assertEqual(self.run_cli("new", "acme", "--at", b)[0], 0)
+        f = self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        self.assertIn("is on and writable", self.hook(b, f, "session-start").stdout)
+
+    # A crafted item.json could point collect at the source's private memories.
+    def test_collect_refuses_an_item_pointing_outside_its_folder(self):
+        acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
+        (acme / "memory/private.md").write_text("private context\n")
+        item = acme / "outbox/evil"
+        item.mkdir(parents=True)
+        (item / "item.json").write_text(json.dumps({"kind": "memory", "file": "../../memory/private.md", "status": "approved"}))
+        code, out = self.run_cli("collect", acme, "--into", personal, "--items", "evil")
+        self.assertEqual(code, 1)
+        self.assertFalse((personal / "memory/evil.md").exists())
+
+    def test_collect_refuses_an_item_that_was_never_approved(self):
+        acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
+        draft = self.tmp / "d.md"; draft.write_text("general\n")
+        self.run_cli("outbox", "add", acme, draft, "--name", "lesson")
+        meta = json.loads((acme / "outbox/lesson/item.json").read_text()); meta["status"] = "draft"
+        (acme / "outbox/lesson/item.json").write_text(json.dumps(meta))
+        code, out = self.run_cli("collect", acme, "--into", personal, "--items", "lesson")
+        self.assertEqual(code, 1)
+        self.assertIn("not approved", out)
+
+    # copytree followed links that the leak check skipped, carrying a whole memory folder across.
+    def test_a_draft_containing_a_symlink_is_refused(self):
+        acme = self.make_bindle("acme")
+        skill = self.tmp / "review"; skill.mkdir()
+        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nok\n")
+        (skill / "ref").symlink_to(acme / "memory")
+        code, out = self.run_cli("outbox", "add", acme, skill, "--kind", "skill", "--name", "review")
+        self.assertEqual(code, 1)
+        self.assertIn("symlink", out)
+
+    # The leak check read only file contents; names and descriptions crossed unchecked.
+    def test_the_leak_check_covers_name_description_and_file_names(self):
+        acme = self.make_bindle("acme")
+        (acme / "private-terms.txt").write_text("widgetd\n")
+        draft = self.tmp / "d.md"; draft.write_text("general\n")
+        self.assertEqual(self.run_cli("outbox", "add", acme, draft, "--name", "widgetd-prs")[0], 1)
+        self.assertEqual(self.run_cli("outbox", "add", acme, draft, "--name", "prs", "--description", "how widgetd ships")[0], 1)
+        skill = self.tmp / "deploy"; skill.mkdir()
+        (skill / "SKILL.md").write_text("---\nname: deploy\ndescription: x\n---\nok\n")
+        (skill / "widgetd-runbook.md").write_text("steps\n")
+        self.assertEqual(self.run_cli("outbox", "add", acme, skill, "--kind", "skill", "--name", "deploy")[0], 1)
+
+    # The secret check was case-sensitive and missed common formats.
+    def test_the_secret_check_catches_common_credential_formats(self):
+        h = bindle.core.hooks()
+        for text in ["API_KEY=abcdefghijklmnopqrstuvwx1234", "AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY",
+                     "password: Tr0ub4dor&3-horse!battery", "github_pat_11ABCDEFG0123456789abcdefghij",
+                     "AIzaSyA1234567890abcdefghijklmnopqrstuv"]:
+            self.assertTrue(h.looks_secret(text), text)
+        for text in ["password: (in 1Password)", "token: ${SONAR_TOKEN}", "the API key lives in the vault"]:
+            self.assertFalse(h.looks_secret(text), text)
+
+    def test_sync_refuses_an_uppercase_api_key(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        self.run_cli("attach", b, f, "--writable")
+        (b / "memory/k.md").write_text("API_KEY=abcdefghijklmnopqrstuvwx1234\n")
+        head = bindle.git(b, "rev-parse", "HEAD")
+        self.hook(b, f, "session-end")
+        self.assertEqual(bindle.git(b, "rev-parse", "HEAD"), head)
+
+    # git quotes non-ASCII names by default, so the check couldn't open them.
+    def test_doctor_checks_notes_with_non_ascii_names(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        (b / "notes/café.md").write_text("token: abcdefghijklmnopqrstuvwx\n")
+        code, out = self.run_cli("doctor", f)
+        self.assertIn("café.md may hold a secret", out)
+
+    # Following the "add a remote" hint without -u left sync silently local forever.
+    def test_doctor_flags_a_remote_without_an_upstream(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        remote = self.tmp / "r.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+        bindle.git(b, "remote", "add", "origin", str(remote))
+        self.run_cli("attach", b, f, "--writable")
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 1)
+        self.assertIn("push -u origin HEAD", out)
+
+    def test_upgrade_stamps_a_missing_layout_instead_of_crashing(self):
+        b = self.make_bindle("acme")
+        meta = json.loads((b / "bindle.json").read_text()); del meta["layout"]
+        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "old")
+        self.assertEqual(self.run_cli("upgrade", b)[0], 0)
+        self.assertEqual(json.loads((b / "bindle.json").read_text())["layout"], bindle.LAYOUT)
+
+    # `git add -- memory outbox` failed when outbox/ was missing, so memories never synced.
+    def test_memories_sync_when_the_outbox_folder_is_missing(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.with_remote(b)
+        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta))
+        bindle.git(b, "rm", "-rq", "outbox"); bindle.git(b, "commit", "-qam", "no outbox"); bindle.git(b, "push", "-q")
+        self.run_cli("attach", b, f, "--writable")
+        (b / "memory/fact.md").write_text("x\n")
+        self.hook(b, f, "session-end")
+        self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
+        self.assertEqual(bindle.git(b, "rev-list", "--count", "@{upstream}..HEAD"), "0")
+
+    # The sync log was hard-coded under .git/, which is a file in a worktree.
+    def test_sync_works_in_a_worktree(self):
+        main = self.make_bindle("acme")
+        meta = json.loads((main / "bindle.json").read_text()); meta["sync"] = True
+        (main / "bindle.json").write_text(json.dumps(meta)); bindle.git(main, "commit", "-qam", "sync on")
+        wt = self.tmp / "acme-wt"
+        bindle.git(main, "worktree", "add", "-q", "-b", "wt", str(wt))
+        f = self.folder()
+        self.run_cli("attach", wt, f, "--writable")
+        (wt / "memory/fact.md").write_text("x\n")
+        self.hook(wt, f, "session-end")
+        self.assertEqual(bindle.git(wt, "status", "--porcelain"), "")
+
+    # A folder in the current directory with the bindle's name made detach treat the name as a path.
+    def test_detach_prefers_an_attached_name_over_a_folder_of_that_name(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f)
+        (self.tmp / "acme").mkdir()
+        cwd = os.getcwd(); os.chdir(self.tmp)
+        try:
+            code, out = self.run_cli("detach", "acme", f)
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(code, 0, out)
+
+    def test_a_moved_bindle_can_be_detached_by_name(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        b.rename(self.tmp / "moved")
+        code, out = self.run_cli("detach", "acme", f)
+        self.assertEqual(code, 0, out)
+        s = self.settings(f)
+        self.assertNotIn("bindle-acme", s.get("extraKnownMarketplaces", {}))
+        self.assertNotIn("autoMemoryDirectory", s)
+
+    # A failure partway through collect left some items copied and marked collected.
+    def test_collect_writes_nothing_when_any_item_fails(self):
+        acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
+        for n in ("one", "two"):
+            d = self.tmp / f"{n}.md"; d.write_text(f"{n}\n")
+            self.run_cli("outbox", "add", acme, d, "--name", n)
+        (acme / "outbox/two/memory.md").write_text("edited after approval\n")
+        code, _ = self.run_cli("collect", acme, "--into", personal, "--items", "one,two")
+        self.assertEqual(code, 1)
+        self.assertFalse((personal / "memory/one.md").exists())
+        self.assertEqual(json.loads((acme / "outbox/one/item.json").read_text())["status"], "approved")
+
+    def test_a_command_must_be_a_file(self):
+        acme = self.make_bindle("acme")
+        folder = self.tmp / "cmd"; folder.mkdir()
+        self.assertEqual(self.run_cli("outbox", "add", acme, folder, "--kind", "command", "--name", "c")[0], 1)
+
+    def test_collect_with_a_missing_item_file_fails_cleanly(self):
+        acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
+        d = self.tmp / "d.md"; d.write_text("x\n")
+        self.run_cli("outbox", "add", acme, d, "--name", "gone")
+        (acme / "outbox/gone/memory.md").unlink()
+        code, out = self.run_cli("collect", acme, "--into", personal, "--items", "gone")
+        self.assertEqual(code, 1)
+        self.assertIn("missing", out)
+
+    # Sync committed into a rebase the person was in the middle of.
+    def test_sync_skips_while_a_rebase_is_in_progress(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        self.run_cli("attach", b, f, "--writable")
+        (Path(bindle.git(b, "rev-parse", "--absolute-git-dir")) / "rebase-merge").mkdir()
+        (b / "memory/fact.md").write_text("x\n")
+        head = bindle.git(b, "rev-parse", "HEAD")
+        self.hook(b, f, "session-end")
+        self.assertEqual(bindle.git(b, "rev-parse", "HEAD"), head)
+
+    def test_doctor_quotes_paths_in_its_fix_commands(self):
+        b = self.tmp / "my bindles" / "acme"
+        b.parent.mkdir()
+        self.run_cli("new", "acme", "--at", b)
+        f = self.folder()
+        self.run_cli("attach", b, f)
+        (b / "hooks/bindle_hook.py").write_text("# old\n")
+        _, out = self.run_cli("doctor", f)
+        self.assertIn(f"bindle upgrade '{b}'", out)
+
+
 class MemoryHookTest(BindleTest):
     """Runs the real hook script: it decides whether a session sees this bindle's memory twice."""
 
     def run_hook(self, b, folder):
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(folder)}
-        return subprocess.run([str(b / "hooks/session-start.sh")], env=env, capture_output=True, text=True).stdout
+        return subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "session-start"], env=env, capture_output=True, text=True).stdout
 
     def test_prints_the_index_where_the_bindle_is_read_only(self):
         b, f = self.make_bindle("personal"), self.folder()
@@ -663,6 +870,8 @@ class MemoryHookTest(BindleTest):
         self.run_cli("attach", b, f, "--writable")
         (b / "memory/fact.md").write_text("x\n")
         self.assertNotIn("uncommitted", self.run_hook(b, f))
+        (b / "rules.md").write_text("a rule\n")
+        self.assertIn("1 uncommitted change(s)", self.run_hook(b, f))
 
     def test_no_reminder_when_everything_is_committed(self):
         b, f = self.make_bindle("acme"), self.folder()
@@ -719,7 +928,8 @@ class SyncTest(BindleTest):
 
     def hook(self, bindle_root, folder, script):
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(bindle_root), "CLAUDE_PROJECT_DIR": str(folder)}
-        return subprocess.run([str(bindle_root / "hooks" / script)], env=env, capture_output=True, text=True)
+        return subprocess.run([sys.executable, str(bindle_root / "hooks/bindle_hook.py"), script.replace(".sh", "")],
+                              env=env, capture_output=True, text=True)
 
     # The point of sync: a memory saved on one machine is there at the next session on the other.
     def test_a_memory_saved_on_one_machine_reaches_the_other(self):
@@ -790,8 +1000,10 @@ class SyncTest(BindleTest):
     def test_an_unreachable_remote_never_fails_the_hooks(self):
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", str(self.tmp / "gone.git")], check=True)
         (self.laptop / "memory/fact.md").write_text("x\n")
-        self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-end.sh").returncode, 0)
-        self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-start.sh").returncode, 0)
+        end = self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        start = self.hook(self.laptop, self.laptop_folder, "session-start.sh")
+        self.assertEqual((end.returncode, start.returncode), (0, 0))
+        self.assertNotIn("Traceback", end.stderr + start.stderr)
         self.assertIn("1 commit(s) not pushed", self.run_cli("doctor", self.laptop_folder)[1])
 
     # A session killed before SessionEnd leaves commits behind; the next start pushes them.

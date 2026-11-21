@@ -2,6 +2,16 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.5.0 (2026-11-21)
+
+**Run `bindle upgrade`** (the hooks are now one Python file; the bash scripts are removed); for a bindle that's read-only where it's attached, run it yourself. Hardening from an independent review.
+
+- **One implementation:** `hooks/bindle_hook.py` runs the hooks and is imported by the CLI, so the writable check, sync and the secret check can't disagree. Settings are parsed as JSON, and paths are compared properly (accents, brackets and spaces in paths work).
+- **The CLI is a package** (`bindle/`), with `bin/bindle` as its entry point.
+- **Promotion hardened:** `outbox add` records a hash of the approved content; `collect` refuses an item that isn't approved, changed since approval, points outside its folder, or contains symlinks. The leak check now covers the item's name, description and file names, not just contents. `collect` checks every destination before writing, so a failure leaves both bindles untouched, and it reports commits that failed.
+- **Wider secret check:** case-insensitive, matches keywords inside longer names (`AWS_SECRET_ACCESS_KEY`), more token formats (`github_pat_`, `AIza…`, `sk-ant-`, `xapp-`), ignores placeholders like `${VAR}`, and handles file names with non-ASCII characters.
+- **Fixes:** `doctor` flags a remote with no upstream (sync was silently keeping commits local); memories sync when `outbox/` is missing; the sync log works in worktrees; sync skips while a merge or rebase is in progress; `upgrade` stamps a missing layout instead of crashing; `detach` matches attached names before paths and can remove a bindle that moved; `doctor`'s fix commands quote paths; `doctor` warns when a read-only bindle's memory index is too long to show.
+
 ## 0.4.6 (2026-11-21)
 
 **Run `bindle upgrade`** (adds `.gitattributes`); for a bindle that's read-only where it's attached, run it yourself.

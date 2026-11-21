@@ -1,0 +1,255 @@
+"""What every command shares: bindles, a folder's settings, git, locks and the hook module.
+
+A bindle is one domain's layer in its own git repo, shaped as a Claude Code plugin. A folder turns
+bindles on in its .claude/settings.local.json: every attached bindle is on there, and at most one is
+writable (new memories land in its memory/ folder). bindle stores nothing itself; it reads and writes
+those settings. Standard library only; Python 3.9+.
+"""
+import importlib.util
+import json
+import os
+import re
+import subprocess
+from pathlib import Path
+
+BASE = Path(os.path.realpath(__file__)).parent.parent
+TEMPLATE = BASE / "templates" / "bindle"
+LAYOUT = 1
+VERSION = "0.5.0"
+NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
+# Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
+MANAGED = ["hooks/bindle_hook.py", "hooks/hooks.json"]
+# Managed files from earlier versions; `bindle upgrade` removes them.
+OBSOLETE = ["hooks/print-memory.sh", "hooks/lib.sh", "hooks/session-start.sh", "hooks/session-end.sh", "hooks/rules.sh"]
+# SessionStart hook output is capped at 10,000 characters; leave room for the header line.
+RULES_LIMIT = 9000
+HOOK_OUTPUT_LIMIT = 10000
+
+
+class BindleError(Exception):
+    pass
+
+
+def hooks():
+    """The template's bindle_hook.py, imported, so the CLI and every bindle's hooks share one implementation."""
+    if not hasattr(hooks, "module"):
+        spec = importlib.util.spec_from_file_location("bindle_hook", TEMPLATE / "hooks" / "bindle_hook.py")
+        hooks.module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(hooks.module)
+    return hooks.module
+
+
+def read_json(path):
+    path = Path(path)
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8") or "{}")
+    except json.JSONDecodeError as e:
+        raise BindleError(f"{path} isn't valid JSON ({e}); fix it by hand first.")
+
+
+def write_json(path, data):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def real(path):
+    return Path(os.path.realpath(os.path.expanduser(str(path))))
+
+
+def settings_path(folder):
+    return Path(folder) / ".claude" / "settings.local.json"
+
+
+def load_bindle(path):
+    """The bindle at path: its name, marketplace name and paths. Raises if path isn't a bindle."""
+    root = real(path)
+    meta = read_json(root / "bindle.json")
+    if not meta.get("name"):
+        raise BindleError(f"{root} isn't a bindle (no bindle.json with a name).")
+    market = read_json(root / ".claude-plugin" / "marketplace.json").get("name")
+    if not market:
+        raise BindleError(f"{root} has no .claude-plugin/marketplace.json name.")
+    return {"name": meta["name"], "market": market, "root": root, "memory": root / "memory",
+            "layout": meta.get("layout"), "sync": meta.get("sync") is True,
+            "audience": meta.get("audience", "private"), "writes": meta.get("writes", "implicit")}
+
+
+def plugin_id(b):
+    return f"{b['name']}@{b['market']}"
+
+
+def git(folder, *args):
+    return hooks().git_out(folder, *args)
+
+
+def check_folder(folder):
+    """Claude Code reads settings.local.json at the git repo root, so a folder inside a repo it
+    isn't the root of would get its settings written somewhere else."""
+    folder = real(folder)
+    if not folder.is_dir():
+        raise BindleError(f"{folder} isn't a folder.")
+    top = git(folder, "rev-parse", "--show-toplevel")
+    if top and real(top) != folder:
+        raise BindleError(
+            f"{folder} is inside the git repo {top}. Claude Code reads settings at the repo root, "
+            f"so attach to {top} instead, or to a folder that isn't inside a repo.")
+    return folder
+
+
+def claude(folder, *args):
+    exe = os.environ.get("BINDLE_CLAUDE", "claude")
+    r = subprocess.run([exe, *args], cwd=str(folder), capture_output=True, text=True)
+    if r.returncode != 0:
+        raise BindleError(f"`claude {' '.join(args)}` failed:\n{(r.stderr or r.stdout).strip()}")
+    return r.stdout
+
+
+# ---------- the read-only lock ----------
+
+GLOB_CHARS = set("*?[]")
+
+
+def lock_rules(root):
+    """Permission rules that stop Claude's file-editing tools changing a bindle that's read-only in a folder.
+    `//` makes the path absolute; an Edit rule covers every file-editing tool (Claude Code ignores Write(path)
+    rules). It doesn't cover shell commands."""
+    return [f"Edit(/{Path(root).as_posix()}/**)"]
+
+
+def lock_is_exact(root):
+    """Permission paths are patterns, so a bindle path containing pattern characters may not match exactly."""
+    return not (GLOB_CHARS & set(str(root)))
+
+
+def set_lock(settings, root, locked):
+    deny = settings.setdefault("permissions", {}).setdefault("deny", [])
+    rules = lock_rules(root)
+    if locked:
+        deny.extend(r for r in rules if r not in deny)
+    else:
+        deny[:] = [r for r in deny if r not in rules]
+    if not deny:
+        del settings["permissions"]["deny"]
+    if not settings["permissions"]:
+        del settings["permissions"]
+
+
+# ---------- the bindles a folder declares ----------
+
+def directory_marketplaces(settings):
+    for market, entry in settings.get("extraKnownMarketplaces", {}).items():
+        source = entry.get("source", {}) if isinstance(entry, dict) else {}
+        if source.get("source") == "directory" and source.get("path"):
+            yield market, source["path"]
+
+
+def declared_bindles(settings):
+    out = []
+    for market, path in directory_marketplaces(settings):
+        try:
+            b = load_bindle(path)
+        except BindleError:
+            continue
+        if b["market"] == market:
+            out.append(b)
+    return out
+
+
+def missing_bindles(settings):
+    """Local marketplaces this folder declares whose folder is gone, usually a bindle that moved."""
+    return [(market, path) for market, path in directory_marketplaces(settings) if not Path(path).exists()]
+
+
+def is_writable(settings, b):
+    memory_dir = settings.get("autoMemoryDirectory")
+    return bool(memory_dir) and real(memory_dir) == real(b["memory"])
+
+
+# ---------- a bindle inside another repo ----------
+
+def enclosing_repo(path):
+    """The git repo a path sits inside (not counting a repo at the path itself), and the path relative to it."""
+    top = git(Path(path).parent, "rev-parse", "--show-toplevel")
+    if not top:
+        return None
+    return real(top), real(path).relative_to(real(top)).as_posix()
+
+
+def exclude_pattern(rel):
+    """A .gitignore-style line matching exactly this folder, with pattern characters escaped."""
+    escaped = re.sub(r"([*?\[\]\\])", r"\\\1", rel)
+    if escaped[:1] in ("!", "#"):
+        escaped = "\\" + escaped
+    return f"/{escaped}/"
+
+
+def exclude_from_enclosing_repo(dest):
+    """A bindle inside a project repo would show up as untracked there, and one `git add -A` would push
+    private memories into that repo. Exclude it locally (.git/info/exclude), leaving the team's .gitignore alone."""
+    found = enclosing_repo(dest)
+    if not found:
+        return None
+    top, rel = found
+    if git(top, "check-ignore", "-q", rel + "/") is not None:
+        return None  # already ignored
+    exclude = hooks().git_path(top, "info/exclude")
+    exclude.parent.mkdir(parents=True, exist_ok=True)
+    pattern = exclude_pattern(rel)
+    with exclude.open("a", encoding="utf-8") as f:
+        f.write(f"\n# bindle: a private bindle lives here\n{pattern}\n")
+    return top, pattern
+
+
+def enclosing_repo_problems(b):
+    found = enclosing_repo(b["root"])
+    if not found:
+        return []
+    top, rel = found
+    if git(top, "ls-files", "--", rel):
+        if read_json(b["root"] / "bindle.json").get("demo") is True:
+            return []  # a demo bindle is folded into its repo on purpose
+        return [f"{b['name']}: tracked by the repo {top}, so its memories get pushed with that repo. "
+                f"Remove it from that repo (git rm -r --cached {rel}) and exclude it."]
+    if git(top, "check-ignore", "-q", rel + "/") is None:
+        return [f"{b['name']}: inside the repo {top} and not ignored there, so `git add -A` would commit it. "
+                f"Add {exclude_pattern(rel)} to {top}/.git/info/exclude."]
+    return []
+
+
+# ---------- git health ----------
+
+def git_health(root):
+    """Lines describing work that isn't safely in git yet. Returns (lines, problems)."""
+    if git(root, "rev-parse", "--git-dir") is None:
+        return ["not a git repo"], [f"{root} isn't a git repo"]
+    lines, problems = [], []
+    dirty = hooks().changed_paths(root)
+    if dirty:
+        lines.append(f"{len(dirty)} uncommitted change(s)")
+    if not git(root, "remote"):
+        lines.append("no remote (local only)")
+    elif not hooks().has_upstream(root):
+        lines.append("remote set, but the branch has no upstream")
+        problems.append(f"{root}: a remote is set but nothing is pushed to it, so sync keeps commits local; "
+                        f"run `git -C {root} push -u origin HEAD` once")
+    else:
+        ahead = git(root, "rev-list", "--count", "@{upstream}..HEAD")
+        if ahead and ahead != "0":
+            lines.append(f"{ahead} commit(s) not pushed")
+    return lines, problems
+
+
+def last_sync(root):
+    log = hooks().git_path(root, "bindle-sync.log")
+    lines = log.read_text(encoding="utf-8", errors="ignore").splitlines() if log and log.exists() else []
+    return lines[-1] if lines else None
+
+
+def secret_hits(b):
+    """Committable files in memory/, outbox/ and notes/ that look like they hold a credential. Files git
+    ignores (scratch notes, local query outputs) never leave the machine, so they aren't checked."""
+    h = hooks()
+    return h.secret_hits(b["root"], h.committable_files(b["root"], "memory", "outbox", "notes"))

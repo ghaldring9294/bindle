@@ -1,0 +1,84 @@
+"""The bindle command line."""
+import argparse
+import sys
+
+from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_new, cmd_sync
+from .core import VERSION, BindleError
+from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_list
+from .upgrade import cmd_upgrade
+
+FOLDER_HELP = "the folder you launch Claude from (default: here)"
+
+
+def build_parser():
+    p = argparse.ArgumentParser(prog="bindle", description="Create bindles and turn them on for folders.")
+    p.add_argument("--version", action="version", version=f"bindle {VERSION}")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("install", help="link bindle onto PATH, and /bindle and /bindle-promote into ~/.claude")
+    s.set_defaults(fn=cmd_install)
+
+    s = sub.add_parser("new", help="create a bindle repo")
+    s.add_argument("name")
+    s.add_argument("--at", help="where to create it (default: ./.bindle)")
+    s.add_argument("--sync", action="store_true", help="sync memories with the bindle's remote at session start and end")
+    s.add_argument("--audience", choices=["private", "shared", "public"], default="private", help="who can see it (default: private)")
+    s.add_argument("--writes", choices=["implicit", "explicit"], default="implicit",
+                   help="implicit: can be a folder's writable bindle; explicit: only `bindle collect` adds to it")
+    s.set_defaults(fn=cmd_new)
+
+    s = sub.add_parser("attach", help="turn a bindle on for the folder you launch Claude from",
+                       description="Turn a bindle on for a folder: sessions started from that folder load the bindle. "
+                                   "Writes the folder's .claude/settings.local.json; nothing is copied or linked.")
+    s.add_argument("bindle", help="path to the bindle repo")
+    s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.add_argument("--writable", action="store_true", help="new memories in this folder go to this bindle")
+    s.set_defaults(fn=cmd_attach)
+
+    s = sub.add_parser("detach", help="turn a bindle off for a folder")
+    s.add_argument("bindle", help="the bindle's name or path")
+    s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.set_defaults(fn=cmd_detach)
+
+    s = sub.add_parser("doctor", help="show what's on in a folder and any problems")
+    s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.set_defaults(fn=cmd_doctor)
+
+    s = sub.add_parser("sync", help="pull the bindles that are on, and commit and push the writable one's memories")
+    s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.set_defaults(fn=cmd_sync)
+
+    s = sub.add_parser("upgrade", help="bring a bindle's managed files and layout up to this bindle version")
+    s.add_argument("bindle", nargs="?", help="path to the bindle (default: every bindle attached to this folder)")
+    s.add_argument("--dry-run", action="store_true", help="show what would change")
+    s.set_defaults(fn=cmd_upgrade)
+
+    s = sub.add_parser("outbox", help="a bindle's outbox: reviewed, general items waiting to be promoted")
+    osub = s.add_subparsers(dest="outbox_cmd", required=True)
+    o = osub.add_parser("add", help="add an approved draft (after a leak check and secret check)")
+    o.add_argument("bindle", help="the source bindle")
+    o.add_argument("path", help="the draft: a memory or command .md file, or a skill folder")
+    o.add_argument("--kind", choices=list(KINDS), default="memory")
+    o.add_argument("--name", required=True, help="the item's slug, e.g. small-prs")
+    o.add_argument("--description", default="", help="one line for the target's index")
+    o.set_defaults(fn=cmd_outbox_add)
+    o = osub.add_parser("list", help="show the outbox")
+    o.add_argument("bindle")
+    o.set_defaults(fn=cmd_outbox_list)
+
+    s = sub.add_parser("collect", help="move approved outbox items into another bindle")
+    s.add_argument("source", help="the bindle whose outbox to collect from")
+    s.add_argument("--into", required=True, help="the target bindle")
+    s.add_argument("--items", help="comma-separated item names")
+    s.add_argument("--all", action="store_true", help="every item not yet in the target")
+    s.set_defaults(fn=cmd_collect)
+    return p
+
+
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    try:
+        return args.fn(args) or 0
+    except BindleError as e:
+        print(f"bindle: {e}", file=sys.stderr)
+        return 1

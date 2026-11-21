@@ -8,9 +8,9 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 
 ## Layout
 
-- `bin/bindle`: the CLI (Python, standard library only, must run on 3.9).
+- `bin/bindle`: the entry point; the CLI is the `bindle/` package (`core.py` shared helpers, `commands.py`, `upgrade.py`, `promote.py`, `cli.py`). Python standard library only; must run on 3.9.
 - `templates/bindle/`: what `bindle new` copies. Files listed in `MANAGED` (in `bin/bindle`) are copied byte for byte into every bindle and `bindle doctor` flags drift, so change them only here, deliberately, then update existing bindles.
-- `templates/bindle/hooks/lib.sh`: the one implementation of sync, the writable check and the secret check, shared by the hooks and the CLI.
+- `templates/bindle/hooks/bindle_hook.py`: the one implementation of the hooks, sync, the writable check and the secret check. The CLI imports it from the template (`core.hooks()`), so never reimplement that logic in the CLI.
 - `tests/`: `python3 -m unittest discover -s tests` (fast, fake `claude`); `tests/e2e.sh` (real Claude Code in a scratch folder; costs a few short sessions).
 - `global/skills/bindle-promote/`: the promotion skill (`bindle install` links it into `~/.claude/skills/`). Drafting is judgment; `bindle outbox add` and `bindle collect` do every write and check.
 - `MIGRATION.md`: instructions an agent follows to move an existing setup into bindles.
