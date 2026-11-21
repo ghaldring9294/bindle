@@ -42,7 +42,7 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 
   **Sharing craft is just a craft bindle.** Every bindle is already a valid one-plugin marketplace, so anyone with access installs it with `/plugin marketplace add <git url>`, no bindle needed; you attach it like any other bindle. It starts as one plugin (`craft:<name>`) and can split later. Promotion into it moves skills, commands and hooks as well as memories (same outbox and `collect`; the one real extension). A skill is moved, not copied, so each has one home. Mechanisms are craft (e.g. the goal loop's hooks and check runner); the checks themselves stay in their repo or domain.
 
-  **Not pursued: shared team memory.** Knowledge a team shares belongs in the project repo itself (CLAUDE.md, docs), as reviewed commits. Bindle stays one person's layers; `shared` is for craft.
+  **Collaborators keep their own bindles** (decided 2026-11-21). Working with someone, each person has their own personal bindle, and whatever matters to both goes into the project repo itself (CLAUDE.md, docs) as reviewed commits. Bindle stays one person's layers: no shared team memory. A domain bindle is shared only as an example beside a project; `shared` is otherwise for craft.
 - **Promotion goes through an outbox, and can happen in one session** (decided 2026-11-21). The boundary protects one thing: nothing reaches another bindle unless the person reviewed it and it's general. The gate is the write, and the write is code.
   1. **Prepare (judgment, reviewed).** In the source domain's session, `bindle:promote` drafts a general rewrite of a `boundary: craft | both` memory and runs a **leak check**: a deterministic scan against a list of the domain's own terms (repo names, ticket prefixes, product names), kept in that domain's bindle. The person approves the wording; approved rewrites go to the source bindle's `outbox/`. Optional second opinion: a subagent given only the drafted text (no domain context) flags anything that looks organization-specific, reading it as an outsider would.
   2. **Collect (no judgment).** `bindle collect <source> --into <target>` is a CLI command, so Claude Code asks the person's permission each run. It reruns the leak check, copies only approved outbox items into the target's memory, updates its index, marks them collected, and lets sync push. It can run in the same session as step 1, or later from the target's own folder; it can sweep several bindles' outboxes, since they hold only reviewed, general text.
@@ -169,6 +169,10 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
    - **Hackathon skill:** built in personal on Saturday, used at Acme on Monday.
    - **New machine:** clone the bindles, run `attach` once per folder.
    - **Per-project notes:** private notes about Acme's `api` repo, loaded through its `CLAUDE.local.md`.
+   - **Sharing craft:** a skill matures in personal, is promoted to the craft bindle, and a coworker installs it with `/plugin marketplace add`, no bindle needed.
+   - **Working with a friend on a project:** each keeps their own personal bindle; what matters to both goes into the project repo.
+
+   Write the docs once bindle reaches MVP (promote and collect built): a README that explains the model through these scenarios, so it's usable without reading PLAN.md.
 
 ## Log
 
@@ -183,3 +187,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** promotion can happen in one session: prepare into the source's outbox with a leak check, then `bindle collect` (code, permission-gated) writes into the target. Read-only bindles locked by deny rules (decided, not built). Subagents only as an optional outsider reviewer, never as the writer.
 - **2026-11-21:** every bindle has `audience` (private, shared, public) and `writes` (implicit, explicit). Sharing craft is a craft bindle (shared, explicit), installable without bindle; shared implicit bindles are team memory.
 - **2026-11-21:** dropped shared team memory: a team's shared knowledge belongs in the project repo as reviewed commits.
+- **2026-11-21:** collaborators keep their own bindles; shared knowledge goes in the project repo. Sharing and collaboration added to the scenario docs, to write at MVP.
