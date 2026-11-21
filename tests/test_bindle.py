@@ -582,6 +582,28 @@ class MemoryHookTest(BindleTest):
         self.run_cli("attach", b, g)
         self.assertNotIn("Notes for this domain", self.run_hook(b, g))
 
+    # Notes, rules and skills are committed by hand; work left uncommitted is lost if the machine is.
+    def test_reminds_about_uncommitted_notes_where_writable(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        (b / "notes/todo.md").write_text("draft\n")
+        out = self.run_hook(b, f)
+        self.assertIn("1 uncommitted change(s) (1 in notes)", out)
+
+    # With sync on, memory/ commits itself at session end; reminding about it would be noise.
+    def test_doesnt_count_what_sync_commits(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        self.run_cli("attach", b, f, "--writable")
+        (b / "memory/fact.md").write_text("x\n")
+        self.assertNotIn("uncommitted", self.run_hook(b, f))
+
+    def test_no_reminder_when_everything_is_committed(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        self.assertNotIn("uncommitted", self.run_hook(b, f))
+
     def test_says_nothing_about_notes_when_there_are_none(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")

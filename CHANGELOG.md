@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.4.3 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/session-start.sh`); for a bindle that's read-only where it's attached, run it yourself.
+
+- Where a bindle is writable, the session start mentions uncommitted changes (and how many are in notes), so the session can remind the person to commit. With sync on, `memory/` and `outbox/` aren't counted, since sync commits them. Sync works without a remote too: it commits locally and skips the push.
+
 ## 0.4.2 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/rules.sh`). A read-only bindle is locked in folders where it's attached, so upgrade it yourself or from a folder where it isn't attached.

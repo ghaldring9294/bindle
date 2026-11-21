@@ -12,6 +12,13 @@ sync_enabled && sync_pull
 name="$(bindle_name)"
 if writable_here; then
   echo "Bindle ${name} is on and writable in this folder: new memories are saved to ${memory}. A memory about only one project goes in ${root}/projects/<project>/ instead, listed in that folder's index.md, with one pointer line per project in MEMORY.md; a memory that spans projects stays in ${memory}."
+  # Remind about work that only a person commits: everything except what sync commits itself.
+  if sync_enabled; then pending="$(g status --porcelain -- . ':!memory' ':!outbox' 2>/dev/null)"; else pending="$(g status --porcelain 2>/dev/null)"; fi
+  if [ -n "$pending" ]; then
+    count="$(printf '%s\n' "$pending" | grep -c .)"
+    in_notes="$(printf '%s\n' "$pending" | grep -c ' notes/')"
+    echo "Bindle ${name} has ${count} uncommitted change(s) (${in_notes} in notes). Remind the person to commit what's ready: git -C ${root} add -A && git -C ${root} commit."
+  fi
   if [ -n "$(ls -A "${root}/notes" 2>/dev/null | grep -v '^\.gitkeep$')" ]; then
     readme=""; [ -f "${root}/notes/README.md" ] && readme=" Start at ${root}/notes/README.md."
     echo "Notes for this domain are in ${root}/notes (read them when relevant; they aren't loaded automatically).${readme}"
