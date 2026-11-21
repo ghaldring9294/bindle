@@ -15,7 +15,7 @@ from pathlib import Path
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.5.0"
+VERSION = "0.5.1"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/hooks.json"]
@@ -246,6 +246,23 @@ def last_sync(root):
     log = hooks().git_path(root, "bindle-sync.log")
     lines = log.read_text(encoding="utf-8", errors="ignore").splitlines() if log and log.exists() else []
     return lines[-1] if lines else None
+
+
+def extra_code(b):
+    """What a bindle runs on this machine beyond bindle's own hooks: more hook files, hooks or servers declared
+    in plugin.json, MCP/LSP servers, executables. Its skills and rules are instructions, not code, so they're
+    not listed, but they're trusted the same way."""
+    root, found = b["root"], []
+    hooks_dir = root / "hooks"
+    if hooks_dir.is_dir():
+        found += [f"hooks/{p.relative_to(hooks_dir).as_posix()}" for p in sorted(hooks_dir.rglob("*"))
+                  if p.is_file() and "__pycache__" not in p.parts and f"hooks/{p.relative_to(hooks_dir).as_posix()}" not in MANAGED]
+    manifest = read_json(root / ".claude-plugin" / "plugin.json")
+    found += [f"plugin.json declares {key}" for key in ("hooks", "mcpServers", "lspServers") if key in manifest]
+    found += [name for name in (".mcp.json", ".lsp.json") if (root / name).exists()]
+    if (root / "bin").is_dir() and any((root / "bin").iterdir()):
+        found.append("bin/ (executables)")
+    return found
 
 
 def secret_hits(b):

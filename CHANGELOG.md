@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.5.1 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/bindle_hook.py`); for a bindle that's read-only where it's attached, run it yourself.
+
+- Trust warnings (warnings, not refusals): `attach` and `doctor` list what a read-only bindle runs on the machine beyond bindle's own hooks (extra hook files, hooks or servers declared in `plugin.json`, `.mcp.json`, `.lsp.json`, `bin/`). `doctor` has a Warnings section that doesn't fail the check.
+- When a session-start pull changes any of those files, the session is told right away, before they run in the next session.
+
 ## 0.5.0 (2026-11-21)
 
 **Run `bindle upgrade`** (the hooks are now one Python file; the bash scripts are removed); for a bindle that's read-only where it's attached, run it yourself. Hardening from an independent review.

@@ -816,6 +816,67 @@ class ReviewRegressionTest(BindleTest):
         self.assertIn(f"bindle upgrade '{b}'", out)
 
 
+class TrustTest(BindleTest):
+    """A bindle's hooks and servers run with the person's permissions; code they didn't write deserves a look.
+    Warnings, not refusals: the person decides (guardrails, not gates)."""
+
+    def test_doctor_warns_about_extra_code_in_a_read_only_bindle_without_failing(self):
+        b, f = self.make_bindle("craft"), self.folder()
+        (b / "hooks/telemetry.sh").write_text("curl example.com\n")
+        (b / ".mcp.json").write_text("{}\n")
+        self.run_cli("attach", b, f)
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 0, out)
+        self.assertIn("Warnings", out)
+        self.assertIn("hooks/telemetry.sh", out)
+        self.assertIn(".mcp.json", out)
+
+    def test_plugin_json_hooks_and_servers_count_as_code(self):
+        b = self.make_bindle("craft")
+        manifest = json.loads((b / ".claude-plugin/plugin.json").read_text())
+        manifest["mcpServers"] = {"x": {"command": "x"}}
+        (b / ".claude-plugin/plugin.json").write_text(json.dumps(manifest))
+        self.assertIn("plugin.json declares mcpServers", bindle.core.extra_code(bindle.core.load_bindle(b)))
+
+    # Your own writable bindle may carry your own tools; warning there would only be noise.
+    def test_no_warning_for_the_writable_bindle(self):
+        b, f = self.make_bindle("personal"), self.folder()
+        (b / "hooks/pixel.sh").write_text("echo hi\n")
+        self.run_cli("attach", b, f, "--writable")
+        self.assertNotIn("Warnings", self.run_cli("doctor", f)[1])
+
+    def test_a_template_bindle_has_no_extra_code(self):
+        self.assertEqual(bindle.core.extra_code(bindle.core.load_bindle(self.make_bindle("acme"))), [])
+
+    def test_attach_warns_and_still_attaches(self):
+        b, f = self.make_bindle("craft"), self.folder()
+        (b / "hooks/extra.sh").write_text("echo\n")
+        code, out = self.run_cli("attach", b, f)
+        self.assertEqual(code, 0)
+        self.assertIn("runs code on this machine", out)
+        self.assertTrue(self.settings(f)["enabledPlugins"]["craft@bindle-craft"])
+
+    # Someone with push access changes a shared bindle's hooks; the next session start says so before they run.
+    def test_session_start_warns_when_a_pull_changes_code(self):
+        b = self.make_bindle("craft")
+        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        remote = self.tmp / "craft.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(b), str(remote)], check=True)
+        bindle.git(b, "remote", "add", "origin", str(remote)); bindle.git(b, "fetch", "-q", "origin")
+        bindle.git(b, "branch", "-q", "-u", "origin/" + bindle.git(b, "rev-parse", "--abbrev-ref", "HEAD"))
+        other = self.tmp / "other"
+        subprocess.run(["git", "clone", "-q", str(remote), str(other)], check=True)
+        (other / "hooks/new.sh").write_text("echo surprise\n")
+        bindle.git(other, "add", "-A"); bindle.git(other, "commit", "-qm", "new hook"); bindle.git(other, "push", "-q")
+        f = self.folder()
+        self.run_cli("attach", b, f)
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(f)}
+        out = subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "session-start"], env=env, capture_output=True, text=True).stdout
+        self.assertIn("just pulled changes to files that run code", out)
+        self.assertIn("hooks/new.sh", out)
+
+
 class MemoryHookTest(BindleTest):
     """Runs the real hook script: it decides whether a session sees this bindle's memory twice."""
 

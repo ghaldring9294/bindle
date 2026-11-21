@@ -34,6 +34,8 @@ SECRET_PATTERNS = [re.compile(p) for p in [
 ]]
 
 SYNCED = ("memory", "outbox")  # what sync commits by itself; everything else is committed by hand
+# Parts of a plugin that run code on the person's machine (hooks, servers, executables).
+CODE_PATHS = ("hooks", ".claude-plugin/plugin.json", ".mcp.json", ".lsp.json", "bin")
 
 
 def real(path):
@@ -159,14 +161,23 @@ class Log:
 
 
 def sync_pull(root, log):
-    """Pull the bindle's latest, and push commits an earlier session left behind."""
+    """Pull the bindle's latest, and push commits an earlier session left behind. Returns the files that run
+    code (hooks, servers, executables) the pull changed, so the session can be warned before they next run."""
     if operation_in_progress(root):
-        return log.say("pull: a merge or rebase is in progress; skipped")
+        log.say("pull: a merge or rebase is in progress; skipped")
+        return []
     if not has_upstream(root):
-        return log.say(no_upstream_message(root, "pull"))
+        log.say(no_upstream_message(root, "pull"))
+        return []
     push_leftovers(root, log)
+    before = git_out(root, "rev-parse", "HEAD")
     r = git(root, "pull", "-q", "--ff-only")
     log.say("pulled" if r.returncode == 0 else "pull failed or not fast-forward; left as is")
+    after = git_out(root, "rev-parse", "HEAD")
+    if not before or before == after:
+        return []
+    changed = git_out(root, "diff", "--name-only", f"{before}..{after}", "--", *CODE_PATHS) or ""
+    return [p for p in changed.splitlines() if p]
 
 
 def sync_push(root, log):
@@ -266,8 +277,11 @@ def main(argv):
     command = argv[1] if len(argv) > 1 else ""
     try:
         if command == "session-start":
-            if sync_enabled(root):
-                sync_pull(root, Log(root))
+            changed_code = sync_pull(root, Log(root)) if sync_enabled(root) else []
+            if changed_code:
+                print(f"Warning: bindle {bindle_name(root)} just pulled changes to files that run code on this machine "
+                      f"({', '.join(changed_code)}). They take effect from the next session. Tell the person, so they "
+                      f"can review them (git -C {root} log -p -1 -- {' '.join(CODE_PATHS)}) before starting another session.")
             text = session_start_text(root, project_dir)
             if text:
                 print(text)

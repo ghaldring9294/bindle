@@ -7,7 +7,7 @@ from pathlib import Path
 
 from .core import (BASE, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, git, git_health, hooks, is_writable, last_sync, load_bindle,
+                   exclude_from_enclosing_repo, extra_code, git, git_health, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json)
 
@@ -107,6 +107,10 @@ def cmd_attach(args):
     write_json(sp, settings)
 
     print(f"{b['name']} is on in {folder}" + (", and writable" if writable else ", read-only (locked against Claude's file-editing tools)"))
+    code = extra_code(b) if not writable else []
+    if code:
+        print(f"  warning: {b['name']} runs code on this machine beyond bindle's own hooks: {', '.join(code)}. "
+              f"Attach it only if you trust whoever can push to it.")
     if not writable and not lock_is_exact(b["root"]):
         print(f"  note: {b['root']} contains * ? [ or ], which permission rules read as patterns; the lock may not match exactly")
     print("Takes effect in the next session started from that folder.")
@@ -193,7 +197,7 @@ def cmd_sync(args):
 
 def cmd_doctor(args):
     folder = real(args.folder or Path.cwd())
-    problems, needs_upgrade = [], []
+    problems, warnings, needs_upgrade = [], [], []
     print(f"Folder: {folder}")
 
     top = git(folder, "rev-parse", "--show-toplevel")
@@ -251,6 +255,10 @@ def cmd_doctor(args):
                 problems.append(f"{b['name']}: {rel} differs from bindle's template")
                 needs_upgrade.append(b)
         problems += enclosing_repo_problems(b)
+        code = extra_code(b) if on and not writable_here else []
+        if code:
+            warnings.append(f"{b['name']} (read-only here) runs code on this machine beyond bindle's own hooks: "
+                            f"{', '.join(code)}. Fine if it's yours; otherwise trust whoever can push to it.")
         locked = all(r in deny for r in lock_rules(b["root"]))
         if on and not writable_here and not locked:
             problems.append(f"{b['name']} is read-only here but not locked against edits; "
@@ -286,6 +294,10 @@ def cmd_doctor(args):
     if fixes:
         problems.append("to fix, run (in Claude Code, prefix it with ! so it runs as you; a read-only bindle is locked to Claude):\n      "
                         + "\n      ".join(fixes))
+    if warnings:
+        print("Warnings (worth a look; nothing is broken):")
+        for w in warnings:
+            print(f"  - {w}")
     if problems:
         print("Problems:")
         for p in problems:
