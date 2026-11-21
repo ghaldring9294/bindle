@@ -34,7 +34,7 @@ bindle uses Claude Code's own mechanisms rather than replacing them: plugins for
 
 ## Install
 
-You need Claude Code 2.1.74 or later, git, Python 3.9 or later, and bash (macOS or Linux).
+You need Claude Code 2.1.74 or later, git, Python 3.9 or later, and bash. bindle is tested on macOS and Linux; Windows support is in progress.
 
 ```
 git clone https://github.com/ghaldring9294/bindle.git
@@ -233,7 +233,7 @@ Start with `bindle doctor <folder>`; it explains most problems and prints the fi
 
 ## Limits
 
-- **macOS and Linux only.** Hooks are bash scripts.
+- **Tested on macOS and Linux.** Windows support is in progress (Claude Code itself runs on Windows).
 - **Claude Code shows only the first 200 lines or 25 KB of `MEMORY.md`.** Keep the index short; put project memories in `projects/`.
 - **A read-only bindle's memory index is shown through a hook, capped at 10,000 characters.**
 - **A repo's notes don't load automatically when you work inside that repo.** Launch from the folder that holds your repos, and the session is told where the notes are.
