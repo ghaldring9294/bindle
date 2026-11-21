@@ -304,18 +304,26 @@ class MemoryHookTest(BindleTest):
         self.run_cli("attach", b, f)
         out = self.run_hook(b, f)
         self.assertIn("Memory index from the personal bindle", out)
+        self.assertIn("read-only in this folder", out)
         self.assertIn("a personal fact", out)
 
-    def test_stays_quiet_where_the_bindle_is_writable(self):
+    # Where it's writable, Claude Code loads the index itself; printing it again would duplicate it.
+    def test_says_writable_without_repeating_the_index(self):
         b, f = self.make_bindle("personal"), self.folder()
         (b / "memory/MEMORY.md").write_text("- [Fact](fact.md) — a personal fact\n")
         self.run_cli("attach", b, f, "--writable")
-        self.assertEqual(self.run_hook(b, f), "")
+        out = self.run_hook(b, f)
+        self.assertIn("Bindle personal is on and writable", out)
+        self.assertNotIn("a personal fact", out)
 
-    def test_stays_quiet_when_there_are_no_memories(self):
+    # An agent has to know not to edit a read-only bindle even before it holds any memories.
+    def test_tells_the_session_a_read_only_bindle_is_off_limits(self):
         b, f = self.make_bindle("personal"), self.folder()
         self.run_cli("attach", b, f)
-        self.assertEqual(self.run_hook(b, f), "")
+        out = self.run_hook(b, f)
+        self.assertIn("read-only in this folder", out)
+        self.assertIn("don't edit its files", out)
+        self.assertNotIn("Memory index", out)
 
 
 class SyncTest(BindleTest):
