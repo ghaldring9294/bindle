@@ -4,7 +4,7 @@ Guidance for AI agents working in this repo (any agent; Claude Code reads it thr
 
 ## What bindle is
 
-A CLI that carries one person's Claude Code setup between machines while keeping each domain's context in its own place. A **bindle** is one domain's layer (personal, an employer, a client): a git repo shaped as a Claude Code plugin, with `memory/`, `notes/`, `rules.md`, skills and hooks. A folder turns bindles on in its `.claude/settings.local.json`; every attached bindle is on there and **at most one is writable** (new memories go to it). Read `PLAN.md` for the design and why; it's the source of truth, so update it when a decision changes.
+A CLI that carries one person's Claude Code setup between machines while keeping each domain's context in its own place. A **bindle** is one domain's layer (personal, an employer, a client): a git repo shaped as a Claude Code plugin, with `memory/`, `notes/`, `rules.md`, skills and hooks. A folder turns bindles on in its `.claude/settings.local.json`; every attached bindle is on there and **at most one is writable** (new memories go to it). Read `docs/design.md` for the design and why; update it when a decision changes. `PLAN.md` has the status and next steps.
 
 ## Layout
 

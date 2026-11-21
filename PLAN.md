@@ -1,217 +1,26 @@
 # Plan
 
-Where bindle stands, what's decided, and what's open. Update this when a decision changes; append to the log at the bottom.
+Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-21)
+## Where it stands (2026-11-21, v0.5.1)
 
-- **Base (this repo):** the `bindle` CLI in Python (standard library, 3.9+): `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade` (v0.2.0). A bindle template in `templates/bindle/`. 22 unit tests with a fake `claude`, plus `tests/e2e.sh` against the real CLI (passed: read-only personal memory and skill visible in a work folder, new memories written to the writable bindle only, gone after detach). July's `init-layer`, `init-project`, overlay installer, global CLAUDE.md/settings and memory taxonomy are removed (git history keeps them).
-- **Personal (`bindle-personal`):** in the bindle layout, matching the template; `doc-style` skill and `/ticket` command. Memory empty until migration.
-- **Personal laptop done (2026-11-21):** both repos cloned, personal attached writable, the laptop's memories migrated and pulled on the work machine. Sync now automatic for personal. Not attached on the work machine yet; the work bindle waits for a new work laptop.
-
-## Goal
-
-Carry craft between personal and work, in both directions, without crossing the context boundary. Build skills anywhere (hackathons, meetups, side projects), sync them to the personal layer, and use them at work next to work context. Never rebuild a setup from scratch on a new machine.
-
-## The model (2026-11-21)
-
-One tool, many bindles. This supersedes decision 3's sidecar wording below.
-
-- **The base (`bindle`)** is tooling only: create a bindle, attach it to a folder, promote craft between bindles. No context; lives on personal git.
-- **A bindle** is one domain's layer, in its own repo on that domain's git. Every bindle has the same shape; there is no special "personal" type. Personal is just the bindle that's mine, the way a freelancer would have one per client.
-  ```
-  <bindle>/
-    .claude-plugin/        plugin.json + marketplace.json (the bindle is its own marketplace)
-    skills/ agents/ commands/ hooks/
-    rules.md               the domain's standing instructions
-    memory/                auto-memory: MEMORY.md index + one file per memory
-    notes/                 tickets, artifact index, TODO
-    projects/<repo>/       per-project sidecar (later)
-  ```
-- **Toggling happens per launch folder,** not mid-session. A folder (a domain root, such as `~/acme`) attaches bindles in its `.claude/settings.local.json`. Switching clients means launching from another folder, which also separates session lists and permissions. That's a feature: the boundary is the folder.
-- **Every attached bindle is on; exactly one is writable.** Attaching a bindle to a folder (once, with `bindle attach <bindle> <folder>`) turns it on whenever Claude launches from that folder: its skills, hooks and memory all load. The **writable** bindle is the one new memories are written to, and its notes and rules are this folder's. The others are read-only there. At `~/acme`, both bindles are on and Acme is writable; in personal projects, personal is writable.
-- **One writable memory per session enforces the boundary.** A work session can't write into the personal repo. Craft moves between bindles only through promotion.
-- **Every bindle has two properties** (decided 2026-11-21; built in v0.4.0), set in `bindle.json`:
-  - **`audience`**: `private` (one person or one domain), `shared` (named people), or `public`. Sets the leak check's strictness when promoting into it: `shared` and `public` also check the promoter's personal terms, not just the source domain's. Visibility itself is the git host's setting.
-  - **`writes`**: `implicit` (can be a folder's writable bindle: sessions save memories into it and sync pushes them) or `explicit` (only `bindle collect` puts anything in; `attach` refuses `--writable`).
-
-  | Bindle | audience | writes |
-  |---|---|---|
-  | Personal | private | implicit |
-  | A work or client domain | private | implicit |
-  | Craft (finished skills, hooks, workflows) | shared now, public later | explicit |
-
-  **Sharing craft is just a craft bindle.** Every bindle is already a valid one-plugin marketplace, so anyone with access installs it with `/plugin marketplace add <git url>`, no bindle needed; you attach it like any other bindle. It starts as one plugin (`craft:<name>`) and can split later. Promotion into it moves skills, commands and hooks as well as memories (same outbox and `collect`; the one real extension). A skill is moved, not copied, so each has one home. Mechanisms are craft (e.g. the goal loop's hooks and check runner); the checks themselves stay in their repo or domain.
-
-  **Collaborators keep their own bindles** (decided 2026-11-21). Working with someone, each person has their own personal bindle, and whatever matters to both goes into the project repo itself (CLAUDE.md, docs) as reviewed commits. Bindle stays one person's layers: no shared team memory. A domain bindle is shared only as an example beside a project; `shared` is otherwise for craft.
-- **Promotion goes through an outbox, and can happen in one session** (decided 2026-11-21). The boundary protects one thing: nothing reaches another bindle unless the person reviewed it and it's general. The gate is the write, and the write is code.
-  1. **Prepare (judgment, reviewed).** In the source domain's session, `bindle:promote` drafts a general rewrite of a `boundary: craft | both` memory and runs a **leak check**: a deterministic scan against a list of the domain's own terms (repo names, ticket prefixes, product names), kept in that domain's bindle. The person approves the wording; approved rewrites go to the source bindle's `outbox/`. Optional second opinion: a subagent given only the drafted text (no domain context) flags anything that looks organization-specific, reading it as an outsider would.
-  2. **Collect (no judgment).** `bindle collect <source> --into <target>` is a CLI command, so Claude Code asks the person's permission each run. It reruns the leak check, copies only approved outbox items into the target's memory, updates its index, marks them collected, and lets sync push. It can run in the same session as step 1, or later from the target's own folder; it can sweep several bindles' outboxes, since they hold only reviewed, general text.
-
-  No session reads another domain's raw memories; only outboxes are read across bindles. The outbox syncs with its bindle (add `outbox/` to the sync paths), so preparing on one machine and collecting on another works.
-- **Read-only bindles are locked.** For every bindle that's on but not writable in a folder, `attach` adds a deny rule for Edit and Write on that bindle's path to the folder's settings. A session can't modify it directly even if asked; the only way in is `bindle collect`, which moves only approved, leak-checked text and needs the person's permission each run. (Shell writes could still slip past a deny rule: a strong guard, not a sandbox.) Built 2026-11-21 (v0.3.0): `attach` adds `Edit(//<bindle>/**)` to the folder's `permissions.deny` (Claude Code ignores `Write(path)` rules; Edit covers every file-writing tool). Verified end to end: a session's Write into a read-only bindle was refused.
-
-### Build decisions (2026-11-21)
-
-- **A bindle is marked by `bindle.json`** (`name`, `layout`), so tools can tell a bindle from any other plugin and migrate old layouts later.
-- **Each bindle carries its own copy of the managed files** (`hooks/print-memory.sh`, `hooks/hooks.json`), byte-identical to the base template, so a bindle works on a machine without the base. `bindle doctor` flags a copy that drifted.
-- **A local plugin runs in place:** `CLAUDE_PLUGIN_ROOT` is the bindle's own folder, not a cache (verified), so edits take effect at the next session and the hook can compare paths directly.
-- **`detach` leaves the marketplace declared** in the folder's settings; removing a marketplace in Claude Code is machine-wide and would break other folders.
-- **`attach` refuses a folder inside another git repo**, since Claude Code would write the settings at that repo's root.
-- **Sync lives in each bindle's hooks** (opt-in, `"sync": true`). SessionStart pulls (and pushes commits a killed session left behind), then prints the memory index: one script, because hooks for the same event run in parallel. SessionEnd commits only `memory/`, and only in the writable bindle, then rebases and pushes. It never blocks a session; failures go to `.git/bindle-sync.log` and `doctor`. A memory matching a credential pattern is never committed (a pushed secret can't be taken back). `notes/` doesn't sync automatically. Verified end to end: a headless session's memory reached the remote at SessionEnd.
-- **A bindle inside a project repo is excluded locally.** `bindle new` inside a git repo adds the bindle to that repo's `.git/info/exclude` (never the team's `.gitignore`), and `doctor` flags a bindle that an enclosing repo would commit or already tracks, so private memories can't ride along with a project's push. A demo bindle (`"demo": true`) may be tracked on purpose.
-- **A memory goes at the lowest level that covers everything it's about:** only one project → `projects/<project>/`; how projects interact, or anything domain-wide → `memory/`. A project's index may point to a domain memory ("see also") rather than copy it. Projects are organization inside a domain, not boundaries: no attach, writable flag or lock of their own.
-- **Project memories live in `projects/<project>/`** with an `index.md`; `MEMORY.md` keeps general memories and one pointer line per project. Claude reads memory files on demand, so a pointer is enough (verified: a session followed `MEMORY.md` → a project index → the memory). Keeps the always-loaded index short, which matters doubly where a bindle is read-only and its index is printed into another domain's sessions. The writable bindle's session-start line tells sessions to file new project memories this way.
-- **Agents are told the rules where they work.** `AGENTS.md` (imported by a one-line `CLAUDE.md`) in the base and in every bindle explains what it is and its rules; at session start each bindle prints one line saying whether it's writable or read-only in this folder, and that a read-only bindle's files are off limits.
-- **Upgrading a locked bindle is the person's step.** Where a bindle is read-only, a session can't change it, including through `bindle upgrade` in the shell (Claude Code's safety check blocks it as working around the lock, seen 2026-11-21). The person runs the upgrade, or it's done from a folder where that bindle isn't attached.
-- **`install` only links** the CLI onto PATH and `/bindle` into `~/.claude/commands`. bindle never takes over `~/.claude`'s settings or CLAUDE.md.
-
-- **MCP servers travel in the bindle's `.mcp.json`** (verified 2026-11-21): Claude Code starts a plugin's servers wherever the plugin is on, expands `${ENV_VAR}` from the machine's environment and `${CLAUDE_PLUGIN_ROOT}` to the bindle, and names tools `mcp__plugin_<bindle>_<server>__<tool>`. Secrets stay per machine as environment variables; machine-specific servers stay in the machine's own setup with a note in the bindle; account connectors need nothing. A read-only bindle's servers appear in `doctor`'s trust warnings.
-
-### How each part loads (verified 2026-11-21, Claude Code v2.1.329)
-
-| Part | Native mechanism | How it's toggled | Verified |
-|---|---|---|---|
-| Skills, agents, commands, hooks, MCP servers | The bindle is a **plugin**, installed from its own repo used as a marketplace (local directory or private git URL) | `claude plugin install <b>@<b> --scope local` writes `enabledPlugins` (and the marketplace) into the folder's `settings.local.json`; personal can be user scope if it should be on everywhere | Spike: the skill and SessionStart hook were active in the attached folder and absent in a sibling. Skills are namespaced (`<bindle>:<skill>`) |
-| Writable memory | `autoMemoryDirectory` (absolute or `~/`) | Folder's `settings.local.json` | Spike: the session reported that path as its memory dir, wrote there, nothing in the default location; a fresh session recalled it |
-| Read-only memory (other bindles that are on) | The bindle plugin's own SessionStart hook prints `${CLAUDE_PLUGIN_ROOT}/memory/MEMORY.md` | Comes with the plugin | Spike: recalled in the attached folder. Hook output is capped at **10,000 characters** (today's work index is ~15.6k), so read-only indexes stay small or the hook prints only `boundary: craft` lines |
-| Rules | Plugins can't carry a CLAUDE.md. Personal rules: `~/.claude/CLAUDE.md` (user scope, loads everywhere). Domain rules: the domain root's `CLAUDE.md`, importing `@<bindle>/rules.md` | Which folder you launch from | Docs: imports outside the working directory show a one-time approval dialog. In the spike (headless) a project CLAUDE.md with an external import loaded nothing; recheck interactively |
-| Notes | Plain folders | Inside the launch folder, or `--add-dir` | Not tested; nothing special needed |
-| Per-project sidecar | `CLAUDE.local.md` (supported, gitignored) importing `@<bindle>/projects/<repo>/…` | Per repo | Docs only |
-
-**Constraints found:**
-- `settings.local.json` is read at the **git repo root** even when launching from a subfolder. A domain root must not itself be a git repo that contains the project repos as subfolders, or every repo needs its own attach. (A plain folder of repos, such as `~/acme`, works as a root.)
-- A local-scope install still records the plugin at machine level (`~/.claude/plugins/`); "local" decides where it's enabled, not where it's cached. Each machine runs the attach once (the path-keyed setup step).
-- MEMORY.md loads only its first 200 lines or 25 KB. Topic files load on demand.
-- SessionStart hooks run again on resume. Output is capped at 10,000 characters with no setting to raise it.
-
-**Where bindles live on disk:** by default inside the domain root (`<root>/.bindle/`), so its rules import and notes sit inside the working directory with no external-import dialog. Overridable (`bindle attach --at <path>`). An optional `~/bindles/` folder of symlinks gives a collective view; `bindle doctor` lists them. Roots are just paths: bindle requires no folder layout. For example, `~/acme` (a work root) and `~/Projects` (a personal root). Kept local first; push the work bindle to the work org later.
-
-**Don't move existing folders.** Path-keyed today: Claude's memory folder and session history, trust in `~/.claude.json`, Docker/Sail mounts, git worktrees, symlinks into `~/Projects`. Migrating memory into `<root>/.bindle/memory/` removes the biggest of these, so migrate first and reorganize later, if ever.
-
-**Read-only memory cap:** 10,000 characters is fine for now; revisit if an index outgrows it.
-
-**Notes cross boundaries the way memories do.** Most notes are domain context and stay in the domain bindle. A note that's really craft (process ideas, a workflow roadmap) is promoted to personal like a memory: rewritten without the domain's specifics.
-
-## Decisions (2026-11-20)
-
-1. **Craft versus context is the line.** Craft is how I work: methods, skills, habits, lessons about working with Claude. Context is what an employer or project knows: its systems, data, people, decisions. Craft travels both ways; context stays in its domain. Work may appear in personal only at a high, public level (the job, interests, product ideas); never code-heavy or internal knowledge (repos, systems, data, internal decisions, people). Promotion and migration apply this test.
-2. **Work with how Claude Code is built, not against it.** Plain Claude Code underneath; no custom loading mechanism where a native one exists.
-3. *(Superseded by "The model", 2026-11-21.)* **The model is sidecars.** Plain Claude Code, plus a personal sidecar (craft, always on), plus a project sidecar per project (that project's memory and private `.claude-local` notes, git-versioned). Any machine with access to a project pulls its setup.
-4. **The domain is the unit of sharing.** One sidecar repo per domain: a shared `memory/` that every project in the domain reads and writes (lessons learned in one repo apply in its siblings), plus `projects/<name>/` for repo-specific notes. For example, a work domain holding several repos, and a personal domain holding related side projects. A project that shares nothing with anything else (common for personal projects) is simply its own domain. In practice: two domains cover most needs (work and personal), plus one per standalone project. The native hook is `autoMemoryDirectory`: point each project in a domain at that domain's `memory/` (set in user or local settings, the right side of the boundary). Today's accidental version of this is starting Claude from a parent folder of several repos, which gives them one shared memory.
-   - **Launch from the domain root.** Claude Code keys three things to the launch folder: memory (named after the path), sessions (`claude --resume` lists the current folder's sessions) and project permissions. Launching from a domain root aligns all three with the domain: cross-repo work without per-repo permission prompts, one resume list, one shared memory. That's why the habit formed in the first place. Bindle should make the root explicit; when a domain's repos are scattered (personal projects across machines), the root can be a folder of links, or rely on `autoMemoryDirectory`.
-5. **Each sidecar lives with its projects' git.** Personal projects on personal git; work projects on the employer's git (a private repo in the work org). The base comes from personal git on every machine, because it holds no context.
-6. **Tag every memory `boundary: craft | context | both`** as it's written. `both` means a general lesson learned on a specific problem: on migration, promote a rewritten general rule and leave the specifics behind.
-7. **Migrate secure-first.** Move a mixed setup into the professional layer first, then promote craft to personal one piece at a time, reviewed memory by memory.
-   - *(2026-11-21: personal's `rules.md` is empty now that rules load in every session; July's copy is in git history.)*
-   - **Rebuild the personal principles from the live setup, not the July copy.** `bindle-personal/rules.md` (July's `CLAUDE.personal.md`) duplicates the working principles from July, and the live global `CLAUDE.md` has grown since (summaries of always-on rules, a lessons index, new sections). At migration, derive `rules.md` from the current live file minus anything domain-specific, then delete the duplicate so there is one source.
-   - **Skills can go into `bindle-personal/skills/` now**, hand-linked into `~/.claude/skills/` until the installer runs. First one: `doc-style` (Nov 2026), working through a symlink.
-
-## Open questions
-
-- *(Answered 2026-11-21.)* **How rules load:** each bindle's SessionStart hook prints its `rules.md` (`hooks/rules.sh`, its own command so it has its own 10,000-character cap). Tested: a plain CLAUDE.md and an import from inside the folder load headlessly; an import from outside the folder waits for a one-time approval, so imports were rejected as the mechanism. One mechanism for every bindle, no prompts, nothing written into a folder's CLAUDE.md (which may be a team's committed file).
-- **Skill addendums.** How a domain's addendum attaches to a general skill (a skill that references the base one, or a file the base skill looks for).
-- **Shared-bindle conventions** only matter if `shared` bindles grow beyond craft; not pursued for now.
-
-*Answered and folded into the model:* memory transport (`autoMemoryDirectory`, the bindle's `memory/` is a git checkout), path-keyed memory (`attach` once per folder per machine), where layer rules live (`rules.md` in each bindle), skills first (new skills go in `bindle-personal/skills/`; plugins replace July's overlay installer).
-
-## Adopted from July
-
-July's tracker (kept locally as an archive) reached the same model: every layer the same shape, personal just the always-on one. What it couldn't do natively, it built (a symlink farm, per-layer installers, memory copying); plugins and `autoMemoryDirectory` now replace those. These July ideas still hold:
-
-- **Identify a project by its git remote, not its path.** The remote (`host/owner/name`) picks the project's notes folder in `projects/`, so the same repo at a different path or on another machine finds the same notes. The path stays only for what Claude Code itself keys to it (sessions, trust).
-- **Guardrails that keep the person honest, not gates** (David, 2026-11-21: "the only one truly enforcing the boundary is me"). The person has direct access to every repo; bindle's job is to make the right thing the default and mistakes visible, without getting in the way. A hard stop only where a mistake can't be undone: a pushed secret (sync refuses), or material crossing between bindles without review (the outbox). Everything recoverable gets a rule or a warning: a work detail saved into personal can be deleted later, so personal's `rules.md` states the boundary rule rather than a sync block (an inbound term check was considered and rejected: it can't tell the allowed "I work at Acme" from internals, and it would guard against the wrong risk). Remaining July ideas in this spirit, not built: a remote allowlist (warn when a bindle's remote isn't on its domain's host) and a check that a project's private files (`CLAUDE.local.md`) aren't committed into a team repo.
-- **A skill plus a domain addendum.** A general skill lives in personal; a short addendum in a domain bindle tailors it with that domain's specifics (for example, `doc-style` in personal and SP's doc registry as an SP addendum). Craft stays general; context stays home. Decide how an addendum loads (a skill that references the base one, or a file the base skill looks for).
-- **Freshness stamps for derived docs.** Record the commit a doc was built from and the sources it read; `git diff --name-only <commit>..HEAD -- <sources>` says whether it's stale and which part to recheck. Same idea as doc-style's registry and drift audit, found twice.
-- **Use Claude Code's native memory format.** Flat `MEMORY.md` index plus one file per memory with `type:` frontmatter, plus bindle's `boundary:` tag. Retire the base's July taxonomy template (type folders): the July A/B showed no quality or cost win, and forcing one structure across projects isn't a goal. A different view of the memories is a derived doc, made on request.
-- **Practical craft to carry** (candidates for personal, as needed): an idempotent MCP bootstrap script (`claude mcp add --scope user`, no secrets), secrets handling (`${VAR}` from a gitignored `secrets.env`, which is still how this machine works), and an adversarial review skill.
-
-Left behind: the memory A/B harness and its results; the cost ledger and statusline already live in their own repos.
-
-## Prior art (quick search, 2026-11-20)
-
-The problem is common; the trust-domain boundary is rarely the focus. Not vetted for maturity or security.
-
-- **Claude Code itself** has no built-in memory sync. Feature requests ask for export/import or account sync and note that memory is keyed to absolute paths ([#25739](https://github.com/anthropics/claude-code/issues/25739)). The native lever is `autoMemoryDirectory` ([memory docs](https://code.claude.com/docs/en/memory)).
-- **Sync everything to one private repo:** [claude-sync](https://github.com/renefichtmueller/claude-sync) (selective include/exclude), claude-brain ([write-up](https://dev.to/toroleapinc/i-built-a-tool-to-sync-your-claude-code-brain-across-machines-5a1o)), [git-based global memory](https://dev.classmethod.jp/en/articles/claude-code-global-memory-with-git), [hook-based pull/push](https://dev.to/fillip_kosorukov/keeping-claude-code-context-alive-across-a-desktop-a-laptop-and-a-vps-2epa). Portable, but one store: no boundary.
-- **Closest to bindle:**
-  - [dotai](https://pypi.org/project/dotai-cli): personal context in its own folder, never writes team files, repo-level instructions win over personal ones.
-  - [dotagents](https://pkg.go.dev/github.com/yourconscience/dotagents): public tool and private config as separate repos (like base versus layer).
-  - [agentic-stack](https://www.skills.sh/aradotso/ai-agent-skills/agentic-stack-portable-agent-memory): a portable `.agent/` folder with layered memory across tools.
-  - [skills via chezmoi](https://dev.to/dotwee/one-skills-brain-for-codex-claude-cursor-and-copilot-with-chezmoi-2p3k): one skills source for several agents.
-- **Separate config directories per life:** ["One Claude, two lives"](https://dev.to/charlieseay/one-claude-two-lives-1cmp) keeps work and personal on separate machines and data; others use a separate config dir (for example `~/.claude-work`, via `CLAUDE_CONFIG_DIR`). A hard boundary, but nothing carries craft across.
-- **Team versus personal inside one repo:** [what's shared versus private on a team](https://medium.com/@binu_thayamkery/claude-code-on-a-team-whats-shared-what-s-private-and-how-not-to-step-on-each-other-11ebcea8d01c): `~/.claude/CLAUDE.md` is personal, the repo holds team rules.
-
-**Review them properly before building** (each solves a slice; a cohesive design looks at all of it). Compare every tool on the same dimensions, borrow what's solved, and keep bindle's effort on what isn't:
-
-| Dimension | Question |
-| --- | --- |
-| Memory transport | How does accumulated memory move between machines? Copy, sync, checkout, native setting? |
-| Craft sharing | How do skills, agents and commands travel? Across agent tools (Claude, Codex, Cursor)? |
-| Trust boundary | Is personal versus employer context separated, and is the separation structural or by convention? |
-| Multi-machine | What happens with the same project at different paths, or a new machine? |
-| Team coexistence | Does it stay out of team repos and shared settings? |
-| Lifecycle | How are stale memories reviewed, promoted or retired? |
-| Native fit | Does it use Claude Code's own mechanisms or work around them? |
-
-**What bindle adds:** the structure decides where things go (one repo per domain, one writable bindle per folder, so new memories have exactly one destination) and checks what leaves (the outbox, with a review and a leak check), while what goes into a bindle is up to the person and the rules. Craft versus context is decided per memory as it's written (`boundary:` tags), so methods travel while each domain's knowledge stays put. None of the above found does both.
+- **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 101 unit tests in CI (macOS and Linux) plus an end-to-end test against real Claude Code.
+- **In use on two machines:** a personal laptop with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git.
+- **Docs:** README (usage), docs/design.md (design), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents), CHANGELOG.md.
 
 ## Next steps
 
-1. ~~Answer the memory transport question.~~ Done 2026-11-21 (spike).
-2. ~~Settle the open design points in "The model".~~ Where bindles live and the read-only memory cap are settled; rules loading is being tested (see Open questions).
-3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
-4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Rules loading and the read-only lock done too (v0.3.0). Promotion built too (v0.4.0: `/bindle-promote`, `outbox add`, `collect`, `audience`/`writes`). Still to build: the `~/bindles/` collective view, and ~~a cleanup pass on personal's migrated memories~~ (done 2026-11-21: 22 memories into five `projects/<name>/` folders; `MEMORY.md` down to one general line and five pointers).
-4a. ~~**Test on the personal laptop.**~~ Done 2026-11-21. clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
-4b. **Write personal's `rules.md`:** rebuild it from the live global CLAUDE.md minus anything work-specific, under 9,000 characters (it now loads in every session where personal is on).
-4c. **Hardening, from the independent review (2026-11-21).** Done in v0.5.0; the trust model in v0.5.1: one Python implementation for hooks and CLI (`hooks/bindle_hook.py`, managed, imported by the CLI), the CLI split into a package, promotion hardened (a content hash recorded at `outbox add` and verified at `collect`, `status`/`kind`/path validation, no symlinks, leak check on names, descriptions and paths, all destinations checked before writing), a wider case-insensitive secret check with a NUL-safe file list, the remaining bug fixes each with a failing test first, tests for paths with spaces, accents and brackets, and honest wording about what the lock and the outbox do and don't cover. Then a trust model for hooks in shared bindles: `attach` and `doctor` warn (not refuse, per the guardrails principle) on any non-template hook in a read-only bindle.
-4d. **Windows support** (decided 2026-11-21), after 4c removes the bash hooks:
-   - Verify how Claude Code runs hook commands on Windows (which shell) and how to invoke Python portably (`python3` vs `python` vs `py`).
-   - `install` on Windows: no symlinks (they need developer mode); copy a small launcher into a folder on PATH, or document `py <path>\bin\bindle`.
-   - Paths: drive letters and backslashes in settings, and how Claude Code's `//path` deny-rule syntax applies on Windows (verify).
-   - CI: add `windows-latest`. Until it passes, the README says "tested on macOS and Linux; Windows in progress."
-5. Create the work bindle and migrate secure-first: on the next work laptop (no rush on this one).
-6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
-   - **Employee:** personal and Acme both on at `~/acme`, Acme writable.
-   - **Freelancer:** clients Acme and Globex in separate folders. Personal is on in both, the client is writable, and switching clients means launching from the other folder.
-   - **Side project:** personal on and writable, nothing else.
-   - **A client that allows no outside tooling:** Initech's folder has only Initech on.
-   - **Promoting a lesson:** learned at Acme, carried into personal with `bindle:promote` from a folder where personal is writable.
-   - **Hackathon skill:** built in personal on Saturday, used at Acme on Monday.
-   - **New machine:** clone the bindles, run `attach` once per folder.
-   - **Per-project notes:** private notes about Acme's `api` repo, loaded through its `CLAUDE.local.md`.
-   - **Sharing craft:** a skill matures in personal, is promoted to the craft bindle, and a coworker installs it with `/plugin marketplace add`, no bindle needed.
-   - **Working with a friend on a project:** each keeps their own personal bindle; what matters to both goes into the project repo.
-
-   Write the docs once bindle reaches MVP (promote and collect built): a README that explains the model through these scenarios, so it's usable without reading PLAN.md.
-
-   Also in the docs, for people and agents:
-   - **What's in git, and what isn't.** In git (pushed): a bindle's memories (sync commits `memory/` at session end; until then only on disk), anything else committed in a bindle, the bindle tool. Not in git: uncommitted skill or note edits in a bindle (`doctor` shows them), the old default memory folder a migration copied from, the machine's own Claude Code setup (global CLAUDE.md, `settings.json`, skills outside bindles, MCP servers, session history), and a folder's attach settings (recreated by `bindle attach`). Answers "what if I lose this machine?": clone, `install`, `attach`.
-   - **Diagrams:** one of a folder with its bindles (which are on, which is writable, what's locked); one of where each part lives and how it moves between machines (git for bindles, nothing for machine-local setup); one of promotion through the outbox.
-7. **A public demo repo (`bindle-demo`), at MVP.** A toy project with its own populated `.bindle/` (memories, a skill, rules, notes, per-project notes) and a README walkthrough: clone, `bindle attach .bindle . --writable`, start Claude, see it recall a memory and run the skill, watch a new memory land, then try detach, a second read-only bindle and `doctor`. Documentation people can run and inspect. Make it the end-to-end test fixture (`tests/e2e.sh` runs the walkthrough), so a change that breaks it fails the test. Public by construction: its domain is a toy. One repo, laid out like a domain root: the toy project, `.bindle/` folded in (not its own git repo), the README, and a `.gitignore` for `.claude/settings.local.json`. Visitors attach the clone's root. Sync is off; the README explains that in real use `.bindle` is its own repo on your git host, with a "make it your own" step (`git init` inside `.bindle`).
+1. **Write personal's `rules.md`** from the live global instructions, minus anything domain-specific, under 9,000 characters, including the boundary rule (work appears in personal only at a high, public level).
+2. **Windows support.** Check how Claude Code runs hook commands on Windows and how to call Python portably; `install` without symlinks; drive letters and backslashes in settings and deny rules; add `windows-latest` to CI. Until then the README says "tested on macOS and Linux."
+3. **Promotion pass at work:** general rules, lessons and `craft`/`both` memories from the work bindle and the machine's global instructions move to craft, rewritten, through the outbox.
+4. **A public demo repo (`bindle-demo`).** A toy project laid out like a domain root, with its `.bindle/` folded in (`"demo": true`, sync off) and a README walkthrough: clone, attach, see a memory recalled and a skill run, watch a new memory land, try detach and a second read-only bindle. It doubles as the end-to-end test fixture, so a change that breaks the walkthrough fails the test.
+5. **Smaller gaps, as needed:** `bindle rename`, a `doctor` check that the three names (bindle.json, plugin.json, marketplace.json) agree, cleaning up collected outbox items, the `~/bindles/` collective view, and the open questions in the design doc (per-repo notes, skill addendums, remote allowlist, freshness stamps).
+6. **Later:** a remote for the work bindle on storage the employer allows; delete the work machine's pre-bindle memory folder once the new setup has run for a while.
 
 ## Log
 
-- **2026-07-08 to 07-14:** base, personal layer, memory taxonomy, `bindle` CLI, README framing.
-- **2026-11-20:** sidecar model, hosting rule, memory boundary tags, memory transport options (this file). Quick prior-art search: found `autoMemoryDirectory` (native memory location) and related tools; none combine a structural trust boundary with per-memory craft/context tagging.
-- **2026-11-21:** one model for all bindles (personal is just mine), attached per folder as home (one, writable memory) or companion (tooling plus read-only memory); promotion as a skill. Spike on v2.1.329 confirmed `autoMemoryDirectory` in local settings, plugin skills and hooks enabled per folder, and companion memory via the plugin's SessionStart hook (10k-character cap). External `@imports` from a project CLAUDE.md didn't load headless; recheck interactively.
-- **2026-11-21:** renamed home/companion to on/writable: every attached bindle is on, one is writable. Attach per folder rather than user scope, so a bindle can be off in a folder that doesn't want it.
-- **2026-11-21:** reshaped `bindle-personal` into the bindle layout (plugin, memory hook, `rules.md`). Reviewed July's PROJECT.md (archived locally): adopted git-remote identity, code-enforced boundary guards, skill addendums, freshness stamps and the native memory format; left the A/B behind.
-- **2026-11-21:** built the CLI (`install`, `new`, `attach`, `detach`, `doctor`) and the bindle template; removed July's commands and templates; personal brought in line with the template. Unit and end-to-end tests pass.
-- **2026-11-21:** memory sync: session hooks in each bindle (pull at start, commit `memory/` and push at end, secret check), `bindle sync`, `bindle new --sync`. Personal on sync. Tests: 31 unit, end to end with real Claude Code.
-- **2026-11-21:** promotion design: a two-step outbox (prepare in the source domain, collect in the target); never read across bindles' memories. Proposed deny rules for read-only bindles.
-- **2026-11-21:** promotion can happen in one session: prepare into the source's outbox with a leak check, then `bindle collect` (code, permission-gated) writes into the target. Read-only bindles locked by deny rules (decided, not built). Subagents only as an optional outsider reviewer, never as the writer.
-- **2026-11-21:** every bindle has `audience` (private, shared, public) and `writes` (implicit, explicit). Sharing craft is a craft bindle (shared, explicit), installable without bindle; shared implicit bindles are team memory.
-- **2026-11-21:** dropped shared team memory: a team's shared knowledge belongs in the project repo as reviewed commits.
-- **2026-11-21:** collaborators keep their own bindles; shared knowledge goes in the project repo. Sharing and collaboration added to the scenario docs, to write at MVP.
-- **2026-11-21:** planned a public demo repo that doubles as the end-to-end test fixture.
-- **2026-11-21:** enclosing-repo guard (local exclude on `new`, `doctor` warning); agent orientation (AGENTS.md everywhere, a writable/read-only line per bindle at session start).
-- **2026-11-21:** `bindle upgrade` (managed files, obsolete files, missing template files, layout migrations; commits only what it touched), `--version`, CHANGELOG.md, tagged v0.2.0.
-- **2026-11-21:** v0.3.0: rules load through each bindle's hook; read-only bindles locked with an Edit deny rule. Both verified with real Claude Code.
-- **2026-11-21:** personal's memories organized by project; v0.3.1 tells sessions to file project memories in `projects/<project>/`.
-- **2026-11-21:** v0.4.0: promotion (outbox, leak check against `private-terms.txt`, `collect`, `/bindle-promote`), `audience`/`writes`. At work, the craft bindle is on instead of personal.
-- **2026-11-21:** work setup moved onto bindles on the work machine: the Acme bindle (`~/acme/.bindle`, writable, local git only) holds the notes (moved, symlink at the old path, query outputs ignored), all 88 memories (73 domain-level, 15 in three repo folders) and the SP-specific rules; craft is on read-only; personal removed from this machine. v0.4.2 frames rules as standing instructions.
-- **2026-11-21:** CI on GitHub Actions; README rewritten as a general-audience guide; independent review (16 findings) folded into a hardening phase; Windows support added to the plan.
-- **2026-11-21:** v0.5.0: hooks are one Python file the CLI imports; CLI split into a package; promotion hardened (hash, validation, no symlinks, leak check on names); wider secret check; review bugs fixed with regression tests (95 tests); e2e passed with the Python hooks.
-- **2026-11-21:** principle recorded: guardrails that keep the person honest, not gates; hard stops only for what can't be undone. No inbound term check for personal; the boundary rule goes in personal's `rules.md` instead.
-- **2026-11-21:** v0.5.1: trust warnings for code a read-only bindle runs (attach, doctor's Warnings section, and the session start when a pull changes such code).
-- **2026-11-21:** MCP servers in a bindle's `.mcp.json` verified end to end (a tiny Python server started where the bindle was attached, with a secret from the environment); documented in the README.
+- **2026-07:** first prototype: base plus layers through a symlink farm, copied memory, a memory taxonomy. Archived; the model survived, the mechanics didn't.
+- **2026-11-20:** craft versus context as the line; one repo per domain; memory boundary tags; prior-art survey; found `autoMemoryDirectory`.
+- **2026-11-21:** spike confirmed native mechanisms (memory location per folder, plugin skills and hooks per folder, read-only memory through a hook). One model for every bindle, attached per folder, all on and one writable. CLI rebuilt (v0.2.0), personal reshaped and migrated from the laptop, round trip verified.
+- **2026-11-21:** sync hooks; rules through hooks and read-only locks (v0.3.0); memories organized by project; promotion through a hash-verified outbox, `audience` and `writes`, a craft bindle (v0.4.0); the work setup moved onto bindles; notes support, scratch notes, secret checks for notes, union merge for indexes (v0.4.x).
+- **2026-11-21:** CI; README rewritten for a general audience; an independent review (16 findings) led to one Python implementation, a CLI package, hardened promotion and a wider secret check (v0.5.0); trust warnings (v0.5.1); guardrails-not-gates recorded as a principle; MCP servers in a bindle verified; design doc written.
