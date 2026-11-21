@@ -3,33 +3,86 @@ import filecmp
 import os
 import shlex
 import shutil
+import sys
 from pathlib import Path
 
-from .core import (BASE, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
+from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
                    exclude_from_enclosing_repo, extra_code, git, git_health, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json)
 
 
+INSTALLED_MARK = "Installed by bindle install"
+
+
 def cmd_install(args):
     """Puts the bindle command on PATH and links /bindle and /bindle-promote into ~/.claude. Nothing else:
-    bindle never takes over ~/.claude's settings or CLAUDE.md."""
-    bindir = Path.home() / ".local" / "bin"
-    links = [(bindir / "bindle", BASE / "bin" / "bindle"),
-             (Path.home() / ".claude" / "commands" / "bindle.md", BASE / "global" / "commands" / "bindle.md"),
-             (Path.home() / ".claude" / "skills" / "bindle-promote", BASE / "global" / "skills" / "bindle-promote")]
-    for link, target in links:
-        if link.exists() and not link.is_symlink():
-            raise BindleError(f"{link} exists and isn't a symlink; move it aside first.")
-    for link, target in links:
-        link.parent.mkdir(parents=True, exist_ok=True)
-        if link.is_symlink():
-            link.unlink()
-        link.symlink_to(target)
-        print(f"Linked {link} -> {target}")
+    bindle never takes over ~/.claude's settings or CLAUDE.md. Where symlinks aren't allowed (Windows without
+    developer mode) it copies instead, and on Windows it writes a bindle.cmd launcher."""
+    home = Path.home()
+    bindir = home / ".local" / "bin"
+    items = [(home / ".claude" / "commands" / "bindle.md", BASE / "global" / "commands" / "bindle.md"),
+             (home / ".claude" / "skills" / "bindle-promote", BASE / "global" / "skills" / "bindle-promote")]
+    launchers = launcher_files(bindir)
+    for dest, _ in items + [(p, None) for p in launchers]:
+        if dest.exists() and not dest.is_symlink() and not installed_by_bindle(dest):
+            raise BindleError(f"{dest} exists and wasn't installed by bindle; move it aside first.")
+    for path, content in launchers.items():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            path.unlink()
+        if content is None:
+            path.symlink_to(BASE / "bin" / "bindle")
+            print(f"Linked {path} -> {BASE / 'bin' / 'bindle'}")
+        else:
+            path.write_text(content, encoding="utf-8")
+            path.chmod(0o755)
+            print(f"Wrote {path}")
+    for dest, src in items:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        remove(dest)
+        try:
+            dest.symlink_to(src, target_is_directory=src.is_dir())
+            print(f"Linked {dest} -> {src}")
+        except OSError:
+            if src.is_dir():
+                shutil.copytree(src, dest)
+                (dest / ".bindle-installed").write_text(INSTALLED_MARK + "\n", encoding="utf-8")
+            else:
+                dest.write_text(src.read_text(encoding="utf-8") + f"\n<!-- {INSTALLED_MARK} -->\n", encoding="utf-8")
+            print(f"Copied {src} -> {dest} (symlinks aren't available; run bindle install again after updating bindle)")
     if str(bindir) not in os.environ.get("PATH", "").split(os.pathsep):
-        print(f'Add {bindir} to PATH: export PATH="$HOME/.local/bin:$PATH"')
+        if WINDOWS:
+            print(f"Add {bindir} to your PATH (System settings > Environment Variables), then open a new terminal.")
+        else:
+            print(f'Add {bindir} to PATH: export PATH="$HOME/.local/bin:$PATH"')
+
+
+def launcher_files(bindir):
+    """The bindle command on PATH: a symlink on macOS and Linux; on Windows, a .cmd for cmd and PowerShell and a
+    shell script for Git Bash, both calling the Python that ran install."""
+    if not WINDOWS:
+        return {bindir / "bindle": None}
+    script = BASE / "bin" / "bindle"
+    return {bindir / "bindle.cmd": f'@echo off\r\nrem {INSTALLED_MARK}\r\n"{sys.executable}" "{script}" %*\r\n',
+            bindir / "bindle": f'#!/usr/bin/env bash\n# {INSTALLED_MARK}\nexec "{Path(sys.executable).as_posix()}" "{script.as_posix()}" "$@"\n'}
+
+
+def installed_by_bindle(path):
+    try:
+        if path.is_dir():
+            return (path / ".bindle-installed").exists()
+        return INSTALLED_MARK in path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+
+
+def remove(path):
+    if path.is_symlink() or path.is_file():
+        path.unlink()
+    elif path.is_dir():
+        shutil.rmtree(path)
 
 
 def copy_template(dest, name):
@@ -200,7 +253,7 @@ def cmd_doctor(args):
     problems, warnings, needs_upgrade = [], [], []
     print(f"Folder: {folder}")
 
-    top = git(folder, "rev-parse", "--show-toplevel")
+    top = None if WINDOWS else git(folder, "rev-parse", "--show-toplevel")
     if top and real(top) != folder:
         problems.append(f"inside the git repo {top}: Claude Code reads settings from there, not here")
 

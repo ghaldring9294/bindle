@@ -19,6 +19,15 @@ sys.path.insert(0, str(HERE.parent))
 import bindle  # noqa: E402
 
 
+def rmtree(path):
+    """Deletes a folder; git marks object files read-only, which Windows refuses to delete without a chmod."""
+    import stat
+    def onerror(func, p, _):
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+    shutil.rmtree(path, onerror=onerror)
+
+
 class BindleTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(os.path.realpath(tempfile.mkdtemp()))
@@ -123,7 +132,7 @@ class EnclosingRepoTest(BindleTest):
         repo = self.project_repo()
         self.run_cli("new", "acme", "--at", repo / ".bindle")
         (repo / ".git/info/exclude").write_text("")
-        shutil.rmtree(repo / ".bindle/.git")
+        rmtree(repo / ".bindle/.git")
         bindle.git(repo, "add", "-A")
         self.run_cli("attach", repo / ".bindle", repo)
         code, out = self.run_cli("doctor", repo)
@@ -135,7 +144,7 @@ class EnclosingRepoTest(BindleTest):
         repo = self.project_repo()
         self.run_cli("new", "demo", "--at", repo / ".bindle")
         (repo / ".git/info/exclude").write_text("")
-        shutil.rmtree(repo / ".bindle/.git")
+        rmtree(repo / ".bindle/.git")
         meta = json.loads((repo / ".bindle/bindle.json").read_text())
         meta["demo"] = True
         (repo / ".bindle/bindle.json").write_text(json.dumps(meta))
@@ -377,19 +386,31 @@ class InstallTest(BindleTest):
         super().setUp()
         self.home = self.tmp / "home"
         self.home.mkdir()
-        self.saved_home = os.environ.get("HOME")
-        os.environ["HOME"] = str(self.home)
+        self.saved_home = {k: os.environ.get(k) for k in ("HOME", "USERPROFILE")}
+        for k in self.saved_home:  # Path.home() reads USERPROFILE on Windows, HOME elsewhere
+            os.environ[k] = str(self.home)
 
     def tearDown(self):
-        os.environ["HOME"] = self.saved_home
+        for k, v in self.saved_home.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
         super().tearDown()
 
-    def test_links_the_cli_and_the_command_and_nothing_else(self):
+    def test_installs_the_cli_and_the_command_and_nothing_else(self):
         self.assertEqual(self.run_cli("install")[0], 0)
-        self.assertEqual(os.readlink(self.home / ".local/bin/bindle"), str(bindle.BASE / "bin/bindle"))
-        self.assertTrue((self.home / ".claude/commands/bindle.md").is_symlink())
+        if bindle.core.WINDOWS:
+            self.assertIn(str(bindle.BASE / "bin" / "bindle"), (self.home / ".local/bin/bindle.cmd").read_text())
+        else:
+            self.assertEqual(os.readlink(self.home / ".local/bin/bindle"), str(bindle.BASE / "bin/bindle"))
+        self.assertIn("bindle", (self.home / ".claude/commands/bindle.md").read_text())
         self.assertTrue((self.home / ".claude/skills/bindle-promote/SKILL.md").exists())
         self.assertEqual(sorted(p.name for p in (self.home / ".claude").iterdir()), ["commands", "skills"])
+
+    def test_installing_twice_is_fine(self):
+        self.run_cli("install")
+        self.assertEqual(self.run_cli("install")[0], 0)
 
     # A real file there is the person's own; replacing it would lose their work.
     def test_refuses_to_replace_a_real_file(self):
@@ -656,7 +677,10 @@ class ReviewRegressionTest(BindleTest):
         acme = self.make_bindle("acme")
         skill = self.tmp / "review"; skill.mkdir()
         (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nok\n")
-        (skill / "ref").symlink_to(acme / "memory")
+        try:
+            (skill / "ref").symlink_to(acme / "memory", target_is_directory=True)
+        except OSError:
+            self.skipTest("symlinks aren't allowed here (Windows without developer mode)")
         code, out = self.run_cli("outbox", "add", acme, skill, "--kind", "skill", "--name", "review")
         self.assertEqual(code, 1)
         self.assertIn("symlink", out)
@@ -814,6 +838,22 @@ class ReviewRegressionTest(BindleTest):
         (b / "hooks/bindle_hook.py").write_text("# old\n")
         _, out = self.run_cli("doctor", f)
         self.assertIn(f"bindle upgrade '{b}'", out)
+
+
+class PortabilityTest(BindleTest):
+    # Claude Code normalizes Windows paths to POSIX form before matching permission rules: C:\\x -> /c/x.
+    def test_lock_rules_use_claude_codes_path_form(self):
+        self.assertEqual(bindle.core.rule_path("C:\\Users\\me\\bindle"), "/c/Users/me/bindle")
+        self.assertEqual(bindle.core.rule_path("/Users/me/bindle"), "/Users/me/bindle")
+        self.assertEqual(bindle.core.lock_rules("D:/x"), ["Edit(//d/x/**)"])
+
+    # The hook command finds a working Python itself, since `python3` may be missing or a stub on Windows.
+    def test_the_launcher_runs_the_hook(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(f)}
+        out = subprocess.run(["bash", str(b / "hooks/run"), "session-start"], env=env, capture_output=True, text=True)
+        self.assertIn("is on and writable", out.stdout, out.stderr)
 
 
 class TrustTest(BindleTest):

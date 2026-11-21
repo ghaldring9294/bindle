@@ -69,7 +69,7 @@ def git(root, *args):
     env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
     env.setdefault("GIT_SSH_COMMAND", "ssh -o ConnectTimeout=5 -o BatchMode=yes")
     return subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false", *args],
-                          capture_output=True, text=True, env=env)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
 
 
 def git_out(root, *args):

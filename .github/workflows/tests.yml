@@ -24,3 +24,5 @@ jobs:
           python-version: ${{ matrix.python }}
       - name: Unit tests
         run: python -m unittest discover -s tests -v
+        env:
+          PYTHONUTF8: "1"  # the tests write UTF-8 text with Python's defaults; the code itself always says utf-8

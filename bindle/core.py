@@ -10,7 +10,10 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
+
+WINDOWS = os.name == "nt"
 
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
@@ -18,7 +21,7 @@ LAYOUT = 1
 VERSION = "0.5.1"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
-MANAGED = ["hooks/bindle_hook.py", "hooks/hooks.json"]
+MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
 # Managed files from earlier versions; `bindle upgrade` removes them.
 OBSOLETE = ["hooks/print-memory.sh", "hooks/lib.sh", "hooks/session-start.sh", "hooks/session-end.sh", "hooks/rules.sh"]
 # SessionStart hook output is capped at 10,000 characters; leave room for the header line.
@@ -91,6 +94,8 @@ def check_folder(folder):
     folder = real(folder)
     if not folder.is_dir():
         raise BindleError(f"{folder} isn't a folder.")
+    if WINDOWS:
+        return folder  # on Windows, Claude Code reads settings.local.json in the launch folder itself
     top = git(folder, "rev-parse", "--show-toplevel")
     if top and real(top) != folder:
         raise BindleError(
@@ -101,7 +106,9 @@ def check_folder(folder):
 
 def claude(folder, *args):
     exe = os.environ.get("BINDLE_CLAUDE", "claude")
-    r = subprocess.run([exe, *args], cwd=str(folder), capture_output=True, text=True)
+    # Windows can't execute a script directly; run a Python stand-in (the tests' fake claude) with Python.
+    cmd = [sys.executable, exe] if WINDOWS and exe.endswith(("fake_claude", ".py")) else [exe]
+    r = subprocess.run([*cmd, *args], cwd=str(folder), capture_output=True, text=True, encoding="utf-8", errors="replace")
     if r.returncode != 0:
         raise BindleError(f"`claude {' '.join(args)}` failed:\n{(r.stderr or r.stdout).strip()}")
     return r.stdout
@@ -116,7 +123,14 @@ def lock_rules(root):
     """Permission rules that stop Claude's file-editing tools changing a bindle that's read-only in a folder.
     `//` makes the path absolute; an Edit rule covers every file-editing tool (Claude Code ignores Write(path)
     rules). It doesn't cover shell commands."""
-    return [f"Edit(/{Path(root).as_posix()}/**)"]
+    return [f"Edit(/{rule_path(root)}/**)"]
+
+
+def rule_path(root):
+    """A path in Claude Code's permission-rule form: POSIX, and on Windows the drive as /c (C:\\x -> /c/x)."""
+    p = Path(root).as_posix()
+    m = re.match(r"^([A-Za-z]):/(.*)$", p)
+    return f"/{m.group(1).lower()}/{m.group(2)}" if m else p
 
 
 def lock_is_exact(root):

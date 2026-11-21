@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Runs bindle_hook.py with the first working Python 3.9+. On Windows, `python3` is often a Microsoft Store stub
+# and the real interpreter is `python` or `py`; Claude Code runs hooks in Git Bash there, which git brings.
+# Managed by bindle: `bindle doctor` flags a copy that differs from the base template.
+here="$(cd "$(dirname "$0")" && pwd)"
+for py in python3 python "py -3"; do
+  if $py -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+    exec $py "$here/bindle_hook.py" "$@"
+  fi
+done
+echo "bindle: no Python 3.9+ found (tried python3, python, py), so the $(basename "$(dirname "$here")") bindle's hooks didn't run" >&2
+exit 0

@@ -2,12 +2,12 @@
   "hooks": {
     "SessionStart": [
       { "hooks": [
-        { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/bindle_hook.py\" session-start", "timeout": 20 },
-        { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/bindle_hook.py\" rules", "timeout": 5 }
+        { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" session-start", "timeout": 20 },
+        { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" rules", "timeout": 5 }
       ] }
     ],
     "SessionEnd": [
-      { "hooks": [ { "type": "command", "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/bindle_hook.py\" session-end", "timeout": 30 } ] }
+      { "hooks": [ { "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/run\" session-end", "timeout": 30 } ] }
     ]
   }
 }
