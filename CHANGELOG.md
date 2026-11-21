@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.4.1 (2026-11-21)
+
+**Run `bindle upgrade`** (changed `hooks/session-start.sh`).
+
+- Where a bindle is writable, the session is told where its notes are (and to start at `notes/README.md` if there is one). Notes still aren't loaded automatically.
+- MIGRATION.md: move an existing notes folder into the bindle and leave a symlink at the old path.
+
 ## 0.4.0 (2026-11-21)
 
 **Run `bindle install` again** (it now links the `/bindle-promote` skill) and **`bindle upgrade`** (sync includes `outbox/`; new template files `private-terms.txt` and `outbox/`).

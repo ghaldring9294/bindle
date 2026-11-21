@@ -569,6 +569,23 @@ class MemoryHookTest(BindleTest):
         self.assertIn("projects/<project>/", out)
         self.assertNotIn("a personal fact", out)
 
+    # Notes aren't loaded; the session only needs to know where they are, and only where the bindle is writable.
+    def test_points_to_notes_where_writable(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        (b / "notes/README.md").write_text("# Notes\n")
+        self.run_cli("attach", b, f, "--writable")
+        out = self.run_hook(b, f)
+        self.assertIn("Notes for this domain are in", out)
+        self.assertIn("notes/README.md", out)
+        g = self.folder("elsewhere")
+        self.run_cli("attach", b, g)
+        self.assertNotIn("Notes for this domain", self.run_hook(b, g))
+
+    def test_says_nothing_about_notes_when_there_are_none(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        self.assertNotIn("Notes for this domain", self.run_hook(b, f))
+
     # An agent has to know not to edit a read-only bindle even before it holds any memories.
     def test_tells_the_session_a_read_only_bindle_is_off_limits(self):
         b, f = self.make_bindle("personal"), self.folder()

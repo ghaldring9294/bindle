@@ -29,6 +29,7 @@ Present the table. Flag every `unsure`. Wait for approval.
 1. Create each bindle: `bindle new <name> --at <path>` (a domain bindle defaults to `<domain root>/.bindle`).
 2. Copy memories into the destination bindle's `memory/` and rebuild its `MEMORY.md` index from the files. Keep each memory's frontmatter; add `boundary: craft | context | both` if missing.
 3. Move tooling into the bindle's `skills/`, `commands/`, `agents/`. Remove the old hand-made link in `~/.claude/skills/` once the bindle is attached, or the skill shows up twice.
+3a. Move an existing notes folder into the bindle's `notes/` and leave a symlink at the old path, so every reference to the old path keeps working. Before committing, ignore anything that shouldn't be in git (query results that may hold real customer data, large exports) in the bindle's `.gitignore`, and run the secret check.
 4. Attach: `bindle attach <bindle> <folder> --writable` for the folder's own domain, and `bindle attach <personal bindle> <folder>` to have personal on too.
 5. Commit each bindle separately with a summary of what moved.
 
