@@ -6,7 +6,7 @@ Where bindle stands, what's decided, and what's open. Update this when a decisio
 
 - **Base (this repo):** the `bindle` CLI in Python (standard library, 3.9+): `install`, `new`, `attach`, `detach`, `doctor`. A bindle template in `templates/bindle/`. 22 unit tests with a fake `claude`, plus `tests/e2e.sh` against the real CLI (passed: read-only personal memory and skill visible in a work folder, new memories written to the writable bindle only, gone after detach). July's `init-layer`, `init-project`, overlay installer, global CLAUDE.md/settings and memory taxonomy are removed (git history keeps them).
 - **Personal (`bindle-personal`):** in the bindle layout, matching the template; `doc-style` skill and `/ticket` command. Memory empty until migration.
-- **Personal laptop done (2026-11-21):** both repos cloned, personal attached writable, the laptop's memories migrated and pulled on the work machine. Sync now automatic for personal. Not attached on the work machine yet; the Acme bindle waits for a new work laptop.
+- **Personal laptop done (2026-11-21):** both repos cloned, personal attached writable, the laptop's memories migrated and pulled on the work machine. Sync now automatic for personal. Not attached on the work machine yet; the work bindle waits for a new work laptop.
 
 ## Goal
 
@@ -59,12 +59,12 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 | Per-project sidecar | `CLAUDE.local.md` (supported, gitignored) importing `@<bindle>/projects/<repo>/…` | Per repo | Docs only |
 
 **Constraints found:**
-- `settings.local.json` is read at the **git repo root** even when launching from a subfolder. A domain root must not itself be a git repo that contains the project repos as subfolders, or every repo needs its own attach. (`~/acme` isn't a git repo, so it works as a root.)
+- `settings.local.json` is read at the **git repo root** even when launching from a subfolder. A domain root must not itself be a git repo that contains the project repos as subfolders, or every repo needs its own attach. (A plain folder of repos, such as `~/acme`, works as a root.)
 - A local-scope install still records the plugin at machine level (`~/.claude/plugins/`); "local" decides where it's enabled, not where it's cached. Each machine runs the attach once (the path-keyed setup step).
 - MEMORY.md loads only its first 200 lines or 25 KB. Topic files load on demand.
 - SessionStart hooks run again on resume. Output is capped at 10,000 characters with no setting to raise it.
 
-**Where bindles live on disk:** by default inside the domain root (`<root>/.bindle/`), so its rules import and notes sit inside the working directory with no external-import dialog. Overridable (`bindle attach --at <path>`). An optional `~/bindles/` folder of symlinks gives a collective view; `bindle doctor` lists them. Roots are just paths: bindle requires no folder layout. Here, `~/acme` and `~/Projects` are already the two domain roots. Kept local first; push the work bindle to the work org later.
+**Where bindles live on disk:** by default inside the domain root (`<root>/.bindle/`), so its rules import and notes sit inside the working directory with no external-import dialog. Overridable (`bindle attach --at <path>`). An optional `~/bindles/` folder of symlinks gives a collective view; `bindle doctor` lists them. Roots are just paths: bindle requires no folder layout. For example, `~/acme` (a work root) and `~/Projects` (a personal root). Kept local first; push the work bindle to the work org later.
 
 **Don't move existing folders.** Path-keyed today: Claude's memory folder and session history, trust in `~/.claude.json`, Docker/Sail mounts, git worktrees, symlinks into `~/Projects`. Migrating memory into `<root>/.bindle/memory/` removes the biggest of these, so migrate first and reorganize later, if ever.
 
@@ -146,7 +146,7 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
 4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Still to build: the `promote` skill, the `~/bindles/` collective view, and a cleanup pass on personal's migrated memories (keep, move to `projects/<name>/`, archive, or delete).
 4a. ~~**Test on the personal laptop.**~~ Done 2026-11-21. clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
-5. Create the Acme bindle and migrate secure-first: on the next work laptop (no rush on this one).
+5. Create the work bindle and migrate secure-first: on the next work laptop (no rush on this one).
 6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
    - **Employee:** personal and Acme both on at `~/acme`, Acme writable.
    - **Freelancer:** clients Acme and Globex in separate folders. Personal is on in both, the client is writable, and switching clients means launching from the other folder.
