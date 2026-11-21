@@ -24,6 +24,7 @@ bindle new acme --at ~/acme/.bindle          # create a bindle (no remote is set
 bindle attach ~/acme/.bindle ~/acme --writable
 bindle attach ~/bindle-personal ~/acme       # personal on too, read-only
 bindle doctor ~/acme
+bindle sync ~/acme                           # pull, and push the writable bindle's memories
 bindle detach personal ~/acme
 ```
 
@@ -40,6 +41,8 @@ bindle detach personal ~/acme
 ```
 
 The first two entries turn on the bindle's skills, commands and hooks; `autoMemoryDirectory` (only with `--writable`) sends new memories into the bindle. Because the bindle's path is recorded, moving a bindle means attaching it again; `bindle doctor` points it out.
+
+**Sync.** A bindle with `"sync": true` in `bindle.json` (or created with `bindle new --sync`) keeps itself in sync through its own hooks: every session start pulls the latest from its remote; every session end commits changes under `memory/` in the writable bindle and pushes them. Only `memory/` is committed automatically; skills, rules and notes stay deliberate commits. A memory that looks like it holds a secret is never committed, and `bindle doctor` reports it. Offline or conflicted, the hooks give up quietly and `doctor` shows what's waiting. `bindle sync [<folder>]` does the same by hand, whether or not sync is on.
 
 On a new machine: clone your bindles, then run `attach` once per folder.
 

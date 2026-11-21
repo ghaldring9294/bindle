@@ -1,4 +1,5 @@
 {
   "name": "{{name}}",
-  "layout": 1
+  "layout": 1,
+  "sync": false
 }

@@ -66,7 +66,7 @@ class BindleTest(unittest.TestCase):
 class NewTest(BindleTest):
     def test_scaffolds_a_plugin_shaped_bindle_named_throughout(self):
         b = self.make_bindle("acme")
-        self.assertEqual(json.loads((b / "bindle.json").read_text()), {"name": "acme", "layout": 1})
+        self.assertEqual(json.loads((b / "bindle.json").read_text()), {"name": "acme", "layout": 1, "sync": False})
         self.assertEqual(json.loads((b / ".claude-plugin/plugin.json").read_text())["name"], "acme")
         self.assertEqual(json.loads((b / ".claude-plugin/marketplace.json").read_text())["name"], "bindle-acme")
         for d in ["memory", "notes", "projects", "skills", "commands", "agents"]:
@@ -79,7 +79,8 @@ class NewTest(BindleTest):
         b = self.make_bindle("acme")
         for rel in bindle.MANAGED:
             self.assertEqual((b / rel).read_bytes(), (bindle.TEMPLATE / rel).read_bytes(), rel)
-        self.assertTrue(os.access(b / "hooks/print-memory.sh", os.X_OK))
+        for script in ["lib.sh", "session-start.sh", "session-end.sh"]:
+            self.assertTrue(os.access(b / "hooks" / script, os.X_OK), script)
 
     def test_commits_but_never_sets_a_remote(self):
         b = self.make_bindle("acme")
@@ -169,16 +170,16 @@ class DoctorTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 0, out)
         self.assertIn("acme: on, writable", out)
-        self.assertIn("personal: on\n", out)
+        self.assertIn("personal: on, sync off", out)
 
     def test_flags_a_hook_that_drifted_from_the_template(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f)
-        with open(b / "hooks/print-memory.sh", "a") as h:
+        with open(b / "hooks/lib.sh", "a") as h:
             h.write("# local edit\n")
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
-        self.assertIn("print-memory.sh differs", out)
+        self.assertIn("lib.sh differs", out)
 
     # Unsaved memories are the main way work gets lost between machines.
     def test_reports_uncommitted_memories_and_a_missing_remote(self):
@@ -240,7 +241,7 @@ class MemoryHookTest(BindleTest):
 
     def run_hook(self, b, folder):
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(folder)}
-        return subprocess.run([str(b / "hooks/print-memory.sh")], env=env, capture_output=True, text=True).stdout
+        return subprocess.run([str(b / "hooks/session-start.sh")], env=env, capture_output=True, text=True).stdout
 
     def test_prints_the_index_where_the_bindle_is_read_only(self):
         b, f = self.make_bindle("personal"), self.folder()
@@ -260,6 +261,107 @@ class MemoryHookTest(BindleTest):
         b, f = self.make_bindle("personal"), self.folder()
         self.run_cli("attach", b, f)
         self.assertEqual(self.run_hook(b, f), "")
+
+
+class SyncTest(BindleTest):
+    """Two clones of one bare repo stand in for two machines sharing a bindle."""
+
+    def setUp(self):
+        super().setUp()
+        b = self.make_bindle_with("personal", "--sync")
+        self.remote = self.tmp / "remote.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(b), str(self.remote)], check=True)
+        subprocess.run(["git", "-C", str(b), "remote", "add", "origin", str(self.remote)], check=True)
+        subprocess.run(["git", "-C", str(b), "fetch", "-q", "origin"], check=True)
+        subprocess.run(["git", "-C", str(b), "branch", "-q", "-u", "origin/" + self.branch(b)], check=True)
+        self.laptop = b
+        self.desktop = self.tmp / "desktop-personal"
+        subprocess.run(["git", "clone", "-q", str(self.remote), str(self.desktop)], check=True)
+        self.laptop_folder, self.desktop_folder = self.folder("laptop"), self.folder("desktop")
+        self.run_cli("attach", self.laptop, self.laptop_folder, "--writable")
+        self.run_cli("attach", self.desktop, self.desktop_folder, "--writable")
+
+    def make_bindle_with(self, name, *flags):
+        code, out = self.run_cli("new", name, "--at", self.tmp / f"bindle-{name}", *flags)
+        self.assertEqual(code, 0, out)
+        return self.tmp / f"bindle-{name}"
+
+    def branch(self, repo):
+        return bindle.git(repo, "rev-parse", "--abbrev-ref", "HEAD")
+
+    def hook(self, bindle_root, folder, script):
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(bindle_root), "CLAUDE_PROJECT_DIR": str(folder)}
+        return subprocess.run([str(bindle_root / "hooks" / script)], env=env, capture_output=True, text=True)
+
+    # The point of sync: a memory saved on one machine is there at the next session on the other.
+    def test_a_memory_saved_on_one_machine_reaches_the_other(self):
+        (self.laptop / "memory/fact.md").write_text("ion cannon ready\n")
+        self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-end.sh").returncode, 0)
+        self.hook(self.desktop, self.desktop_folder, "session-start.sh")
+        self.assertEqual((self.desktop / "memory/fact.md").read_text(), "ion cannon ready\n")
+
+    # A pushed secret can't be taken back, so a suspicious memory must never be committed.
+    def test_refuses_to_commit_a_memory_that_looks_like_a_secret(self):
+        head = bindle.git(self.laptop, "rev-parse", "HEAD")
+        (self.laptop / "memory/oops.md").write_text("api_key: abcdefghijklmnopqrstuvwx123456\n")
+        r = self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("possible secret", r.stderr)
+        self.assertEqual(bindle.git(self.laptop, "rev-parse", "HEAD"), head)
+        code, out = self.run_cli("doctor", self.laptop_folder)
+        self.assertEqual(code, 1)
+        self.assertIn("memory/oops.md may hold a secret", out)
+
+    # Skills and rules are deliberate commits; auto-sync must not ship half-finished work.
+    def test_commits_only_memory(self):
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "skills/draft.md").write_text("half done\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertIn("skills/draft.md", bindle.git(self.laptop, "status", "--porcelain"))
+        self.assertNotIn("draft.md", bindle.git(self.remote, "log", "--name-only", "--format="))
+
+    # A session only writes to its writable bindle, so a read-only one has nothing of its own to push.
+    def test_session_end_does_nothing_where_the_bindle_is_read_only(self):
+        f = self.folder("elsewhere")
+        self.run_cli("attach", self.laptop, f)
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, f, "session-end.sh")
+        self.assertIn("memory/fact.md", bindle.git(self.laptop, "status", "--porcelain"))
+
+    def test_does_nothing_when_sync_is_off(self):
+        meta = json.loads((self.laptop / "bindle.json").read_text())
+        meta["sync"] = False
+        (self.laptop / "bindle.json").write_text(json.dumps(meta))
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertIn("memory/fact.md", bindle.git(self.laptop, "status", "--porcelain"))
+
+    # Offline or unreachable remotes must never fail or block a session.
+    def test_an_unreachable_remote_never_fails_the_hooks(self):
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", str(self.tmp / "gone.git")], check=True)
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-end.sh").returncode, 0)
+        self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-start.sh").returncode, 0)
+        self.assertIn("1 commit(s) not pushed", self.run_cli("doctor", self.laptop_folder)[1])
+
+    # A session killed before SessionEnd leaves commits behind; the next start pushes them.
+    def test_session_start_pushes_leftover_commits(self):
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        bindle.git(self.laptop, "add", "-A")
+        bindle.git(self.laptop, "commit", "-q", "-m", "left behind")
+        self.hook(self.laptop, self.laptop_folder, "session-start.sh")
+        self.assertIn("left behind", bindle.git(self.remote, "log", "--format=%s"))
+
+    def test_bindle_sync_does_the_same_by_hand_even_with_sync_off(self):
+        meta = json.loads((self.laptop / "bindle.json").read_text())
+        meta["sync"] = False
+        (self.laptop / "bindle.json").write_text(json.dumps(meta))
+        bindle.git(self.laptop, "commit", "-qam", "sync off")
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        code, out = self.run_cli("sync", self.laptop_folder)
+        self.assertEqual(code, 0)
+        self.assertIn("pushed", out)
+        self.assertIn("memory/fact.md", bindle.git(self.remote, "log", "--name-only", "--format="))
 
 
 if __name__ == "__main__":

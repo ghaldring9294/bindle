@@ -6,7 +6,7 @@ Where bindle stands, what's decided, and what's open. Update this when a decisio
 
 - **Base (this repo):** the `bindle` CLI in Python (standard library, 3.9+): `install`, `new`, `attach`, `detach`, `doctor`. A bindle template in `templates/bindle/`. 22 unit tests with a fake `claude`, plus `tests/e2e.sh` against the real CLI (passed: read-only personal memory and skill visible in a work folder, new memories written to the writable bindle only, gone after detach). July's `init-layer`, `init-project`, overlay installer, global CLAUDE.md/settings and memory taxonomy are removed (git history keeps them).
 - **Personal (`bindle-personal`):** in the bindle layout, matching the template; `doc-style` skill and `/ticket` command. Memory empty until migration.
-- **Not attached anywhere yet.** First real test: the personal laptop (clone both, `bindle install`, attach personal to a folder). The Acme bindle waits for a new work laptop.
+- **Personal laptop done (2026-11-21):** both repos cloned, personal attached writable, the laptop's memories migrated and pulled on the work machine. Sync now automatic for personal. Not attached on the work machine yet; the Acme bindle waits for a new work laptop.
 
 ## Goal
 
@@ -38,6 +38,7 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - **A local plugin runs in place:** `CLAUDE_PLUGIN_ROOT` is the bindle's own folder, not a cache (verified), so edits take effect at the next session and the hook can compare paths directly.
 - **`detach` leaves the marketplace declared** in the folder's settings; removing a marketplace in Claude Code is machine-wide and would break other folders.
 - **`attach` refuses a folder inside another git repo**, since Claude Code would write the settings at that repo's root.
+- **Sync lives in each bindle's hooks** (opt-in, `"sync": true`). SessionStart pulls (and pushes commits a killed session left behind), then prints the memory index: one script, because hooks for the same event run in parallel. SessionEnd commits only `memory/`, and only in the writable bindle, then rebases and pushes. It never blocks a session; failures go to `.git/bindle-sync.log` and `doctor`. A memory matching a credential pattern is never committed (a pushed secret can't be taken back). `notes/` doesn't sync automatically. Verified end to end: a headless session's memory reached the remote at SessionEnd.
 - **`install` only links** the CLI onto PATH and `/bindle` into `~/.claude/commands`. bindle never takes over `~/.claude`'s settings or CLAUDE.md.
 
 ### How each part loads (verified 2026-11-21, Claude Code v2.1.329)
@@ -137,8 +138,8 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 1. ~~Answer the memory transport question.~~ Done 2026-11-21 (spike).
 2. Settle the open design points in "The model" (rules loading interactively, the read-only memory cap, where bindles live).
 3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
-4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. Still to build: the `promote` skill, and the `~/bindles/` collective view.
-4a. **Test on the personal laptop:** clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
+4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Still to build: the `promote` skill, the `~/bindles/` collective view, and a cleanup pass on personal's migrated memories (keep, move to `projects/<name>/`, archive, or delete).
+4a. ~~**Test on the personal laptop.**~~ Done 2026-11-21. clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
 5. Create the Acme bindle and migrate secure-first: on the next work laptop (no rush on this one).
 6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
    - **Employee:** personal and Acme both on at `~/acme`, Acme writable.
@@ -158,3 +159,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** renamed home/companion to on/writable: every attached bindle is on, one is writable. Attach per folder rather than user scope, so a bindle can be off in a folder that doesn't want it.
 - **2026-11-21:** reshaped `bindle-personal` into the bindle layout (plugin, memory hook, `rules.md`). Reviewed July's PROJECT.md (archived locally): adopted git-remote identity, code-enforced boundary guards, skill addendums, freshness stamps and the native memory format; left the A/B behind.
 - **2026-11-21:** built the CLI (`install`, `new`, `attach`, `detach`, `doctor`) and the bindle template; removed July's commands and templates; personal brought in line with the template. Unit and end-to-end tests pass.
+- **2026-11-21:** memory sync: session hooks in each bindle (pull at start, commit `memory/` and push at end, secret check), `bindle sync`, `bindle new --sync`. Personal on sync. Tests: 31 unit, end to end with real Claude Code.

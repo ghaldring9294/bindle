@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # End-to-end check against the real Claude Code CLI, in a scratch folder.
-# Creates two bindles, attaches them to one folder (acme writable, personal read-only), asks a
-# headless session what it can see, then detaches and removes the marketplaces it added.
+# Creates two bindles, attaches them to one folder (acme writable with sync, personal read-only),
+# asks a headless session what it can see and to save a memory, checks SessionEnd pushed it to
+# acme's (local bare) remote, then detaches and removes the marketplaces it added.
 # Costs two short `claude -p` calls.
 set -euo pipefail
 BINDLE="$(cd "$(dirname "$0")/.." && pwd)/bin/bindle"
@@ -12,7 +13,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-"$BINDLE" new e2eacme --at "$S/acme" >/dev/null
+"$BINDLE" new e2eacme --at "$S/acme" --sync >/dev/null
+git clone -q --bare "$S/acme" "$S/acme-remote.git"
+git -C "$S/acme" remote add origin "$S/acme-remote.git" && git -C "$S/acme" fetch -q origin
+git -C "$S/acme" branch -q -u "origin/$(git -C "$S/acme" rev-parse --abbrev-ref HEAD)"
 "$BINDLE" new e2epersonal --at "$S/personal" >/dev/null
 mkdir -p "$S/work" "$S/personal/skills/e2e-check"
 printf -- '- [Fact](fact.md) — e2e marker: personal memory reached the work folder\n' > "$S/personal/memory/MEMORY.md"
@@ -26,6 +30,8 @@ echo "--- session in the work folder:"
 (cd "$S/work" && claude -p 'From context only: (1) quote any line containing "e2e marker"; (2) state your auto-memory directory path; (3) list skills whose names start with "e2epersonal:". Then save a project memory that the e2e colour is teal.' \
   --permission-mode acceptEdits --allowedTools "Write Edit Read" < /dev/null)
 echo "--- acme memory folder:"; ls "$S/acme/memory"
+echo "--- acme remote after SessionEnd (expect a Memories commit):"; git -C "$S/acme-remote.git" log --format="%s" | head -3
+echo "--- acme sync log:"; cat "$S/acme/.git/bindle-sync.log" 2>/dev/null || echo "(no log)"
 echo "--- personal memory folder:"; ls "$S/personal/memory"
 
 "$BINDLE" detach e2epersonal "$S/work"

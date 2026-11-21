@@ -8,6 +8,7 @@ Help the user with bindle: $ARGUMENTS
 - `bindle new <name> [--at <dir>]`: create a bindle repo (default `./.bindle`).
 - `bindle attach <bindle> [<folder>] [--writable]`: turn a bindle on for a folder; `--writable` makes it the one new memories go to.
 - `bindle detach <name-or-path> [<folder>]`: turn it off.
+- `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
 - `bindle doctor [<folder>]`: what's on, which is writable, unsaved memories, drift.
 
 Rules:
