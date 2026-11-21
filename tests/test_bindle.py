@@ -200,6 +200,76 @@ class AttachTest(BindleTest):
         self.assertEqual(self.run_cli("attach", self.folder("plain"), self.folder())[0], 1)
 
 
+class LockTest(BindleTest):
+    """A read-only bindle must be impossible to edit from a session, not just discouraged."""
+
+    def deny(self, f):
+        return self.settings(f).get("permissions", {}).get("deny", [])
+
+    def test_a_read_only_bindle_is_locked_against_edits(self):
+        b, f = self.make_bindle("personal"), self.folder()
+        self.run_cli("attach", b, f)
+        self.assertEqual(self.deny(f), [f"Edit(/{b}/**)"])
+
+    # Memories are written with the Write tool; locking the writable bindle would silently stop them.
+    def test_the_writable_bindle_is_never_locked(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f)
+        self.run_cli("attach", b, f, "--writable")
+        self.assertEqual(self.deny(f), [])
+
+    def test_reattaching_a_writable_bindle_without_the_flag_keeps_it_writable_and_unlocked(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        self.run_cli("attach", b, f)
+        self.assertEqual(self.settings(f)["autoMemoryDirectory"], str(b / "memory"))
+        self.assertEqual(self.deny(f), [])
+
+    def test_detach_removes_the_lock_and_leaves_other_rules(self):
+        b, f = self.make_bindle("personal"), self.folder()
+        (f / ".claude").mkdir()
+        (f / ".claude/settings.local.json").write_text(json.dumps({"permissions": {"deny": ["Bash(rm -rf:*)"]}}))
+        self.run_cli("attach", b, f)
+        self.run_cli("detach", "personal", f)
+        self.assertEqual(self.deny(f), ["Bash(rm -rf:*)"])
+
+    def test_doctor_flags_an_unlocked_read_only_bindle(self):
+        b, f = self.make_bindle("personal"), self.folder()
+        self.run_cli("attach", b, f)
+        s = self.settings(f)
+        del s["permissions"]
+        (f / ".claude/settings.local.json").write_text(json.dumps(s))
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 1)
+        self.assertIn("not locked against edits", out)
+
+
+class RulesTest(BindleTest):
+    """Plugins can't carry a CLAUDE.md, so each bindle's rules reach the session through its own hook."""
+
+    def run_rules(self, b, folder):
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(folder)}
+        return subprocess.run([str(b / "hooks/rules.sh")], env=env, capture_output=True, text=True).stdout
+
+    def test_rules_load_whether_the_bindle_is_writable_or_read_only(self):
+        acme, personal, f = self.make_bindle("acme"), self.make_bindle("personal"), self.folder()
+        (acme / "rules.md").write_text("Use Acme's ticket prefix.\n")
+        (personal / "rules.md").write_text("Prefer small PRs.\n")
+        self.run_cli("attach", acme, f, "--writable")
+        self.run_cli("attach", personal, f)
+        self.assertIn("Use Acme's ticket prefix.", self.run_rules(acme, f))
+        self.assertIn("Prefer small PRs.", self.run_rules(personal, f))
+
+    # Past the hook cap, Claude Code shows only the first 2,000 characters and the rest is silently lost.
+    def test_doctor_flags_rules_too_long_for_the_hook(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        (b / "rules.md").write_text("x" * (bindle.RULES_LIMIT + 1))
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 1)
+        self.assertIn("rules.md is over", out)
+
+
 class DetachTest(BindleTest):
     def test_detach_turns_it_off_and_returns_memory_to_the_default(self):
         b, f = self.make_bindle("acme"), self.folder()
@@ -225,7 +295,7 @@ class DoctorTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 0, out)
         self.assertIn("acme: on, writable", out)
-        self.assertIn("personal: on, sync off", out)
+        self.assertIn("personal: on, read-only, sync off", out)
 
     def test_flags_a_hook_that_drifted_from_the_template(self):
         b, f = self.make_bindle("acme"), self.folder()

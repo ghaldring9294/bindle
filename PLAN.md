@@ -48,7 +48,7 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
   2. **Collect (no judgment).** `bindle collect <source> --into <target>` is a CLI command, so Claude Code asks the person's permission each run. It reruns the leak check, copies only approved outbox items into the target's memory, updates its index, marks them collected, and lets sync push. It can run in the same session as step 1, or later from the target's own folder; it can sweep several bindles' outboxes, since they hold only reviewed, general text.
 
   No session reads another domain's raw memories; only outboxes are read across bindles. The outbox syncs with its bindle (add `outbox/` to the sync paths), so preparing on one machine and collecting on another works.
-- **Read-only bindles are locked.** For every bindle that's on but not writable in a folder, `attach` adds a deny rule for Edit and Write on that bindle's path to the folder's settings. A session can't modify it directly even if asked; the only way in is `bindle collect`, which moves only approved, leak-checked text and needs the person's permission each run. (Shell writes could still slip past a deny rule: a strong guard, not a sandbox.) Not built yet.
+- **Read-only bindles are locked.** For every bindle that's on but not writable in a folder, `attach` adds a deny rule for Edit and Write on that bindle's path to the folder's settings. A session can't modify it directly even if asked; the only way in is `bindle collect`, which moves only approved, leak-checked text and needs the person's permission each run. (Shell writes could still slip past a deny rule: a strong guard, not a sandbox.) Built 2026-11-21 (v0.3.0): `attach` adds `Edit(//<bindle>/**)` to the folder's `permissions.deny` (Claude Code ignores `Write(path)` rules; Edit covers every file-writing tool). Verified end to end: a session's Write into a read-only bindle was refused.
 
 ### Build decisions (2026-11-21)
 
@@ -102,7 +102,7 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 
 ## Open questions
 
-- **How rules load.** Plugins can't carry a CLAUDE.md, so a bindle's `rules.md` isn't wired yet. Candidates: the domain root's CLAUDE.md importing `@.bindle/rules.md` (inside the folder, so no external-import prompt), or each bindle's SessionStart hook printing its `rules.md` (works for every bindle that's on, within the 10,000-character hook cap). Being tested 2026-11-21.
+- *(Answered 2026-11-21.)* **How rules load:** each bindle's SessionStart hook prints its `rules.md` (`hooks/rules.sh`, its own command so it has its own 10,000-character cap). Tested: a plain CLAUDE.md and an import from inside the folder load headlessly; an import from outside the folder waits for a one-time approval, so imports were rejected as the mechanism. One mechanism for every bindle, no prompts, nothing written into a folder's CLAUDE.md (which may be a team's committed file).
 - **Skill addendums.** How a domain's addendum attaches to a general skill (a skill that references the base one, or a file the base skill looks for).
 - **Shared-bindle conventions** only matter if `shared` bindles grow beyond craft; not pursued for now.
 
@@ -154,7 +154,7 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 1. ~~Answer the memory transport question.~~ Done 2026-11-21 (spike).
 2. ~~Settle the open design points in "The model".~~ Where bindles live and the read-only memory cap are settled; rules loading is being tested (see Open questions).
 3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
-4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Still to build: the `promote` skill and `bindle collect`, the deny-rule lock for read-only bindles, the `~/bindles/` collective view, and a cleanup pass on personal's migrated memories (keep, move to `projects/<name>/`, archive, or delete).
+4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Rules loading and the read-only lock done too (v0.3.0). Still to build: the `promote` skill and `bindle collect`, the `~/bindles/` collective view, and a cleanup pass on personal's migrated memories (keep, move to `projects/<name>/`, archive, or delete).
 4a. ~~**Test on the personal laptop.**~~ Done 2026-11-21. clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
 5. Create the work bindle and migrate secure-first: on the next work laptop (no rush on this one).
 6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
@@ -189,3 +189,4 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 - **2026-11-21:** planned a public demo repo that doubles as the end-to-end test fixture.
 - **2026-11-21:** enclosing-repo guard (local exclude on `new`, `doctor` warning); agent orientation (AGENTS.md everywhere, a writable/read-only line per bindle at session start).
 - **2026-11-21:** `bindle upgrade` (managed files, obsolete files, missing template files, layout migrations; commits only what it touched), `--version`, CHANGELOG.md, tagged v0.2.0.
+- **2026-11-21:** v0.3.0: rules load through each bindle's hook; read-only bindles locked with an Edit deny rule. Both verified with real Claude Code.

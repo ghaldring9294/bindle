@@ -19,10 +19,12 @@ from pathlib import Path
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
-MANAGED = ["hooks/lib.sh", "hooks/session-start.sh", "hooks/session-end.sh", "hooks/hooks.json"]
+MANAGED = ["hooks/lib.sh", "hooks/session-start.sh", "hooks/rules.sh", "hooks/session-end.sh", "hooks/hooks.json"]
+# SessionStart hook output is capped at 10,000 characters; leave room for the header line.
+RULES_LIMIT = 9000
 # Managed files from earlier versions; `bindle upgrade` removes them.
 OBSOLETE = ["hooks/print-memory.sh"]
 # Layout migrations: {from_layout: function(bindle_root)}, each moving a bindle up one layout.
@@ -99,6 +101,25 @@ def claude(folder, *args):
     return r.stdout
 
 
+def lock_rules(b):
+    """Permission rules that stop a session editing a bindle that's read-only in its folder. `//` makes the
+    path absolute; an Edit rule covers every file-writing tool (Claude Code ignores Write(path) rules)."""
+    return [f"Edit(/{b['root']}/**)"]
+
+
+def set_lock(settings, b, locked):
+    deny = settings.setdefault("permissions", {}).setdefault("deny", [])
+    rules = lock_rules(b)
+    if locked:
+        deny.extend(r for r in rules if r not in deny)
+    else:
+        deny[:] = [r for r in deny if r not in rules]
+    if not deny:
+        del settings["permissions"]["deny"]
+    if not settings["permissions"]:
+        del settings["permissions"]
+
+
 def plugin_id(b):
     return f"{b['name']}@{b['market']}"
 
@@ -162,13 +183,17 @@ def cmd_attach(args):
     if not read_json(sp).get("enabledPlugins", {}).get(plugin_id(b)):
         claude(folder, "plugin", "install", plugin_id(b), "--scope", "local")
 
+    settings = read_json(sp)  # claude rewrote it
     if args.writable:
-        settings = read_json(sp)  # claude rewrote it
         settings["autoMemoryDirectory"] = str(b["memory"])
-        write_json(sp, settings)
         b["memory"].mkdir(exist_ok=True)
+    current = settings.get("autoMemoryDirectory")
+    writable = bool(current) and real(current) == real(b["memory"])
+    # Read-only bindles are locked against edits; the writable one must stay editable for memory writes.
+    set_lock(settings, b, locked=not writable)
+    write_json(sp, settings)
 
-    print(f"{b['name']} is on in {folder}" + (", and writable" if args.writable else ""))
+    print(f"{b['name']} is on in {folder}" + (", and writable" if writable else ", read-only (locked against edits)"))
     print("Takes effect in the next session started from that folder.")
 
 
@@ -185,8 +210,10 @@ def cmd_detach(args):
     current = settings.get("autoMemoryDirectory")
     if current and real(current) == real(b["memory"]):
         del settings["autoMemoryDirectory"]
-        write_json(sp, settings)
         print(f"{folder} no longer writes memories to {b['name']}; it uses Claude Code's default memory folder.")
+    if settings.get("permissions"):
+        set_lock(settings, b, locked=False)
+    write_json(sp, settings)
     print(f"{b['name']} is off in {folder}.")
 
 
@@ -253,7 +280,7 @@ def cmd_doctor(args):
         on = bool(enabled.get(plugin_id(b)))
         is_writable = bool(memory_dir) and real(memory_dir) == real(b["memory"])
         writable = b if is_writable else writable
-        state = ("on, writable" if is_writable else "on") if on else "off (declared, not enabled)"
+        state = ("on, writable" if is_writable else "on, read-only") if on else "off (declared, not enabled)"
         if is_writable and not on:
             problems.append(f"{b['name']} is writable but its plugin isn't enabled")
         memories = len([p for p in b["memory"].glob("*.md") if p.name != "MEMORY.md"]) if b["memory"].is_dir() else 0
@@ -273,6 +300,15 @@ def cmd_doctor(args):
             elif not filecmp.cmp(copy, TEMPLATE / rel, shallow=False):
                 problems.append(f"{b['name']}: {rel} differs from bindle's template; run `bindle upgrade {b['root']}`")
         problems.extend(enclosing_repo_problems(b))
+        deny = settings.get("permissions", {}).get("deny", [])
+        locked = all(r in deny for r in lock_rules(b))
+        if on and not is_writable and not locked:
+            problems.append(f"{b['name']} is read-only here but not locked against edits; run `bindle attach {b['root']} {folder}` again")
+        if is_writable and any(r in deny for r in lock_rules(b)):
+            problems.append(f"{b['name']} is writable but locked, so memories can't be saved; run `bindle attach {b['root']} {folder} --writable` again")
+        rules = b["root"] / "rules.md"
+        if rules.exists() and len(rules.read_text()) > RULES_LIMIT:
+            problems.append(f"{b['name']}: rules.md is over {RULES_LIMIT} characters; the session-start hook can show only 10,000")
         if (b["layout"] or 0) < LAYOUT:
             problems.append(f"{b['name']}: layout {b['layout']}, current is {LAYOUT}; run `bindle upgrade {b['root']}`")
         elif b["layout"] > LAYOUT:
