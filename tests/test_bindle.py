@@ -851,23 +851,6 @@ class ReviewRegressionTest(BindleTest):
         self.assertIn(f"bindle upgrade {bindle.commands.quote(b)}", out)
 
 
-class DiagnoseTest(BindleTest):
-    def test_print_enclosing_repo_values(self):  # temporary: Windows CI diagnosis
-        repo = self.folder("project")
-        subprocess.run(["git", "init", "-q", str(repo)], check=True)
-        code, out = self.run_cli("new", "acme", "--at", repo / ".bindle")
-        print("\nDIAG new:", code, repr(out[-300:]))
-        ex = repo / ".git" / "info" / "exclude"
-        print("DIAG exclude:", repr(ex.read_bytes()[-200:]) if ex.exists() else "missing")
-        h = bindle.core.hooks()
-        print("DIAG status:", repr(h.git_out(repo, "status", "--porcelain")))
-        ci = h.git(repo, "check-ignore", "-v", ".bindle/")
-        print("DIAG check-ignore after:", ci.returncode, repr(ci.stdout), repr(ci.stderr[:200]))
-        b = bindle.core.load_bindle(repo / ".bindle")
-        print("DIAG problems:", bindle.core.enclosing_repo_problems(b))
-        print("DIAG ls-files:", repr(h.git_out(repo, "ls-files", "--", ".bindle")))
-
-
 class PortabilityTest(BindleTest):
     # Claude Code normalizes Windows paths to POSIX form before matching permission rules: C:\\x -> /c/x.
     def test_lock_rules_use_claude_codes_path_form(self):

@@ -1,0 +1,2 @@
+# Text files stay LF on every OS (a CRLF shell script fails in bash; Git for Windows converts by default).
+* text=auto eol=lf

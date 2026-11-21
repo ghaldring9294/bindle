@@ -10,7 +10,7 @@ from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, R
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
                    exclude_from_enclosing_repo, extra_code, git, git_health, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
-                   settings_path, write_json)
+                   settings_path, write_json, write_text)
 
 
 INSTALLED_MARK = "Installed by bindle install"
@@ -44,7 +44,7 @@ def cmd_install(args):
             path.symlink_to(BASE / "bin" / "bindle")
             print(f"Linked {path} -> {BASE / 'bin' / 'bindle'}")
         else:
-            path.write_text(content, encoding="utf-8")
+            write_text(path, content)
             path.chmod(0o755)
             print(f"Wrote {path}")
     for dest, src in items:
@@ -56,9 +56,9 @@ def cmd_install(args):
         except OSError:
             if src.is_dir():
                 shutil.copytree(src, dest)
-                (dest / ".bindle-installed").write_text(INSTALLED_MARK + "\n", encoding="utf-8")
+                write_text(dest / ".bindle-installed", INSTALLED_MARK + "\n")
             else:
-                dest.write_text(src.read_text(encoding="utf-8") + f"\n<!-- {INSTALLED_MARK} -->\n", encoding="utf-8")
+                write_text(dest, src.read_text(encoding="utf-8") + f"\n<!-- {INSTALLED_MARK} -->\n")
             print(f"Copied {src} -> {dest} (symlinks aren't available; run bindle install again after updating bindle)")
     if str(bindir) not in os.environ.get("PATH", "").split(os.pathsep):
         if WINDOWS:
@@ -106,7 +106,7 @@ def copy_template(dest, name):
         if rel in MANAGED:
             shutil.copy2(src, out)  # managed files stay byte-identical to the template
         else:
-            out.write_text(src.read_text(encoding="utf-8").replace("{{name}}", name), encoding="utf-8")
+            write_text(out, src.read_text(encoding="utf-8").replace("{{name}}", name))
             shutil.copymode(src, out)
 
 

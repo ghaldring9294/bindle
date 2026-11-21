@@ -11,7 +11,7 @@ import re
 import shutil
 from pathlib import Path
 
-from .core import BindleError, git, hooks, load_bindle, read_json, write_json
+from .core import BindleError, git, hooks, load_bindle, read_json, write_json, write_text
 
 KINDS = {"memory": "memory", "skill": "skills", "command": "commands"}
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -211,8 +211,7 @@ def cmd_collect(args):
             index_lines.append(f"- [{it['slug']}]({it['slug']}.md) — {it.get('description') or 'promoted from ' + source['name']}\n")
         moved.append(out.relative_to(target["root"]).as_posix())
     if index_lines:
-        with (target["root"] / "memory" / "MEMORY.md").open("a", encoding="utf-8") as f:
-            f.writelines(index_lines)
+        write_text(target["root"] / "memory" / "MEMORY.md", "".join(index_lines), mode="a")
     for it in todo:
         meta = read_json(it["dir"] / "item.json")
         meta["status"] = "collected"

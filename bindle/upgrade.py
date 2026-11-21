@@ -4,7 +4,7 @@ import shutil
 from pathlib import Path
 
 from .core import (LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, git, load_bindle,
-                   read_json, real, settings_path, write_json)
+                   read_json, real, settings_path, write_json, write_text)
 
 # A bindle's .gitignore and .gitattributes are its own, so upgrade only appends template lines they lack.
 LINE_MERGED = [".gitignore", ".gitattributes"]
@@ -80,8 +80,7 @@ def cmd_upgrade(args):
         for action, rel in plan:
             out = b["root"] / rel
             if action == "lines":
-                with out.open("a", encoding="utf-8") as f:
-                    f.write("\n# Added by bindle upgrade\n" + "\n".join(missing_lines(b["root"], rel)) + "\n")
+                write_text(out, "\n# Added by bindle upgrade\n" + "\n".join(missing_lines(b["root"], rel)) + "\n", mode="a")
             elif action == "remove":
                 out.unlink()
             elif rel in MANAGED:
@@ -89,7 +88,7 @@ def cmd_upgrade(args):
                 shutil.copy2(TEMPLATE / rel, out)
             else:
                 out.parent.mkdir(parents=True, exist_ok=True)
-                out.write_text((TEMPLATE / rel).read_text(encoding="utf-8").replace("{{name}}", b["name"]), encoding="utf-8")
+                write_text(out, (TEMPLATE / rel).read_text(encoding="utf-8").replace("{{name}}", b["name"]))
                 shutil.copymode(TEMPLATE / rel, out)
             touched.append(rel)
         if steps:

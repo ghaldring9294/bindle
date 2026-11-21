@@ -1,3 +1,5 @@
+# Text files stay LF on every OS (a CRLF shell script fails in bash; Git for Windows converts by default).
+* text=auto eol=lf
 # Indexes get a line per memory from every machine; keep both sides when they merge.
 memory/MEMORY.md merge=union
 projects/*/index.md merge=union

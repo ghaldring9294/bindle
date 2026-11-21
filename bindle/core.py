@@ -52,10 +52,17 @@ def read_json(path):
         raise BindleError(f"{path} isn't valid JSON ({e}); fix it by hand first.")
 
 
+def write_text(path, text, mode="w"):
+    """Write UTF-8 with LF line endings on every OS. Windows' default CRLF made git read a bindle's .gitignore
+    oddly, and a CRLF shell script fails in bash."""
+    with open(path, mode, encoding="utf-8", newline="\n") as f:
+        f.write(text)
+
+
 def write_json(path, data):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    write_text(path, json.dumps(data, indent=2, ensure_ascii=False) + "\n")
 
 
 def real(path):
@@ -213,8 +220,7 @@ def exclude_from_enclosing_repo(dest):
     exclude = hooks().git_path(top, "info/exclude")
     exclude.parent.mkdir(parents=True, exist_ok=True)
     pattern = exclude_pattern(rel)
-    with exclude.open("a", encoding="utf-8") as f:
-        f.write(f"\n# bindle: a private bindle lives here\n{pattern}\n")
+    write_text(exclude, f"\n# bindle: a private bindle lives here\n{pattern}\n", mode="a")
     return top, pattern
 
 
