@@ -10,8 +10,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python: ["3.9", "3.x"]
+        # 3.9 is the minimum because it's still the system Python on some Macs; Linux runners no longer offer it.
+        include:
+          - { os: macos-latest, python: "3.9" }
+          - { os: macos-latest, python: "3.x" }
+          - { os: ubuntu-latest, python: "3.x" }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
