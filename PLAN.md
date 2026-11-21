@@ -4,7 +4,7 @@ Where bindle stands, what's decided, and what's open. Update this when a decisio
 
 ## Where it stands (2026-11-21)
 
-- **Base (this repo):** the `bindle` CLI in Python (standard library, 3.9+): `install`, `new`, `attach`, `detach`, `doctor`. A bindle template in `templates/bindle/`. 22 unit tests with a fake `claude`, plus `tests/e2e.sh` against the real CLI (passed: read-only personal memory and skill visible in a work folder, new memories written to the writable bindle only, gone after detach). July's `init-layer`, `init-project`, overlay installer, global CLAUDE.md/settings and memory taxonomy are removed (git history keeps them).
+- **Base (this repo):** the `bindle` CLI in Python (standard library, 3.9+): `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade` (v0.2.0). A bindle template in `templates/bindle/`. 22 unit tests with a fake `claude`, plus `tests/e2e.sh` against the real CLI (passed: read-only personal memory and skill visible in a work folder, new memories written to the writable bindle only, gone after detach). July's `init-layer`, `init-project`, overlay installer, global CLAUDE.md/settings and memory taxonomy are removed (git history keeps them).
 - **Personal (`bindle-personal`):** in the bindle layout, matching the template; `doc-style` skill and `/ticket` command. Memory empty until migration.
 - **Personal laptop done (2026-11-21):** both repos cloned, personal attached writable, the laptop's memories migrated and pulled on the work machine. Sync now automatic for personal. Not attached on the work machine yet; the work bindle waits for a new work laptop.
 
@@ -97,21 +97,16 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 5. **Each sidecar lives with its projects' git.** Personal projects on personal git; work projects on the employer's git (a private repo in the work org). The base comes from personal git on every machine, because it holds no context.
 6. **Tag every memory `boundary: craft | context | both`** as it's written. `both` means a general lesson learned on a specific problem: on migration, promote a rewritten general rule and leave the specifics behind.
 7. **Migrate secure-first.** Move a mixed setup into the professional layer first, then promote craft to personal one piece at a time, reviewed memory by memory.
-   - **Rebuild the personal principles from the live setup, not the July copy.** `bindle-personal/CLAUDE.personal.md` duplicates the working principles from July, and the live global `CLAUDE.md` has grown since (summaries of always-on rules, a lessons index, new sections). At migration, derive `CLAUDE.personal.md` from the current live file minus anything domain-specific, then delete the duplicate so there is one source.
+   - **Rebuild the personal principles from the live setup, not the July copy.** `bindle-personal/rules.md` (July's `CLAUDE.personal.md`) duplicates the working principles from July, and the live global `CLAUDE.md` has grown since (summaries of always-on rules, a lessons index, new sections). At migration, derive `rules.md` from the current live file minus anything domain-specific, then delete the duplicate so there is one source.
    - **Skills can go into `bindle-personal/skills/` now**, hand-linked into `~/.claude/skills/` until the installer runs. First one: `doc-style` (Nov 2026), working through a symlink.
 
 ## Open questions
 
-- **Memory transport.** *(Answered 2026-11-21: option 0 works on v2.1.329; see "How each part loads". The bindle's `memory/` is a git checkout, so git is the sync.)* July copied a layer's memory into `~/.claude/projects/<slug>/memory/`. That drifts: Claude writes new memories into that folder and the repo goes stale. Options:
-  0. *(test first, found 2026-11-20)* The native **`autoMemoryDirectory`** setting (Claude Code v2.1.74+) moves auto-memory to an absolute path, so a project's memory can live directly in its sidecar checkout: no copy, no symlink, and it's how Claude Code is built. It's honoured in user and local settings, not committed project settings, by design, so a shared repo can't redirect someone's memory. Open bug reports say it's sometimes ignored (the system prompt still names the default path; `settings.local.json` not always read), so confirm on the installed version where a test memory actually lands.
-  1. *(preferred if 0 fails)* The memory folder **is** a git checkout of the domain's memory repo: one copy, git is the sync.
-  2. Copy, plus a Stop hook that syncs back and commits. Works, more moving parts.
-  3. Symlink the folder into the layer repo. July notes say symlinks broke headless detail reads; re-test first, since it's the tidiest if it works now.
+- **How rules load.** Plugins can't carry a CLAUDE.md, so a bindle's `rules.md` isn't wired yet. Candidates: the domain root's CLAUDE.md importing `@.bindle/rules.md` (inside the folder, so no external-import prompt), or each bindle's SessionStart hook printing its `rules.md` (works for every bindle that's on, within the 10,000-character hook cap). Being tested 2026-11-21.
+- **Skill addendums.** How a domain's addendum attaches to a general skill (a skill that references the base one, or a file the base skill looks for).
+- **Shared-bindle conventions** only matter if `shared` bindles grow beyond craft; not pursued for now.
 
-  Check what Claude Code currently supports for memory location before choosing.
-- **Path-keyed memory.** Claude names a project's memory folder after its path on disk, so the same project at a different path on another machine gets a different folder. Each machine needs a setup step (`init-project`) that maps the sidecar to that machine's path.
-- **Where do layer rules live** once memory is its own checkout: in the same repo as the memory, or beside it?
-- **Skills first.** New general skills go straight into `bindle-personal/skills/` and get hand-linked until the overlay installer is in use. Candidates: doc style (living versus snapshot docs, one home per fact), a doc registry and drift audit, a QA handoff, PM meeting prep, a single pre-commit review step, a ship checklist.
+*Answered and folded into the model:* memory transport (`autoMemoryDirectory`, the bindle's `memory/` is a git checkout), path-keyed memory (`attach` once per folder per machine), where layer rules live (`rules.md` in each bindle), skills first (new skills go in `bindle-personal/skills/`; plugins replace July's overlay installer).
 
 ## Adopted from July
 
@@ -157,9 +152,9 @@ The problem is common; the trust-domain boundary is rarely the focus. Not vetted
 ## Next steps
 
 1. ~~Answer the memory transport question.~~ Done 2026-11-21 (spike).
-2. Settle the open design points in "The model" (rules loading interactively, the read-only memory cap, where bindles live).
+2. ~~Settle the open design points in "The model".~~ Where bindles live and the read-only memory cap are settled; rules loading is being tested (see Open questions).
 3. ~~Reshape `bindle-personal` into the bindle layout.~~ Done 2026-11-21.
-4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Still to build: the `promote` skill, the `~/bindles/` collective view, and a cleanup pass on personal's migrated memories (keep, move to `projects/<name>/`, archive, or delete).
+4. ~~Base CLI: `new`, `attach`, `detach`, `doctor`.~~ Done 2026-11-21. `sync` and automatic sync hooks done too. Still to build: the `promote` skill and `bindle collect`, the deny-rule lock for read-only bindles, the `~/bindles/` collective view, and a cleanup pass on personal's migrated memories (keep, move to `projects/<name>/`, archive, or delete).
 4a. ~~**Test on the personal laptop.**~~ Done 2026-11-21. clone `bindle` and `bindle-personal`, `bindle install`, attach personal to a projects folder as writable, migrate that laptop's own memories into it (MIGRATION.md), check `bindle doctor` and a fresh session.
 5. Create the work bindle and migrate secure-first: on the next work laptop (no rush on this one).
 6. **Scenario docs with practical examples** (`docs/scenarios.md`), written as the CLI lands so they describe real behaviour. Made-up companies; each scenario shows the folders, what's on, what's writable, and the commands:
