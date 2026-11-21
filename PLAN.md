@@ -51,7 +51,13 @@ One tool, many bindles. This supersedes decision 3's sidecar wording below.
 - MEMORY.md loads only its first 200 lines or 25 KB. Topic files load on demand.
 - SessionStart hooks run again on resume. Output is capped at 10,000 characters with no setting to raise it.
 
-**Where bindles live on disk (proposal):** a domain bindle inside its domain root (for example `~/acme/.bindle/`), so its rules import and notes sit inside the working directory with no external-import dialog. Personal lives with its other projects (`~/Projects/BindleProject/bindle-personal`) and is attached as a companion. Kept local first; push the work bindle to the work org later.
+**Where bindles live on disk:** by default inside the domain root (`<root>/.bindle/`), so its rules import and notes sit inside the working directory with no external-import dialog. Overridable (`bindle attach --at <path>`). An optional `~/bindles/` folder of symlinks gives a collective view; `bindle doctor` lists them. Roots are just paths: bindle requires no folder layout. Here, `~/acme` and `~/Projects` are already the two domain roots. Kept local first; push the work bindle to the work org later.
+
+**Don't move existing folders.** Path-keyed today: Claude's memory folder and session history, trust in `~/.claude.json`, Docker/Sail mounts, git worktrees, symlinks into `~/Projects`. Migrating memory into `<root>/.bindle/memory/` removes the biggest of these, so migrate first and reorganize later, if ever.
+
+**Companion memory cap:** 10,000 characters is fine for now; revisit if an index outgrows it.
+
+**Notes cross boundaries the way memories do.** Most notes are domain context and stay in the domain bindle. A note that's really craft (process ideas, a workflow roadmap) is promoted to personal like a memory: rewritten without the domain's specifics.
 
 ## Decisions (2026-11-20)
 
