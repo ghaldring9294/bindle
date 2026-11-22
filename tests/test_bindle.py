@@ -44,6 +44,7 @@ class BindleTest(unittest.TestCase):
         self.env = {
             "BINDLE_CLAUDE": str(HERE / "fake_claude"),
             "FAKE_CLAUDE_LOG": str(self.log),
+            "BINDLE_HOME": str(self.tmp / "bindles"),  # never the real ~/bindles
             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
         }
@@ -229,6 +230,44 @@ class AttachTest(BindleTest):
         self.run_cli("attach", acme, f, "--writable")
         self.assertEqual(self.run_cli("attach", personal, f)[0], 0)
         self.assertEqual(set(self.settings(f)["enabledPlugins"]), {"acme@bindle-acme", "personal@bindle-personal"})
+
+    # Typing a bindle's full path on every attach is the friction this removes.
+    def test_a_bare_name_finds_the_bindle_in_bindle_home(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft")
+        f = self.folder()
+        self.assertEqual(self.run_cli("attach", "craft", f)[0], 0)
+        self.assertEqual(self.settings(f)["extraKnownMarketplaces"]["bindle-craft"]["source"]["path"],
+                         str(self.tmp / "bindles" / "craft"))
+
+    # A path that exists means what it says, even if a bindle with that name is in the home folder.
+    def test_an_existing_path_wins_over_a_name_in_bindle_home(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft")
+        here = self.tmp / "work" / "craft"
+        self.run_cli("new", "craft", "--at", here)
+        f = self.folder()
+        cwd = os.getcwd()
+        os.chdir(here.parent)
+        try:
+            self.assertEqual(self.run_cli("attach", "craft", f)[0], 0)
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(self.settings(f)["extraKnownMarketplaces"]["bindle-craft"]["source"]["path"], str(here))
+
+    def test_an_unknown_name_says_where_it_looked(self):
+        code, out = self.run_cli("attach", "nope", self.folder())
+        self.assertEqual(code, 1)
+        self.assertIn(str(self.tmp / "bindles"), out)
+        self.assertIn("BINDLE_HOME", out)
+
+    def test_bindle_home_defaults_to_bindles_in_the_home_folder(self):
+        saved = {k: os.environ.get(k) for k in ("BINDLE_HOME", "HOME", "USERPROFILE")}
+        os.environ.pop("BINDLE_HOME")
+        os.environ["HOME"] = os.environ["USERPROFILE"] = str(self.tmp)  # USERPROFILE is Path.home() on Windows
+        try:
+            self.assertEqual(bindle.core.bindles_home(), self.tmp / "bindles")
+        finally:
+            for k, v in saved.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
     def test_attaching_twice_doesnt_call_claude_again(self):
         b, f = self.make_bindle("acme"), self.folder()

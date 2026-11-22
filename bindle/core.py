@@ -18,7 +18,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.6.1"
+VERSION = "0.7.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -85,6 +85,21 @@ def load_bindle(path):
     return {"name": meta["name"], "market": market, "root": root, "memory": root / "memory",
             "layout": meta.get("layout"), "sync": meta.get("sync") is True,
             "audience": meta.get("audience", "private"), "writes": meta.get("writes", "implicit")}
+
+
+def bindles_home():
+    """Where bindles used by many folders live: $BINDLE_HOME, or ~/bindles."""
+    return real(os.environ.get("BINDLE_HOME") or Path.home() / "bindles")
+
+
+def find_bindle(arg):
+    """A bindle given as a path, or as a bare name in bindles_home(), so `bindle attach craft` works."""
+    if Path(os.path.expanduser(arg)).exists() or not NAME_RE.match(arg):
+        return load_bindle(arg)
+    if (bindles_home() / arg).exists():
+        return load_bindle(bindles_home() / arg)
+    raise BindleError(f"No folder {arg} here or in {bindles_home()}. Pass the bindle's path, "
+                      f"or set BINDLE_HOME to the folder your bindles live in.")
 
 
 def plugin_id(b):

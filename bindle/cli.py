@@ -30,7 +30,7 @@ def build_parser():
     s = sub.add_parser("attach", help="turn a bindle on for the folder you launch Claude from",
                        description="Turn a bindle on for a folder: sessions started from that folder load the bindle. "
                                    "Writes the folder's .claude/settings.local.json; nothing is copied or linked.")
-    s.add_argument("bindle", help="path to the bindle repo")
+    s.add_argument("bindle", help="path to the bindle repo, or the name of one in $BINDLE_HOME (default ~/bindles)")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.add_argument("--writable", action="store_true", help="new memories in this folder go to this bindle")
     s.set_defaults(fn=cmd_attach)

@@ -8,7 +8,7 @@ from pathlib import Path
 
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, extra_code, git, git_health, hooks, is_writable, last_sync, load_bindle,
+                   exclude_from_enclosing_repo, extra_code, find_bindle, git, git_health, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json, write_text)
 
@@ -137,7 +137,7 @@ def cmd_new(args):
 
 
 def cmd_attach(args):
-    b = load_bindle(args.bindle)
+    b = find_bindle(args.bindle)
     folder = check_folder(args.folder or Path.cwd())
     sp = settings_path(folder)
     settings = read_json(sp)

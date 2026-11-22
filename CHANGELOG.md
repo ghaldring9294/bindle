@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.7.0 (2026-11-22)
+
+No upgrade needed.
+
+- `bindle attach craft` finds a bindle by name in `~/bindles/`, or in `$BINDLE_HOME` if set. A path that exists still means that path.
+- README: MCP server commands must exist under the same name on every machine (`python3` opens the Microsoft Store on Windows).
+
 ## 0.6.1 (2026-11-21)
 
 **Run `bindle upgrade`** (changed `hooks/bindle_hook.py`); for a bindle that's read-only where it's attached, run it yourself.

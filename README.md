@@ -47,7 +47,7 @@ bindle/bin/bindle install
 
 ## Quick start
 
-Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works.
+Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works, but `bindle attach` finds bindles there by name (set `BINDLE_HOME` to use another folder).
 
 1. **Create the bindle.** It's a local git repo; bindle never sets a remote.
    ```
@@ -61,8 +61,9 @@ Create a personal bindle and turn it on for the folder you keep side projects in
    ```
 3. **Attach it** to the folder you launch Claude Code from, as the writable bindle:
    ```
-   bindle attach ~/bindles/personal ~/projects --writable
+   bindle attach personal ~/projects --writable
    ```
+   `personal` is short for `~/bindles/personal`; a path works too.
 4. **Check it:**
    ```
    bindle doctor ~/projects
@@ -139,7 +140,7 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 |---|---|
 | `bindle install` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude` |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
-| `bindle attach <bindle> [<folder>] [--writable]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to |
+| `bindle attach <bindle> [<folder>] [--writable]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to. `<bindle>` is a path, or a name in `$BINDLE_HOME` (default `~/bindles`) |
 | `bindle detach <name-or-path> [<folder>]` | Turn a bindle off for a folder |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder>]` | Pull the bindles that are on; commit and push the writable one's memories |
