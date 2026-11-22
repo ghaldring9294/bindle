@@ -71,7 +71,7 @@ Create a personal bindle and turn it on for the folder you keep side projects in
    You should see `personal: on, writable, sync on` and `No problems found.`
 5. **Start Claude Code from `~/projects`.** The first lines of the session name the bindle and say it's writable. Ask Claude to remember something; it lands in `~/bindles/personal/memory/`, and with sync on, it's committed and pushed when the session ends.
 
-On another machine: clone the bindle, run `bindle install` once, and `bindle attach` once per folder.
+On another machine: run `bindle install` once, clone the bindle to the same kind of place (`git clone <url> ~/bindles/personal`; plain `git clone <url>` would put it in the current folder as `bindle-personal`), and `bindle attach` once per folder.
 
 ## Everyday use
 
@@ -116,7 +116,7 @@ bindle attach ~/bindles/craft ~/clients/globex
 
 **A client that allows no outside tooling.** Attach only that client's bindle to its folder.
 
-**A new machine.** Clone your bindles, run `bindle install`, then `bindle attach` once per folder. A folder's attach settings stay on that machine, so this is the only setup step.
+**A new machine.** Run `bindle install`, clone each bindle into place (a bindle used in many folders to `~/bindles/<name>`, a domain bindle to `<domain folder>/.bindle`), then `bindle attach` once per folder. Use `bindle new` only to create a bindle the first time. A folder's attach settings stay on that machine, so this is the only setup step.
 
 **Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle-promote` skill). It drafts a general rewrite, you approve it, and it goes into the source bindle's outbox after a check against that bindle's private terms. Then collect it into the target:
 ```

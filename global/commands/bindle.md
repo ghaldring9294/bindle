@@ -32,6 +32,7 @@ Help the user with bindle: $ARGUMENTS
 - **"Detach craft" / "turn it off here":** `bindle detach <name> <folder>`, then the same note.
 - **"Make X writable here":** if another bindle is writable, say which; with their go-ahead, detach it (and attach it again without `--writable` if they want it kept on read-only), then `bindle attach X <folder> --writable`. Attaching the current writable one again without `--writable` doesn't demote it.
 - **"What's on?":** `bindle doctor`, summarized.
+- **Setting up on another machine:** don't use `bindle new`; clone the existing repo into place: `git clone <url> ~/bindles/<name>` for one used in many folders, `git clone <url> <domain folder>/.bindle` for a domain bindle. Then attach it per folder. Plain `git clone <url>` lands in the current folder under the repo's name, which `attach <name>` won't find.
 - **A new domain:** `bindle new <name> --at <domain folder>/.bindle`, then `bindle terms`, have them pick terms and write the chosen ones to its `private-terms.txt`, then attach it writable. Ask before setting `--sync`; it needs a remote they add themselves.
 
 ## Rules
