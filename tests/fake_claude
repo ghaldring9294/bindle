@@ -14,6 +14,11 @@ if a[:3] == ["plugin", "marketplace", "add"]:
     name = json.loads((Path(path) / ".claude-plugin" / "marketplace.json").read_text())["name"]
     s.setdefault("extraKnownMarketplaces", {})[name] = {"source": {"source": "directory", "path": path}}
 elif a[:2] == ["plugin", "install"]:
+    # Like the real CLI (seen 2026-11-22): installing reads the marketplace at its recorded path.
+    market = a[2].split("@")[1]
+    source = s.get("extraKnownMarketplaces", {}).get(market, {}).get("source", {}).get("path", "")
+    if not (Path(source) / ".claude-plugin" / "marketplace.json").exists():
+        sys.exit(f'Failed to install plugin "{a[2]}": not found in marketplace "{market}"')
     s.setdefault("enabledPlugins", {})[a[2]] = True
 elif a[:2] == ["plugin", "uninstall"]:
     s.get("enabledPlugins", {}).pop(a[2], None)

@@ -269,6 +269,22 @@ class AttachTest(BindleTest):
             for k, v in saved.items():
                 os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
 
+    # detach keeps the marketplace declaration, so a bindle moved after detaching was declared at its old
+    # path; attaching from the new path must re-point it, or the install looks in an empty folder.
+    def test_attach_after_detach_and_move_uses_the_new_path(self):
+        b, f = self.make_bindle("craft"), self.folder()
+        self.run_cli("attach", b, f)
+        self.run_cli("detach", "craft", f)
+        moved = self.tmp / "bindles" / "craft"
+        moved.parent.mkdir()
+        b.rename(moved)
+        code, out = self.run_cli("attach", "craft", f)
+        self.assertEqual(code, 0, out)
+        s = self.settings(f)
+        self.assertEqual(s["extraKnownMarketplaces"]["bindle-craft"]["source"]["path"], str(moved))
+        self.assertTrue(s["enabledPlugins"]["craft@bindle-craft"])
+        self.assertEqual(s["permissions"]["deny"], bindle.core.lock_rules(moved))
+
     def test_attaching_twice_doesnt_call_claude_again(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f)

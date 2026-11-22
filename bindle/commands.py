@@ -154,7 +154,10 @@ def cmd_attach(args):
                 f"{folder} already writes memories to {current}. A folder has one writable bindle: "
                 f"detach that one first, or attach {b['name']} without --writable.")
 
-    if b["market"] not in settings.get("extraKnownMarketplaces", {}):
+    # Add the marketplace, or add it again if it was declared at another path (the bindle moved after a
+    # detach, which keeps the declaration); Claude Code then re-points it.
+    declared = dict(directory_marketplaces(settings)).get(b["market"])
+    if not declared or real(declared) != b["root"]:
         claude(folder, "plugin", "marketplace", "add", str(b["root"]), "--scope", "local")
     if not read_json(sp).get("enabledPlugins", {}).get(plugin_id(b)):
         claude(folder, "plugin", "install", plugin_id(b), "--scope", "local")

@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.8.1 (2026-11-22)
+
+No upgrade needed.
+
+- Fix: attaching a bindle that moved after it was detached failed ("Plugin not found in marketplace"), because detach keeps the folder's marketplace entry at the old path. `attach` now re-points it.
+
 ## 0.8.0 (2026-11-22)
 
 No upgrade needed. Run `bindle install` again only if you installed by copying (Windows); links pick up the new `/bindle` on their own.
