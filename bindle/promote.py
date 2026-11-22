@@ -11,7 +11,7 @@ import re
 import shutil
 from pathlib import Path
 
-from .core import BindleError, git, hooks, load_bindle, read_json, write_json, write_text
+from .core import BindleError, find_bindle, git, hooks, load_bindle, read_json, real, write_json, write_text
 
 KINDS = {"memory": "memory", "skill": "skills", "command": "commands"}
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
@@ -35,6 +35,64 @@ def terms_in(text, terms):
         if re.search(start + re.escape(t) + end, text, re.I):
             found.append(t)
     return found
+
+
+TICKET_RE = re.compile(r"\b([A-Z][A-Z0-9]{1,9})-\d+\b")
+REMOTE_RE = re.compile(r"[:/]([^/:]+)/([^/]+?)(?:\.git)?/?$")
+
+
+def domain_folder(b, folder):
+    """The folder a bindle serves: given, or the folder a `.bindle` sits in, or here."""
+    if folder:
+        return real(folder)
+    return b["root"].parent if b["root"].name == ".bindle" else real(Path.cwd())
+
+
+def suggest_terms(b, folder):
+    """Candidate private terms, each with where it was found: the domain folder's name, and for the git repos
+    in it (the folder and its immediate subfolders) their names, their remotes' owners and repo names, and
+    ticket prefixes seen at least twice in recent commit subjects. The person decides which are private."""
+    found = {}
+
+    def add(term, source):
+        if term and term.lower() not in (t.lower() for t in found):
+            found[term] = source
+
+    if folder != real(Path.home()):
+        add(folder.name, "the domain folder's name")
+    repos = [d for d in [folder, *sorted(p for p in folder.iterdir() if p.is_dir())]
+             if (d / ".git").exists() and d != b["root"]]
+    for repo in repos:
+        if repo != folder:
+            add(repo.name, f"a repo in {folder}")
+        for url in (git(repo, "remote", "-v") or "").split():
+            m = REMOTE_RE.search(url)
+            if m and ("@" in url or "://" in url):
+                add(m.group(1), f"the owner of {repo.name}'s remote")
+                add(m.group(2), f"{repo.name}'s remote")
+        counts = {}
+        for prefix in TICKET_RE.findall(git(repo, "log", "-200", "--format=%s") or ""):
+            counts[prefix] = counts.get(prefix, 0) + 1
+        for prefix, n in counts.items():
+            if n >= 2:
+                add(prefix + "-", f"ticket prefix in {repo.name}'s commits")
+    have = {t.lower() for t in private_terms(b)}
+    return {t: src for t, src in found.items() if t.lower() not in have}
+
+
+def cmd_terms(args):
+    b = find_bindle(args.bindle)
+    folder = domain_folder(b, args.folder)
+    suggestions = suggest_terms(b, folder)
+    if not suggestions:
+        print(f"No new terms found in {folder}. Add any by hand to {b['root'] / 'private-terms.txt'}.")
+        return 0
+    print(f"Possible private terms for {b['name']}, from {folder} (not yet in private-terms.txt).")
+    print("Keep the ones that identify the domain; add people, products and internal systems this can't see.")
+    width = max(len(t) for t in suggestions)
+    for t, src in suggestions.items():
+        print(f"  {t.ljust(width)}  {src}")
+    return 0
 
 
 def draft_files(src):

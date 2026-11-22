@@ -6,6 +6,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
                    exclude_from_enclosing_repo, extra_code, find_bindle, git, git_health, hooks, is_writable, last_sync, load_bindle,
@@ -316,6 +317,9 @@ def cmd_doctor(args):
                 problems.append(f"{b['name']}: {rel} differs from bindle's template")
                 needs_upgrade.append(b)
         problems += enclosing_repo_problems(b)
+        if writable_here and not private_terms(b):
+            warnings.append(f"{b['name']}: private-terms.txt lists no terms, so promotion can't check drafts for names "
+                            f"that identify this domain; `bindle terms {quote(str(b['root']))}` suggests some")
         code = extra_code(b) if on and not writable_here else []
         if code:
             warnings.append(f"{b['name']} (read-only here) runs code on this machine beyond bindle's own hooks: "

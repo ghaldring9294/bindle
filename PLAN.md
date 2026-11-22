@@ -2,11 +2,11 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-22, v0.7.0)
+## Where it stands (2026-11-22, v0.8.0)
 
 - **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 104 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
-- **Docs:** README (usage), docs/design.md (design), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents), CHANGELOG.md.
+- **Docs:** README (usage), docs/design.md (design), `/bindle` (how Claude in any session operates bindle), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents, including the rule that docs ship with each change), CHANGELOG.md.
 
 ## Next steps
 
@@ -27,4 +27,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-21:** CI; README rewritten for a general audience; an independent review (16 findings) led to one Python implementation, a CLI package, hardened promotion and a wider secret check (v0.5.0); trust warnings (v0.5.1); guardrails-not-gates recorded as a principle; MCP servers in a bindle verified; design doc written.
 - **2026-11-21:** v0.6.0: Windows support (Python launcher for hooks, POSIX lock paths, install without symlinks, LF everywhere); CI green on macOS, Linux and Windows.
 - **2026-11-21:** Windows verified on a real PC (memory written there reached GitHub). v0.6.1: session start commits memories a skipped SessionEnd left (closing the app skipped it); README covers two GitHub accounts on one machine.
-- **2026-11-22:** read-only bindle and lock rule verified on Windows; README notes MCP commands on Windows. v0.7.0: `bindle attach <name>` looks in `~/bindles/` (or `$BINDLE_HOME`).
+- **2026-11-22:** read-only bindle and lock rule verified on Windows; README notes MCP commands on Windows. v0.7.0: `bindle attach <name>` looks in `~/bindles/` (or `$BINDLE_HOME`). v0.8.0: `bindle terms` and a doctor warning for empty private terms; `/bindle` rewritten so Claude handles attach/detach requests in any session; docs-with-every-change rule.

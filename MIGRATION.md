@@ -26,7 +26,7 @@ Present the table. Flag every `unsure`. Wait for approval.
 
 ## Step 3: Execute
 
-1. Create each bindle: `bindle new <name> --at <path>` (a domain bindle defaults to `<domain root>/.bindle`).
+1. Create each bindle: `bindle new <name> --at <path>` (a domain bindle defaults to `<domain root>/.bindle`). For a domain bindle, run `bindle terms <bindle>`, show the suggestions, add the names that identify the domain (plus people, products and internal systems the person names) to its `private-terms.txt`, and confirm the list with the person. Promotion checks drafts against it.
 2. Copy memories into the destination bindle's `memory/` and rebuild its `MEMORY.md` index from the files. Keep each memory's frontmatter; add `boundary: craft | context | both` if missing.
 3. Move tooling into the bindle's `skills/`, `commands/`, `agents/`. Remove the old hand-made link in `~/.claude/skills/` once the bindle is attached, or the skill shows up twice.
 3a. Move an existing notes folder into the bindle's `notes/` and leave a symlink at the old path, so every reference to the old path keeps working. Before committing, ignore anything that shouldn't be in git (query results that may hold real customer data, large exports) in the bindle's `.gitignore`, and run the secret check.

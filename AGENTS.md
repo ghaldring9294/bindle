@@ -9,12 +9,13 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 ## Layout
 
 - `bin/bindle`: the entry point; the CLI is the `bindle/` package (`core.py` shared helpers, `commands.py`, `upgrade.py`, `promote.py`, `cli.py`). Python standard library only; must run on 3.9.
-- `templates/bindle/`: what `bindle new` copies. Files listed in `MANAGED` (in `bin/bindle`) are copied byte for byte into every bindle and `bindle doctor` flags drift, so change them only here, deliberately, then update existing bindles.
+- `templates/bindle/`: what `bindle new` copies. Files listed in `MANAGED` (in `bindle/core.py`) are copied byte for byte into every bindle and `bindle doctor` flags drift, so change them only here, deliberately, then update existing bindles.
 - `templates/bindle/hooks/bindle_hook.py`: the one implementation of the hooks, sync, the writable check and the secret check. The CLI imports it from the template (`core.hooks()`), so never reimplement that logic in the CLI.
 - `tests/`: `python3 -m unittest discover -s tests` (fast, fake `claude`); `tests/e2e.sh` (real Claude Code in a scratch folder; costs a few short sessions).
 - `global/skills/bindle-promote/`: the promotion skill (`bindle install` links it into `~/.claude/skills/`). Drafting is judgment; `bindle outbox add` and `bindle collect` do every write and check.
 - `MIGRATION.md`: instructions an agent follows to move an existing setup into bindles.
-- `CHANGELOG.md` and `VERSION` (in `bin/bindle`): bump the version and add an entry for each release; say "run `bindle upgrade`" when managed files or the layout change. Tag releases `vX.Y.Z`.
+- `global/commands/bindle.md`: the `/bindle` command, installed into `~/.claude/commands/`. It's how Claude in **any** session understands bindle and handles requests like "attach craft here", so it must describe every command and how it behaves.
+- `CHANGELOG.md` and `VERSION` (in `bindle/core.py`): bump the version and add an entry for each release; say "run `bindle upgrade`" when managed files or the layout change. Tag releases `vX.Y.Z`.
 
 ## Rules
 
@@ -23,3 +24,12 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 3. **Keep this repo employer-free:** no employer names, systems or data, in code, docs or examples (use Acme, Globex).
 4. **Use Claude Code's native mechanisms** (plugins, `autoMemoryDirectory`, hooks) rather than custom loading.
 5. **Tests encode why:** each test says what breaks for a person if it fails. Run the unit tests before committing.
+6. **Docs ship with the change, in the same commit.** A change to a command, a behaviour or a decision updates every place that describes it:
+   - `README.md` (people using bindle; its command table is checked by a test)
+   - `global/commands/bindle.md` (Claude operating bindle; also checked by a test)
+   - `global/skills/bindle-promote/SKILL.md` and `MIGRATION.md`, when promotion or setup changes
+   - `docs/design.md`, when a decision or its reason changes
+   - `templates/bindle/AGENTS.md`, when the bindle layout changes
+   - `CHANGELOG.md` for each release, and `PLAN.md` (status, next steps, log)
+
+   Before committing, check that nothing in these contradicts the change (grep for the command or term). Docs are written for a general audience.

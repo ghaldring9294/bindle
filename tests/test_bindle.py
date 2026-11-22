@@ -424,6 +424,23 @@ class DoctorTest(BindleTest):
         self.assertIn("doesn't exist", out)
         self.assertNotIn("No bindles attached", out)
 
+    # Without terms, promotion's leak check passes everything, so a new domain bindle should say so.
+    def test_warns_when_the_writable_bindle_has_no_private_terms(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 0, out)  # a warning, not a problem: a personal bindle may have nothing private
+        self.assertIn("private-terms.txt lists no terms", out)
+        with open(b / "private-terms.txt", "a") as t:
+            t.write("Acme\n")
+        self.assertNotIn("private-terms.txt lists no terms", self.run_cli("doctor", f)[1])
+
+    # Promotion leaves from the writable bindle, so a read-only one without terms isn't worth a warning.
+    def test_no_terms_warning_for_a_read_only_bindle(self):
+        b, f = self.make_bindle("craft"), self.folder()
+        self.run_cli("attach", b, f)
+        self.assertNotIn("private-terms.txt", self.run_cli("doctor", f)[1])
+
     def test_an_empty_folder_has_nothing_attached(self):
         _, out = self.run_cli("doctor", self.folder())
         self.assertIn("No bindles attached", out)
@@ -474,12 +491,21 @@ class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text()
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
         for c in parser_cmds:
             self.assertIn(f"`bindle {c}", readme, c)
+
+    # /bindle is what Claude reads to operate bindle for someone; a command missing there is one Claude
+    # guesses at or doesn't know to offer.
+    def test_the_bindle_command_tells_claude_every_command(self):
+        guide = (bindle.BASE / "global" / "commands" / "bindle.md").read_text()
+        import argparse
+        sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
+        for c in sub.choices:
+            self.assertIn(f"`bindle {c}", guide, c)
 
 
 class UpgradeTest(BindleTest):
@@ -655,6 +681,45 @@ class PromotionTest(BindleTest):
         code, _ = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
         self.assertEqual(code, 1)
         self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
+
+
+class TermsTest(BindleTest):
+    def make_domain(self):
+        """~/acme with one project repo whose remote and commits name the domain, and its .bindle."""
+        domain = self.folder("acme")
+        repo = domain / "acme-web"
+        repo.mkdir()
+        bindle.git(repo, "init", "-q")
+        bindle.git(repo, "remote", "add", "origin", "git@github.com:acme-co/acme-web.git")
+        for msg in ("ACME-12 fix login", "ACME-13 more", "WIP-1 once"):
+            bindle.git(repo, "commit", "-q", "--allow-empty", "-m", msg)
+        self.run_cli("new", "acme", "--at", domain / ".bindle")
+        return domain
+
+    # A new person doesn't know what to list; the names their own repos use are the likeliest leaks.
+    def test_suggests_names_the_domain_folder_and_its_repos_reveal(self):
+        domain = self.make_domain()
+        code, out = self.run_cli("terms", domain / ".bindle")
+        self.assertEqual(code, 0, out)
+        for term in ("acme ", "acme-web", "acme-co", "ACME-"):
+            self.assertIn(term, out)
+        self.assertNotIn("WIP-", out)  # seen once: more likely noise than a ticket system
+
+    # Suggesting what's already listed would bury the new candidates.
+    def test_leaves_out_terms_already_listed(self):
+        domain = self.make_domain()
+        with open(domain / ".bindle" / "private-terms.txt", "a") as t:
+            t.write("ACME-WEB\nacme-\n")
+        out = self.run_cli("terms", domain / ".bindle")[1]
+        terms = [line.split()[0] for line in out.splitlines() if line.startswith("  ")]
+        self.assertEqual(sorted(terms), ["acme", "acme-co"])
+
+    # It suggests; the person decides. Writing the file would put generic words in the leak check unasked.
+    def test_never_writes_the_file(self):
+        domain = self.make_domain()
+        before = (domain / ".bindle" / "private-terms.txt").read_text()
+        self.run_cli("terms", domain / ".bindle")
+        self.assertEqual((domain / ".bindle" / "private-terms.txt").read_text(), before)
 
 
 class AudienceWritesTest(BindleTest):
@@ -933,7 +998,7 @@ class TrustTest(BindleTest):
         b, f = self.make_bindle("personal"), self.folder()
         (b / "hooks/pixel.sh").write_text("echo hi\n")
         self.run_cli("attach", b, f, "--writable")
-        self.assertNotIn("Warnings", self.run_cli("doctor", f)[1])
+        self.assertNotIn("runs code on this machine", self.run_cli("doctor", f)[1])
 
     def test_a_template_bindle_has_no_extra_code(self):
         self.assertEqual(bindle.core.extra_code(bindle.core.load_bindle(self.make_bindle("acme"))), [])

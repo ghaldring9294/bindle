@@ -101,8 +101,9 @@ Each scenario uses made-up names. Replace the paths with your own.
 **An employee.** Your employer's bindle lives in your work folder and is writable there; your general tooling (a craft bindle) is on read-only.
 ```
 bindle new acme --at ~/acme/.bindle
+bindle terms ~/acme/.bindle          # names to keep inside it; add the ones that apply to private-terms.txt
 bindle attach ~/acme/.bindle ~/acme --writable
-bindle attach ~/bindles/craft ~/acme
+bindle attach craft ~/acme           # craft = ~/bindles/craft
 ```
 
 **A freelancer with two clients.** Each client gets a folder and a bindle. Switching clients means starting Claude Code from the other folder, which also gives you separate session histories and permissions.
@@ -142,6 +143,7 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
 | `bindle attach <bindle> [<folder>] [--writable]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to. `<bindle>` is a path, or a name in `$BINDLE_HOME` (default `~/bindles`) |
 | `bindle detach <name-or-path> [<folder>]` | Turn a bindle off for a folder |
+| `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder>]` | Pull the bindles that are on; commit and push the writable one's memories |
 | `bindle upgrade [<bindle>] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
@@ -178,7 +180,7 @@ AGENTS.md              orientation for AI agents working in the bindle
 | `audience` | `private` / `shared` / `public` | Who the bindle is for. Visibility itself is your git host's setting. |
 | `writes` | `implicit` / `explicit` | `explicit` bindles take material only through `bindle collect` and can't be writable |
 
-**`private-terms.txt`:** one name per line (organization, products, repos, ticket prefixes, people). Matching ignores case and whole words only; a term ending in punctuation, like the ticket prefix `ACME-`, also matches what follows it. Anything promoted out of the bindle is checked against these.
+**`private-terms.txt`:** one name per line (organization, products, repos, ticket prefixes, people). Matching ignores case and whole words only; a term ending in punctuation, like the ticket prefix `ACME-`, also matches what follows it. Anything promoted out of the bindle is checked against these. `bindle terms <bindle>` suggests candidates from the domain folder: its name, its repos' names and remotes, and ticket prefixes in their commits. You choose which to add; it never writes the file. `doctor` warns when the writable bindle has none.
 
 **What `attach` writes** into the folder's `.claude/settings.local.json` (shown for a writable bindle; nothing is copied or linked):
 

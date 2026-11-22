@@ -30,7 +30,7 @@ Show each draft beside the original, briefly say what you removed, and ask the p
 bindle outbox add <source bindle> <draft> --kind memory|skill|command --name <slug> --description "<one line>"
 ```
 
-It refuses a draft that names a term from the source's `private-terms.txt` or looks like it holds a secret; fix the draft, show the change, and retry. If `private-terms.txt` is empty, suggest terms for the person to add first (organization, products, repos, ticket prefixes).
+It refuses a draft that names a term from the source's `private-terms.txt` or looks like it holds a secret; fix the draft, show the change, and retry. If `private-terms.txt` is empty, run `bindle terms <source bindle>` and have the person choose terms to add first.
 
 ## 5. Collect, if the person wants it now
 

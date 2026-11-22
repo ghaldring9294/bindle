@@ -93,6 +93,8 @@ Promotion is the only way bindle moves material between bindles, and it has to c
 
 No session reads another domain's raw memories; only outboxes are read across bindles, and they hold only reviewed text. Both steps can happen in one session. A craft bindle receives material only this way.
 
+The leak check is only as good as the term list. `bindle terms` suggests candidates from the domain folder (code finds the names its repos reveal; the person judges which are private), and `doctor` warns when the writable bindle has none. It's a warning, not a refusal, because a personal bindle may have nothing private.
+
 ## Safety and its limits
 
 | Guard | Covers | Doesn't cover |

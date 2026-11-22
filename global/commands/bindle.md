@@ -1,19 +1,42 @@
 ---
-description: Set up or operate bindle: create a bindle, turn bindles on for a folder, check a folder, or migrate an existing setup
+description: Operate bindle, which carries Claude Code memory, rules and skills between machines in git repos ("bindles"). Use when the user asks to attach or detach a bindle, turn one on or off for a folder, make one writable or read-only, check which bindles are on, sync, upgrade, create a bindle, set up private terms, or migrate an existing setup.
 ---
 
 Help the user with bindle: $ARGUMENTS
 
-`bindle` is on PATH. Commands:
-- `bindle new <name> [--at <dir>]`: create a bindle repo (default `./.bindle`).
-- `bindle attach <bindle> [<folder>] [--writable]`: turn a bindle on for a folder; `--writable` makes it the one new memories go to.
-- `bindle detach <name-or-path> [<folder>]`: turn it off.
-- `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
-- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`: the source's reviewed items, leak-checked.
-- `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle. For drafting, use the `/bindle-promote` skill.
-- `bindle doctor [<folder>]`: what's on, which is writable, unsaved memories, drift.
+## The model
 
-Rules:
-1. **Never add or push remotes.** The user puts each bindle on its own domain's git host.
-2. **Migration follows MIGRATION.md in the bindle repo:** inventory, mapping, approval, then secure-first.
-3. **Show the plan and get confirmation** before anything that copies, moves or attaches.
+- A **bindle** is a git repo holding one domain's layer (personal, an employer, a client, shared craft): `memory/`, `projects/`, `notes/`, `rules.md`, skills, `private-terms.txt`. It's a Claude Code plugin, so its skills are `/<bindle>:<skill>`.
+- A **folder** turns bindles on in its `.claude/settings.local.json`. Every attached bindle is **on** there; **at most one is writable** (new memories go to it). The rest are **read-only**: Claude Code is denied edits inside them.
+- Where bindles live: a domain bindle is usually `<domain folder>/.bindle`; bindles used in many folders (personal, craft) are usually in `~/bindles/`, and `attach` and `terms` accept a bare name for those (`craft` means `~/bindles/craft`, or `$BINDLE_HOME/craft`). Other commands take a path; `detach` also takes the name.
+- bindle stores no state. `bindle doctor` reads the folder's settings and reports what's on.
+
+## Commands
+
+`bindle` is on PATH. `<folder>` defaults to the current folder. Any folder works, in a git repo or not; but if it's inside a repo, on macOS and Linux use the repo root, because that's where Claude Code reads settings (`attach` refuses a subfolder and names the root).
+
+- `bindle doctor [<folder>]`: what's on, which is writable, unsaved memories, warnings and problems, each problem with its fix. **Run this first** when unsure of the current state.
+- `bindle attach <bindle> [<folder>] [--writable]`: turn a bindle on for a folder (read-only unless `--writable`). A folder has one writable bindle; detach the current one first to switch.
+- `bindle detach <name-or-path> [<folder>]`: turn it off. Takes the bindle's name.
+- `bindle new <name> [--at <dir>] [--sync] [--audience private|shared|public] [--writes implicit|explicit]`: create a bindle repo (default `./.bindle`).
+- `bindle terms <bindle> [<folder>]`: suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
+- `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
+- `bindle upgrade [<bindle>] [--dry-run]`: bring a bindle's managed files up to this version of bindle.
+- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`: the source's reviewed items, leak-checked. Draft with the `/bindle-promote` skill.
+- `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle.
+- `bindle install`: put `bindle` on PATH and link `/bindle` and `/bindle-promote` into `~/.claude`.
+
+## Common requests
+
+- **"Attach craft here" / "turn on personal":** `bindle attach <name> <folder>`, read-only unless they say writable. The folder is the one this session was started in (or its repo root, if it's inside a repo on macOS/Linux). Then run `bindle doctor` and tell them it takes effect in their **next** session, since Claude Code reads settings at session start.
+- **"Detach craft" / "turn it off here":** `bindle detach <name> <folder>`, then the same note.
+- **"Make X writable here":** if another bindle is writable, say which; with their go-ahead, detach it (and attach it again without `--writable` if they want it kept on read-only), then `bindle attach X <folder> --writable`. Attaching the current writable one again without `--writable` doesn't demote it.
+- **"What's on?":** `bindle doctor`, summarized.
+- **A new domain:** `bindle new <name> --at <domain folder>/.bindle`, then `bindle terms`, have them pick terms and write the chosen ones to its `private-terms.txt`, then attach it writable. Ask before setting `--sync`; it needs a remote they add themselves.
+
+## Rules
+
+1. **Never add, change or push a remote.** Where each bindle lives is the user's call; a work bindle goes only where the employer allows.
+2. **Never edit a bindle that's read-only in this folder,** by any means, shell included. Upgrading one is the user's step: give them the command with a `!` prefix.
+3. A direct request ("attach craft here") is the go-ahead. **Show the plan and confirm first** when inferring, and before anything that copies or moves material or changes which bindle is writable.
+4. **Migration follows MIGRATION.md** in the bindle repo: inventory, mapping, approval, then secure-first.

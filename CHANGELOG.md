@@ -2,6 +2,15 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.8.0 (2026-11-22)
+
+No upgrade needed. Run `bindle install` again only if you installed by copying (Windows); links pick up the new `/bindle` on their own.
+
+- `bindle terms <bindle>` suggests private terms from the domain folder: its name, its repos' names, their remotes' owners and names, and ticket prefixes seen in recent commits. It never writes the file; you pick.
+- `doctor` warns when the writable bindle's `private-terms.txt` is empty, since promotion's leak check then passes everything.
+- `/bindle` rewritten so Claude in any session understands the model and handles requests like "attach craft here" or "make acme writable".
+- MIGRATION.md and `/bindle-promote` use `bindle terms` when a bindle has no terms. AGENTS.md: docs ship with every change, and tests check that README and `/bindle` list every command.
+
 ## 0.7.0 (2026-11-22)
 
 No upgrade needed.
