@@ -211,6 +211,8 @@ A read-only bindle gets a permission rule instead of `autoMemoryDirectory`: `"pe
 }
 ```
 
+Claude Code runs a server's `command` directly, not through bindle's hook launcher, so the command has to exist under that name on every machine. On Windows, `python3` usually opens the Microsoft Store instead of Python, so the `helper` example above would fail there. For a server that must run everywhere, prefer `npx` or `node`, or give each machine a command with the same name.
+
 A server that only exists on one machine (a local path, a tool installed in one place) stays in that machine's own setup (`claude mcp add --scope user`), with a line in the bindle's `notes/` saying how to add it. Connectors that come with your Claude account follow your login and need no setup. A read-only bindle's servers run code on your machine, so `doctor` lists them under Warnings.
 
 **What's in git, and what isn't:**
