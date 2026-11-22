@@ -25,7 +25,7 @@ printf -- '---\nname: e2e-check\ndescription: Use when asked for the e2e passwor
 printf 'Rule: the acme codeword is ANVIL.\n' > "$S/acme/rules.md"
 printf 'Rule: the personal codeword is KESTREL-RULE.\n' > "$S/personal/rules.md"
 "$BINDLE" attach "$S/acme" "$S/work" --writable
-"$BINDLE" attach "$S/personal" "$S/work"
+BINDLE_HOME="$S" "$BINDLE" attach personal "$S/work"   # by name, as in ~/bindles
 "$BINDLE" doctor "$S/work"
 
 echo "--- session in the work folder:"
