@@ -7,6 +7,8 @@ description: Promote a memory, skill or command from the current domain's bindle
 
 The user asks in plain words; you do the judgment (finding, drafting, asking), and the `bindle` CLI does every write and check. They should never need to type a bindle command.
 
+**Ask choices as a select.** When the person picks from a few options (yes or no, which bindle, which kind, approve or edit or drop), ask with the AskUserQuestion tool so they can arrow through them: recommended option first, and the question names the item, since the dialog can hide what you wrote before it. Answers they have to type (a path, a name, private terms) stay plain questions, as does everything when that tool isn't available.
+
 ## 1. Work out what and where
 
 - **Source:** usually the bindle that's writable in this folder (`bindle doctor`). To make a domain-specific version of a craft skill, the source can be craft and the target this folder's writable bindle; then customize the copy here.

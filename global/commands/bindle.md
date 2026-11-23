@@ -47,3 +47,4 @@ Help the user with bindle: $ARGUMENTS
 2. **Never edit a bindle that's read-only in this folder,** by any means, shell included. Upgrading one is the user's step: give them the command with a `!` prefix.
 3. A direct request ("attach craft here") is the go-ahead. **Show the plan and confirm first** when inferring, and before anything that copies or moves material or changes which bindle is writable.
 4. **Migration follows MIGRATION.md** in the bindle repo: inventory, mapping, approval, then secure-first.
+5. **Ask choices as a select.** When the person picks from a few options (yes or no, which bindle, which kind, approve or edit or drop), ask with the AskUserQuestion tool so they can arrow through them: recommended option first, and the question names the item, since the dialog can hide what you wrote before it. Answers they have to type (a path, a name, private terms) stay plain questions, as does everything when that tool isn't available.

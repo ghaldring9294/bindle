@@ -1662,7 +1662,11 @@ class MemoryHookTest(BindleTest):
         (b / "notes").mkdir(exist_ok=True)
         (b / "notes/inbox.md").write_text("# Inbox\n\n## 2026-11-22 · from acme · invoice\n\nSend it.\n")
         self.run_cli("attach", b, f, "--writable")
-        self.assertIn("has 1 note(s) sent from other domains", self.run_hook(b, f))
+        out = json.loads(self.run_hook(b, f))
+        # Hook text reaches only Claude, which can't speak before the person does; the systemMessage is what they see.
+        self.assertIn("1 note(s) from other domains waiting", out["systemMessage"])
+        self.assertIn("has 1 note(s) sent from other domains", out["hookSpecificOutput"]["additionalContext"])
+        self.assertIn("Bindle personal is on and writable", out["hookSpecificOutput"]["additionalContext"])
         (b / "notes/inbox.md").write_text("# Inbox\n")
         self.assertNotIn("sent from other domains", self.run_hook(b, f))
 

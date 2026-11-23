@@ -8,6 +8,7 @@ You (Claude Code) are moving this machine's existing Claude setup into bindles. 
 2. **Nothing is deleted.** The old memory folders stay where they are until the person says they can go.
 3. **Secure-first.** Each item goes to exactly one bindle. When unsure, choose the domain bindle (employer or client), never personal. Personal receives only craft (methods, skills, habits), one item at a time, each the person's explicit call, rewritten without the domain's specifics.
 4. **Remotes are the person's call.** Never add or push a remote. A work bindle goes only to storage the employer allows.
+5. **Ask choices as a select.** When the person picks from a few options (yes or no, which bindle, which kind, approve or edit or drop), ask with the AskUserQuestion tool so they can arrow through them: recommended option first, and the question names the item, since the dialog can hide what you wrote before it. Answers they have to type (a path, a name, private terms) stay plain questions, as does everything when that tool isn't available.
 
 ## Step 1: Inventory
 

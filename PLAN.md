@@ -59,3 +59,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** the demo repo (bindle-demo): `demo.py setup|cleanup`, Acme and Globex fixtures, a six-step walkthrough.
 - **2026-11-22:** v0.21.0: every command takes a bindle by name or path; doctor's fixes use names.
 - **2026-11-22:** v0.21.3: the promotion skill asks approve/edit/drop as a select (asked for during the walkthrough).
+- **2026-11-22:** v0.22.0: waiting inbox notes show in the terminal at session start (they reached only Claude, so nothing appeared); every choice Claude asks is a select. Both found during the walkthrough.

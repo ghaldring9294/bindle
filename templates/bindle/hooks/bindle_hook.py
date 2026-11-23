@@ -227,6 +227,12 @@ def has_notes(root):
         for f in notes.rglob("*"))
 
 
+def inbox_notes(root):
+    inbox = Path(root) / "notes" / "inbox.md"
+    return sum(1 for l in inbox.read_text(encoding="utf-8", errors="ignore").splitlines()
+               if l.startswith("## ")) if inbox.is_file() else 0
+
+
 def session_start_text(root, project_dir):
     root = Path(root)
     name, memory = bindle_name(root), root / "memory"
@@ -247,9 +253,7 @@ def session_start_text(root, project_dir):
             if risky:
                 out.append(f"Before committing: {', '.join(risky)} may hold a secret. Suggest moving it to secure "
                            f"storage (a password manager) and leaving a pointer in the note.")
-        inbox = root / "notes" / "inbox.md"
-        waiting = sum(1 for l in inbox.read_text(encoding="utf-8", errors="ignore").splitlines()
-                      if l.startswith("## ")) if inbox.is_file() else 0
+        inbox, waiting = root / "notes" / "inbox.md", inbox_notes(root)
         if waiting:
             out.append(f"{inbox} has {waiting} note(s) sent from other domains (reminders, todos). Mention them to the "
                        f"person early in the session, and remove each one once they've handled it.")
@@ -290,12 +294,19 @@ def main(argv):
                     # uncommitted; commit and push them before anything else.
                     sync_push(root, Log(root))
                 changed_code = sync_pull(root, Log(root))
+            out = []
             if changed_code:
-                print(f"Warning: bindle {bindle_name(root)} just pulled changes to files that run code on this machine "
-                      f"({', '.join(changed_code)}). They take effect from the next session. Tell the person, so they "
-                      f"can review them (git -C {root} log -p -1 -- {' '.join(CODE_PATHS)}) before starting another session.")
-            text = session_start_text(root, project_dir)
-            if text:
+                out.append(f"Warning: bindle {bindle_name(root)} just pulled changes to files that run code on this machine "
+                           f"({', '.join(changed_code)}). They take effect from the next session. Tell the person, so they "
+                           f"can review them (git -C {root} log -p -1 -- {' '.join(CODE_PATHS)}) before starting another session.")
+            out.append(session_start_text(root, project_dir))
+            text = "\n".join(t for t in out if t)
+            waiting = inbox_notes(root) if writable_here(root, project_dir) else 0
+            if waiting:  # plain output reaches only Claude, which can't speak first; systemMessage shows in the terminal
+                print(json.dumps({"systemMessage": f"bindle: {waiting} note(s) from other domains waiting in "
+                                                   f"{Path(root) / 'notes' / 'inbox.md'}",
+                                  "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}))
+            elif text:
                 print(text)
         elif command == "rules":
             text = rules_text(root)

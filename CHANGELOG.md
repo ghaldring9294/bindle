@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.22.0 (2026-11-22)
+
+Run `bindle upgrade` (the hook changed). On Windows, `bindle install` again (`/bindle` and the promotion skill changed).
+
+- A session start with notes waiting in the inbox says so in the terminal, not only to Claude.
+- `/bindle`, the promotion skill and MIGRATION.md ask choices (yes or no, which bindle, approve or edit or drop) as a select.
+
 ## 0.21.3 (2026-11-22)
 
 No upgrade needed. On Windows, `bindle install` again (the promotion skill changed).
