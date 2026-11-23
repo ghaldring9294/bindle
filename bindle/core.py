@@ -84,8 +84,20 @@ def load_bindle(path):
     if not market:
         raise BindleError(f"{root} has no .claude-plugin/marketplace.json name.")
     return {"name": meta["name"], "market": market, "root": root, "memory": root / "memory",
-            "layout": meta.get("layout"), "sync": meta.get("sync") is True,
+            "layout": meta.get("layout"), "sync": meta.get("sync") is True, "files_from": meta.get("bindle_version"),
             "audience": meta.get("audience", "private"), "writes": meta.get("writes", "implicit")}
+
+
+def version_tuple(text):
+    m = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", str(text or "").strip())
+    return tuple(int(n) for n in m.groups()) if m else None
+
+
+def from_newer_bindle(b):
+    """True when a newer bindle (on another machine) last wrote this bindle's files: upgrading from this copy
+    would put old hooks back, and sync would spread them."""
+    files_from = version_tuple(b["files_from"])
+    return bool(files_from) and files_from > version_tuple(VERSION)
 
 
 def bindles_home():

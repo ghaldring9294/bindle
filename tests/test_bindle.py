@@ -85,7 +85,8 @@ class BindleTest(unittest.TestCase):
 class NewTest(BindleTest):
     def test_scaffolds_a_plugin_shaped_bindle_named_throughout(self):
         b = self.make_bindle("acme")
-        self.assertEqual(json.loads((b / "bindle.json").read_text()), {"name": "acme", "layout": 1, "sync": False, "audience": "private", "writes": "implicit"})
+        self.assertEqual(json.loads((b / "bindle.json").read_text()), {"name": "acme", "layout": 1, "sync": False, "audience": "private", "writes": "implicit",
+                                                                   "bindle_version": bindle.core.VERSION})
         self.assertEqual(json.loads((b / ".claude-plugin/plugin.json").read_text())["name"], "acme")
         self.assertEqual(json.loads((b / ".claude-plugin/marketplace.json").read_text())["name"], "bindle-acme")
         for d in ["memory", "notes", "projects", "skills", "commands", "agents"]:
@@ -641,6 +642,34 @@ class InstallTest(BindleTest):
         self.assertEqual(self.run_cli("install")[0], 1)
         self.assertEqual((self.home / ".claude/commands/bindle.md").read_text(), "mine")
         self.assertFalse((self.home / ".local/bin/bindle").exists())
+
+
+class NewerFilesTest(BindleTest):
+    """A bindle upgraded on another machine by a newer bindle looks "drifted" to an older copy here; upgrading
+    from here would put the old hooks back, and sync would spread the downgrade to every machine."""
+
+    def test_an_older_bindle_refuses_to_upgrade_and_says_to_pull_instead(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        meta = json.loads((b / "bindle.json").read_text()); meta["bindle_version"] = "99.0.0"
+        (b / "bindle.json").write_text(json.dumps(meta))
+        with open(b / "hooks/run", "a") as fh:
+            fh.write("# from bindle 99\n")
+        newer = (b / "hooks/run").read_text()
+        code, out = self.run_cli("doctor", f)
+        self.assertIn("newer than this copy", out)
+        self.assertNotIn("bindle upgrade acme", out)
+        code, out = self.run_cli("upgrade", "--all")
+        self.assertNotEqual(code, 0)
+        self.assertEqual((b / "hooks/run").read_text(), newer)
+        self.assertIn("were upgraded by a newer bindle elsewhere", self.run_cli("session-check", f)[1])
+
+    def test_upgrade_records_the_version_that_wrote_the_files(self):
+        b = self.make_bindle("acme")
+        with open(b / "hooks/run", "a") as fh:
+            fh.write("# drifted\n")
+        self.run_cli("upgrade", b)
+        self.assertEqual(json.loads((b / "bindle.json").read_text())["bindle_version"], bindle.core.VERSION)
 
 
 class ReleaseCheckTest(BindleTest):

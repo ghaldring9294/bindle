@@ -14,7 +14,7 @@ from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, R
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
                    exclude_from_enclosing_repo, bindles_home, domains, quote, ref, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
-                   settings_path, write_json, write_text)
+                   settings_path, write_json, write_text, version_tuple, from_newer_bindle)
 
 
 INSTALLED_MARK = "Installed by bindle install"
@@ -127,12 +127,9 @@ def managed_drift(b):
 
 
 def upgrade_due(b):
+    if from_newer_bindle(b):
+        return False
     return bool(managed_drift(b)) or ((b["layout"] or 1) <= LAYOUT and b["layout"] != LAYOUT)
-
-
-def version_tuple(text):
-    m = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", text.strip())
-    return tuple(int(n) for n in m.groups()) if m else None
 
 
 def newer_release(repo):
@@ -164,7 +161,12 @@ def update_notes():
         release = newer_release(BASE)
         if release:  # pull first: upgrading from an old copy would put old hooks back
             return [f"bindle: {release} is available (this is {VERSION}); git -C {quote(str(BASE))} pull && bindle upgrade --all"]
-    due = sorted(b["name"] for b in known_bindles()[0].values() if upgrade_due(b))
+    found = known_bindles()[0].values()
+    newer = sorted(f"{b['name']} ({b['files_from']})" for b in found if from_newer_bindle(b))
+    if newer:
+        return [f"bindle: {', '.join(newer)} were upgraded by a newer bindle elsewhere; this is {VERSION}: "
+                f"git -C {quote(str(BASE))} pull"]
+    due = sorted(b["name"] for b in found if upgrade_due(b))
     return [f"bindle: {', '.join(due)} {'needs' if len(due) == 1 else 'need'} an upgrade; bindle upgrade --all"] if due else []
 
 
@@ -245,7 +247,7 @@ def cmd_new(args):
         raise BindleError(f"{dest} already exists and isn't empty.")
     copy_template(dest, name)
     meta = read_json(dest / "bindle.json")
-    meta.update({"sync": bool(args.sync), "audience": args.audience, "writes": args.writes})
+    meta.update({"sync": bool(args.sync), "audience": args.audience, "writes": args.writes, "bindle_version": VERSION})
     write_json(dest / "bindle.json", meta)
 
     excluded = exclude_from_enclosing_repo(dest)
@@ -563,9 +565,13 @@ def cmd_doctor(args):
                 problems.append(f"{b['name']}: {hit} may hold a secret; move it to secure storage (e.g. a password manager) and leave a pointer in the note")
             else:
                 problems.append(f"{b['name']}: {hit} may hold a secret; sync won't commit it until it's removed")
-        for rel, how in managed_drift(b):
-            problems.append(f"{b['name']}: {rel} {how}")
-            needs_upgrade.append(b)
+        if from_newer_bindle(b):
+            problems.append(f"{b['name']}: its files are from bindle {b['files_from']}, newer than this copy ({VERSION}); "
+                            f"git -C {quote(str(BASE))} pull (upgrading from here would put old hooks back)")
+        else:
+            for rel, how in managed_drift(b):
+                problems.append(f"{b['name']}: {rel} {how}")
+                needs_upgrade.append(b)
         problems += enclosing_repo_problems(b)
         problems += name_problems(b)
         if writable_here and not private_terms(b):

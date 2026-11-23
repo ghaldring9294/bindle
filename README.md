@@ -206,6 +206,7 @@ AGENTS.md              orientation for AI agents working in the bindle
 | `sync` | `true` / `false` | Pull at session start; commit and push `memory/`, `projects/` and `outbox/` at session end |
 | `audience` | `private` / `shared` / `public` | Who the bindle is for. Visibility itself is your git host's setting. |
 | `writes` | `implicit` / `explicit` | `explicit` bindles take material only through promotion and can't be writable |
+| `bindle_version` | set by `new` and `upgrade` | The bindle version that last wrote its managed files. An older copy of bindle refuses to upgrade it and asks you to pull bindle instead. |
 
 **`~/bindles/registry.json`:** where bindles outside `~/bindles` live, by name (`{"bindles": {"acme": "/Users/you/acme/.bindle"}}`). `new` and `attach` keep it current; you can edit it. It also records, under `domains`, each folder a bindle was attached to as writable, which is where the session check looks; `detach` removes the entry. Names must be unique on a machine, because Claude Code's marketplace names are machine-wide; `new` and `attach` warn about a duplicate.
 

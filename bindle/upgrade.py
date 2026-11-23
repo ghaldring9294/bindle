@@ -3,7 +3,7 @@ import filecmp
 import shutil
 from pathlib import Path
 
-from .core import (LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, find_bindle, git, known_bindles, load_bindle,
+from .core import (from_newer_bindle, LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, find_bindle, git, known_bindles, load_bindle,
                    read_json, real, settings_path, write_json, write_text)
 
 # A bindle's .gitignore and .gitattributes are its own, so upgrade only appends template lines they lack.
@@ -70,6 +70,9 @@ def cmd_upgrade(args):
         layout = b["layout"] if isinstance(b["layout"], int) else 0
         if layout > LAYOUT:
             raise BindleError(f"{b['name']} has layout {layout}, newer than this bindle ({LAYOUT}). git pull bindle first.")
+        if from_newer_bindle(b):
+            raise BindleError(f"{b['name']}'s files are from bindle {b['files_from']}, newer than this copy ({VERSION}); "
+                              f"upgrading would put old hooks back. git pull bindle first.")
         plan = upgrade_plan(b)
         steps = list(range(layout, LAYOUT))
         if not plan and not steps:
@@ -100,11 +103,12 @@ def cmd_upgrade(args):
                 write_text(out, (TEMPLATE / rel).read_text(encoding="utf-8").replace("{{name}}", b["name"]))
                 shutil.copymode(TEMPLATE / rel, out)
             touched.append(rel)
+        meta = read_json(b["root"] / "bindle.json")
+        meta["bindle_version"] = VERSION  # so an older copy of bindle elsewhere won't undo this upgrade
         if steps:
-            meta = read_json(b["root"] / "bindle.json")
             meta["layout"] = LAYOUT
-            write_json(b["root"] / "bindle.json", meta)
-            touched.append("bindle.json")
+        write_json(b["root"] / "bindle.json", meta)
+        touched.append("bindle.json")
         # Commit only what upgrade touched, so a person's own uncommitted work stays theirs.
         git(b["root"], "add", "-A", "--", *touched)
         if git(b["root"], "commit", "-q", "-m", f"Upgrade bindle files to bindle {VERSION}", "--", *touched) is not None:
