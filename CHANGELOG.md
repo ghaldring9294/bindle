@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.21.0 (2026-11-22)
+
+No upgrade needed. On Windows, `bindle install` again (`/bindle` changed).
+
+- Every command that takes a bindle accepts its name or its path: `promote`'s source, `collect`, the `outbox` commands and `upgrade` took only a path before (found writing the demo walkthrough).
+- `doctor`'s suggested commands, and the hint after `outbox add`, name the bindle when its name finds it, instead of printing its path.
+
 ## 0.20.1 (2026-11-22)
 
 No upgrade needed. On Windows, `bindle install` again (`/bindle` changed).

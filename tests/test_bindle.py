@@ -427,6 +427,12 @@ class ReposTest(BindleTest):
         self.assertEqual(code, 0, out)
         self.assertEqual(out.count("runs code on this machine"), 1, out)
 
+    # A command that names the bindle reads (and pastes) better than a long path; the name must find this bindle.
+    def test_doctors_fix_names_the_bindle(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        self.run_cli("attach", b, d, "--writable")
+        self.assertIn(f"bindle attach acme {d} --writable --repos", self.run_cli("doctor", d)[1])
+
     # A bindle repo in the domain folder holds its own memory; making acme writable there would mix domains.
     def test_attach_repos_skips_bindles_inside_the_folder(self):
         d = self.domain()
@@ -536,7 +542,7 @@ class DoctorTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("bindle_hook.py differs", out)
-        self.assertIn(f"bindle upgrade {bindle.commands.quote(b)}", out)
+        self.assertIn("bindle upgrade acme", out)  # by name: attach registered it
         self.assertNotIn("&& git -C", out)
 
     # Unsaved memories are the main way work gets lost between machines.
@@ -883,9 +889,8 @@ class UpgradeTest(BindleTest):
         (b / "hooks/bindle_hook.py").write_text("# old\n")
         (b / "hooks/hooks.json").write_text("{}\n")
         _, out = self.run_cli("doctor", f)
-        q = bindle.commands.quote(b)
-        self.assertIn(f"bindle upgrade {q} && git -C {q} push", out)
-        self.assertEqual(out.count(f"bindle upgrade {b}"), 1)
+        self.assertIn(f"bindle upgrade craft && git -C {bindle.commands.quote(b)} push", out)
+        self.assertEqual(out.count("bindle upgrade craft"), 1)
 
     def test_upgrades_every_bindle_attached_to_the_current_folder(self):
         acme, personal, f = self.make_bindle("acme"), self.make_bindle("personal"), self.folder()
@@ -1152,6 +1157,16 @@ class PromotionTest(BindleTest):
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", "craft", "--name", "small-prs")
         self.assertEqual(code, 0, out)
         self.assertTrue((self.tmp / "bindles/craft/memory/small-prs.md").exists())
+
+    # Every command takes a bindle the same way; a source that only worked as a path tripped up the demo walkthrough.
+    def test_promote_and_the_outbox_take_the_source_by_name(self):
+        name = bindle.core.load_bindle(self.acme)["name"]
+        code, out = self.run_cli("promote", name, self.draft, "--into", self.personal, "--name", "small-prs")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.personal / "memory/small-prs.md").exists())
+        code, out = self.run_cli("outbox", "add", name, self.draft, "--name", "tiny-prs")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"bindle collect {name} --into", out)  # the hint names it too
 
     # The leak check is the structural guard: a draft that still names the domain never enters the outbox.
     def test_a_draft_naming_the_domain_is_refused(self):
@@ -1535,12 +1550,14 @@ class ReviewRegressionTest(BindleTest):
         self.hook(b, f, "session-end")
         self.assertEqual(bindle.git(b, "rev-parse", "HEAD"), head)
 
+    # When its name can't find the bindle (not registered here), a fix falls back to the path, which must paste whole.
     def test_doctor_quotes_paths_in_its_fix_commands(self):
         b = self.tmp / "my bindles" / "acme"
         b.parent.mkdir()
         self.run_cli("new", "acme", "--at", b)
         f = self.folder()
         self.run_cli("attach", b, f)
+        (self.tmp / "bindles" / "registry.json").unlink()
         (b / "hooks/bindle_hook.py").write_text("# old\n")
         _, out = self.run_cli("doctor", f)
         self.assertIn(f"bindle upgrade {bindle.commands.quote(b)}", out)

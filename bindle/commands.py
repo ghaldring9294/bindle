@@ -2,7 +2,6 @@
 import filecmp
 import json
 import os
-import shlex
 import shutil
 import sys
 from pathlib import Path
@@ -10,21 +9,13 @@ from pathlib import Path
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, bindles_home, domains, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
+                   exclude_from_enclosing_repo, bindles_home, domains, quote, ref, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json, write_text)
 
 
 INSTALLED_MARK = "Installed by bindle install"
 SESSION_CHECK = "session-check --hook"  # how the hook entry in ~/.claude/settings.json is recognized
-
-
-def quote(path):
-    """Quote a path for copy-and-paste: POSIX shells on macOS and Linux; PowerShell and cmd on Windows."""
-    s = str(path)
-    if WINDOWS:
-        return f'"{s}"' if any(c in s for c in ' &()[]{}^=;!\'+,`~') else s
-    return shlex.quote(s)
 
 
 def cmd_install(args):
@@ -460,8 +451,8 @@ def unattached_repos(folder, b):
         return []
     others = [r for r, m in memory.items() if m and real(m) != real(b["memory"])]
     # --repos refuses when any repo writes to another bindle, so name each repo instead.
-    fixes = ([f"bindle attach {quote(str(b['root']))} {quote(str(r))} --writable" for r in repos] if others
-             else [f"bindle attach {quote(str(b['root']))} {quote(str(folder))} --writable --repos"])
+    fixes = ([f"bindle attach {ref(b)} {quote(str(r))} --writable" for r in repos] if others
+             else [f"bindle attach {ref(b)} {quote(str(folder))} --writable --repos"])
     return [f"sessions started in {', '.join(r.name for r in repos)} won't load {b['name']} or save memories to it "
             f"(a repo reads only its own settings). If you start Claude there, run:\n      " + "\n      ".join(fixes)]
 
@@ -529,7 +520,7 @@ def cmd_doctor(args):
         problems += name_problems(b)
         if writable_here and not private_terms(b):
             warnings.append(f"{b['name']}: private-terms.txt lists no terms, so promotion can't check drafts for names "
-                            f"that identify this domain; `bindle terms {quote(str(b['root']))}` suggests some")
+                            f"that identify this domain; `bindle terms {ref(b)}` suggests some")
         code = extra_code(b) if on and not writable_here else []
         if code:
             warnings.append(f"{b['name']} (read-only here) runs code on this machine beyond bindle's own hooks: "
@@ -537,10 +528,10 @@ def cmd_doctor(args):
         locked = all(r in deny for r in lock_rules(b["root"]))
         if on and not writable_here and not locked:
             problems.append(f"{b['name']} is read-only here but not locked against edits; "
-                            f"run `bindle attach {quote(str(b['root']))} {quote(str(folder))}` again")
+                            f"run `bindle attach {ref(b)} {quote(str(folder))}` again")
         if writable_here and any(r in deny for r in lock_rules(b["root"])):
             problems.append(f"{b['name']} is writable but locked, so memories can't be saved; "
-                            f"run `bindle attach {quote(str(b['root']))} {quote(str(folder))} --writable` again")
+                            f"run `bindle attach {ref(b)} {quote(str(folder))} --writable` again")
         rules = b["root"] / "rules.md"
         if rules.exists() and len(rules.read_text(encoding="utf-8", errors="ignore")) > RULES_LIMIT:
             problems.append(f"{b['name']}: rules.md is over {RULES_LIMIT} characters; the session-start hook can show only {HOOK_OUTPUT_LIMIT:,}")
@@ -559,7 +550,7 @@ def cmd_doctor(args):
         warnings += unattached_repos(folder, writable)
         if session_check_installed() and str(folder) not in domains():  # attached before domains were recorded
             warnings.append(f"the session check doesn't know {folder} is {writable['name']}'s domain folder; run "
-                            f"`bindle attach {quote(str(writable['root']))} {quote(str(folder))} --writable` again to record it")
+                            f"`bindle attach {ref(writable)} {quote(str(folder))} --writable` again to record it")
 
     if memory_dir and not writable:
         print(f"  Memory: {memory_dir} (not a bindle attached here)")
@@ -571,7 +562,7 @@ def cmd_doctor(args):
         root = quote(str(b["root"]))
         # Push too when the bindle has an upstream, so other machines get the upgrade with their next pull.
         push = f" && git -C {root} push" if hooks().has_upstream(b["root"]) else ""
-        fixes.append(f"bindle upgrade {root}{push}")
+        fixes.append(f"bindle upgrade {ref(b)}{push}")
     if fixes:
         problems.append("to fix, run (in Claude Code, prefix it with ! so it runs as you; a read-only bindle is locked to Claude):\n      "
                         + "\n      ".join(fixes))

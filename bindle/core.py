@@ -9,6 +9,7 @@ import importlib.util
 import json
 import os
 import re
+import shlex
 import subprocess
 import sys
 from pathlib import Path, PureWindowsPath
@@ -18,7 +19,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.20.1"
+VERSION = "0.21.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -184,6 +185,24 @@ def find_bindle(arg):
         raise BindleError(f"{arg} is registered at {path}, but nothing is there now. Pass its new path.")
     raise BindleError(f"No bindle named {arg} in {bindles_home()} or its registry. Pass the bindle's path "
                       f"(attaching it once registers it), or set BINDLE_HOME to the folder your bindles live in.")
+
+
+def quote(path):
+    """Quote a path for copy-and-paste: POSIX shells on macOS and Linux; PowerShell and cmd on Windows."""
+    s = str(path)
+    if WINDOWS:
+        return f'"{s}"' if any(c in s for c in ' &()[]{}^=;!\'+,`~') else s
+    return shlex.quote(s)
+
+
+def ref(b):
+    """How a suggested command names a bindle: by name when that finds this same bindle, else by path."""
+    try:
+        if find_bindle(b["name"])["root"] == b["root"]:
+            return b["name"]
+    except BindleError:
+        pass
+    return quote(str(b["root"]))
 
 
 def name_problems(b):

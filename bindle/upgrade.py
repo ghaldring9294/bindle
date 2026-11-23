@@ -3,7 +3,7 @@ import filecmp
 import shutil
 from pathlib import Path
 
-from .core import (LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, git, known_bindles, load_bindle,
+from .core import (LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, find_bindle, git, known_bindles, load_bindle,
                    read_json, real, settings_path, write_json, write_text)
 
 # A bindle's .gitignore and .gitattributes are its own, so upgrade only appends template lines they lack.
@@ -60,7 +60,7 @@ def cmd_upgrade(args):
         if not bindles:
             raise BindleError("No bindles found in ~/bindles or its registry.")
     elif args.bindle:
-        bindles = [load_bindle(args.bindle)]
+        bindles = [find_bindle(args.bindle)]
     else:
         folder = real(Path.cwd())
         bindles = declared_bindles(read_json(settings_path(folder)))

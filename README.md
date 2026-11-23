@@ -108,8 +108,8 @@ Each scenario uses made-up names. Replace the paths with your own.
 **An employee.** Your employer's bindle lives in your work folder and is writable there; your general tooling (a craft bindle) is on read-only.
 ```
 bindle new acme --at ~/acme/.bindle
-bindle terms ~/acme/.bindle          # names to keep inside it; add the ones that apply to private-terms.txt
-bindle attach ~/acme/.bindle ~/acme --writable
+bindle terms acme                    # names to keep inside it; add the ones that apply to private-terms.txt
+bindle attach acme ~/acme --writable
 bindle attach craft ~/acme           # craft = ~/bindles/craft
 ```
 
@@ -133,7 +133,7 @@ bindle attach ~/bindles/craft ~/clients/globex
 
 **Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle-promote` skill). It drafts a general rewrite, asks where it should go, and once you approve, puts it there in one step, after a check against the source bindle's private terms:
 ```
-bindle promote ~/acme/.bindle draft.md --into craft --name small-prs --description "keep PRs small"
+bindle promote acme draft.md --into craft --name small-prs --description "keep PRs small"
 ```
 The original stays where it was. To send it to a second bindle, promote it again. If a draft names one of the source's private terms, the promotion stops and shows where; that's a prompt to check, not a wall. If the term is fine to share (a public name, or a target that's yours alone), allow it for that promotion (`--allow <term>`). A possible secret is the one hard stop: take it out, and keep it in a password manager or vault. Rules (`rules.md`) aren't promoted; move a rule by hand in a session in the target's folder. To improve something already promoted (say, a craft skill you noticed was wrong while using it at work), ask Claude to update it: you see a diff against the current version, and on approval it's replaced with `--replace` (git history keeps the old one). Nothing is ever replaced without that flag.
 
@@ -164,7 +164,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | `bindle install [--session-check \| --no-session-check]` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude`; `--session-check` adds the hook that warns when a session starts inside a domain folder without its bindle (recommended) |
 | `bindle session-check [<folder>]` | Show what the session check would say for a session started in that folder (the installed hook runs it with `--hook`) |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
-| `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder. `<bindle>` is a path, or a name (a folder in `~/bindles`, or a bindle in its registry) |
+| `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder |
 | `bindle detach <name-or-path> [<folder>] [--repos]` | Turn a bindle off for a folder; `--repos` also each git repo directly inside it that has it |
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
 | `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable there |
@@ -178,7 +178,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | `bindle outbox remove <bindle> --items … [--dry-run]` | Drop named items, collected or not (an approval you changed your mind about) |
 | `bindle collect <source> --into <target> --items <slugs>` | Move approved outbox items into another bindle |
 
-`<folder>` always means the folder you start Claude Code from; it defaults to the current one. Run `bindle <command> --help` for every option.
+`<bindle>`, `<source>` and `<target>` take a bindle's name (a folder in `~/bindles`, or a bindle in its registry) or its path. `<folder>` always means the folder you start Claude Code from; it defaults to the current one. Run `bindle <command> --help` for every option.
 
 ## Configuration
 

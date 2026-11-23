@@ -14,7 +14,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .core import BindleError, find_bindle, git, hooks, known_bindles, load_bindle, read_json, real, write_json, write_text
+from .core import BindleError, find_bindle, ref, git, hooks, known_bindles, load_bindle, read_json, real, write_json, write_text
 
 KINDS = {"memory": "memory", "skill": "skills", "command": "commands", "note": "notes"}
 INBOX_HEADER = "# Inbox\n\nNotes sent from other domains, oldest first. Remove each one once it's handled.\n"
@@ -232,7 +232,7 @@ def place(source, target, items, replace=False):
 def cmd_promote(args):
     """One step: check the approved draft and place it in the target, which must be on this machine. When it
     isn't, the draft waits in the source's outbox instead (`bindle outbox add`)."""
-    source, target = load_bindle(args.source), find_bindle(args.into)
+    source, target = find_bindle(args.source), find_bindle(args.into)
     if source["root"] == target["root"]:
         raise BindleError("Source and target are the same bindle.")
     src = Path(args.path)
@@ -278,7 +278,7 @@ def show_change(target, slug, kind, src):
 
 
 def cmd_outbox_add(args):
-    b = load_bindle(args.bindle)
+    b = find_bindle(args.bindle)
     slug, kind, src = args.name, args.kind, Path(args.path)
     check_draft(b, slug, kind, src, args.description, "added", args.allow)
     dest = b["root"] / "outbox" / slug
@@ -297,7 +297,7 @@ def cmd_outbox_add(args):
     print(f"Added {kind} {slug} to {b['name']}'s outbox (leak check and secret check passed)."
           + ("" if committed else " Not committed (no git identity here?)."))
     print(f"It waits there until collected, on the machine where the target lives: "
-          f"bindle collect {b['root']} --into <target bindle> --items {slug}")
+          f"bindle collect {ref(b)} --into <target bindle> --items {slug}")
 
 
 def outbox_items(b):
@@ -315,7 +315,7 @@ def cmd_outbox_list(args):
     if args.all == bool(args.bindle):
         raise BindleError("Pass a bindle or --all.")
     if args.bindle:
-        b = load_bindle(args.bindle)
+        b = find_bindle(args.bindle)
         items = outbox_items(b)
         if not items:
             print(f"{b['name']}'s outbox is empty.")
@@ -337,7 +337,7 @@ def cmd_outbox_list(args):
 
 def cmd_outbox_clean(args):
     """Remove outbox items already collected; uncollected ones are waiting for review or a target, so stay."""
-    b = load_bindle(args.bindle)
+    b = find_bindle(args.bindle)
     items = outbox_items(b)
     if args.items:
         wanted = [s.strip() for s in args.items.split(",") if s.strip()]
@@ -357,7 +357,7 @@ def cmd_outbox_clean(args):
 
 def cmd_outbox_remove(args):
     """Drop named items whatever their status, e.g. an approved draft you changed your mind about."""
-    b = load_bindle(args.bindle)
+    b = find_bindle(args.bindle)
     by_slug = {it["slug"]: it for it in outbox_items(b)}
     wanted = list(dict.fromkeys(s.strip() for s in args.items.split(",") if s.strip()))
     missing = [s for s in wanted if s not in by_slug]
@@ -410,7 +410,7 @@ def validate_item(it):
 def cmd_collect(args):
     """Deliver waiting outbox items into the target, then remove them from the outbox: an item goes to one
     target, and git history keeps the record."""
-    source, target = load_bindle(args.source), find_bindle(args.into)
+    source, target = find_bindle(args.source), find_bindle(args.into)
     if source["root"] == target["root"]:
         raise BindleError("Source and target are the same bindle.")
     items = {it["slug"]: it for it in outbox_items(source)}

@@ -64,13 +64,13 @@ def build_parser():
     s.set_defaults(fn=cmd_sync)
 
     s = sub.add_parser("upgrade", help="bring a bindle's managed files and layout up to this bindle version")
-    s.add_argument("bindle", nargs="?", help="path to the bindle (default: every bindle attached to this folder)")
+    s.add_argument("bindle", nargs="?", help="the bindle's name or path (default: every bindle attached to this folder)")
     s.add_argument("--all", action="store_true", help="every bindle `bindle list` finds (in ~/bindles and its registry)")
     s.add_argument("--dry-run", action="store_true", help="show what would change")
     s.set_defaults(fn=cmd_upgrade)
 
     s = sub.add_parser("promote", help="copy an approved, general draft from one bindle into another (checked for domain names and secrets)")
-    s.add_argument("source", help="the bindle the draft comes from (its private terms are checked)")
+    s.add_argument("source", help="the bindle the draft comes from, by name or path (its private terms are checked)")
     s.add_argument("path", help="the draft: a memory or command .md file, or a skill folder")
     s.add_argument("--into", required=True, help="the target bindle: a path or a name; it must be on this machine")
     s.add_argument("--kind", choices=list(KINDS), default="memory")
@@ -107,12 +107,12 @@ def build_parser():
     o.set_defaults(fn=cmd_outbox_remove)
 
     s = sub.add_parser("terms", help="suggest private terms for a bindle from the repos in its domain folder")
-    s.add_argument("bindle", help="the bindle's path, or its name in $BINDLE_HOME")
+    s.add_argument("bindle", help="the bindle's name or path")
     s.add_argument("folder", nargs="?", help="the domain folder to look in (default: the folder a .bindle sits in, else here)")
     s.set_defaults(fn=cmd_terms)
 
     s = sub.add_parser("collect", help="move approved outbox items into another bindle")
-    s.add_argument("source", help="the bindle whose outbox to collect from")
+    s.add_argument("source", help="the bindle whose outbox to collect from, by name or path")
     s.add_argument("--into", required=True, help="the target bindle")
     s.add_argument("--items", help="comma-separated item names")
     s.add_argument("--all", action="store_true", help="every item not yet in the target")
