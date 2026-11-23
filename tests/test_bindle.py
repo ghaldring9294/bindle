@@ -676,6 +676,21 @@ class NewerFilesTest(BindleTest):
         self.assertEqual(json.loads((b / "bindle.json").read_text())["bindle_version"], bindle.core.VERSION)
 
 
+class SecretShapesTest(unittest.TestCase):
+    # The check runs in a 20s session-start hook; one long line (a hash, a minified blob) once took 40s.
+    def test_a_long_line_is_checked_quickly(self):
+        import time
+        hook = bindle.core.hooks()
+        started = time.time()
+        hook.looks_secret("A" * 40000)
+        self.assertLess(time.time() - started, 1)
+
+    # A file saved as UTF-16 hid any secret in it from a byte-oriented check.
+    def test_a_utf16_file_is_checked_like_any_other(self):
+        hook = bindle.core.hooks()
+        self.assertTrue(hook.looks_secret(hook.as_text("api_key = abcdefghijklmnop1234".encode("utf-16"))))
+
+
 class TemplateSecretTest(BindleTest):
     # Sync's secret check reads every file a push sends, bindle's own included; a template file that looked like
     # a credential would block sync for everyone after each upgrade.
@@ -2146,6 +2161,29 @@ class SyncTest(BindleTest):
             f.write("a harmless second line\n")
         bindle.git(self.laptop, "commit", "-qam", "edit")
         self.assertEqual(hook.outgoing_secret_hits(self.laptop), [])
+
+    # Rewriting the remote's history is how a leaked secret is removed; another machine's sync must not replay
+    # the old commits onto it and push the secret back.
+    def test_a_rewritten_remote_doesnt_get_old_commits_replayed(self):
+        (self.laptop / "notes/leak.md").write_text("pasted by mistake\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "oops"); bindle.git(self.laptop, "push", "-q")
+        self.hook(self.desktop, self.desktop_folder, "session-start.sh")
+        self.assertTrue((self.desktop / "notes/leak.md").exists())
+        bindle.git(self.laptop, "reset", "-q", "--hard", "HEAD~1"); bindle.git(self.laptop, "push", "-q", "--force")
+        (self.desktop / "memory/fact.md").write_text("x\n")
+        self.hook(self.desktop, self.desktop_folder, "session-end.sh")
+        self.assertNotIn("leak.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"))
+        self.assertIn("history was rewritten", bindle.core.last_sync(self.desktop))
+
+    # "Offline" that lasts (a blocked port, a broken proxy) would otherwise keep memories on one machine silently.
+    def test_doctor_warns_when_commits_havent_left_for_a_day(self):
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "http://127.0.0.1:9/remote.git"], check=True)
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        bindle.git(self.laptop, "add", "-A")
+        subprocess.run(["git", "-C", str(self.laptop), "commit", "-qm", "old"], check=True,
+                       env={**os.environ, "GIT_COMMITTER_DATE": "2000-01-01T00:00:00"})
+        code, out = self.run_cli("doctor", self.laptop_folder)
+        self.assertIn("haven't reached the remote for over a day", out)
 
     # A rename by the remote once hid an overlap, so autostash left conflict markers in a note.
     def test_an_uncommitted_edit_to_a_file_the_remote_renamed_stops_sync_cleanly(self):

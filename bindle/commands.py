@@ -561,11 +561,15 @@ def cmd_doctor(args):
             print(f"    {line}")
         problems += git_problems
         ahead = git(b["root"], "rev-list", "--count", "@{upstream}..HEAD")
-        # A promotion into a bindle no session writes to (craft, say) is never pushed by sync. Where sync does push
-        # it, a failure is already reported from the sync log.
-        if ahead and ahead != "0" and (b["writes"] == "explicit" or b["name"] not in domains().values()):
-            warnings.append(f"{b['name']} has {ahead} commit(s) not pushed, and it isn't writable in any folder, so "
-                            f"no session pushes it: git -C {quote(str(b['root']))} push")
+        if ahead and ahead != "0":
+            oldest = (git(b["root"], "log", "--reverse", "--format=%ct", "@{upstream}..HEAD") or "0").splitlines()[0]
+            if b["writes"] == "explicit" or b["name"] not in domains().values():  # a promotion into craft, say
+                warnings.append(f"{b['name']} has {ahead} commit(s) not pushed, and it isn't writable in any folder, so "
+                                f"no session pushes it: git -C {quote(str(b['root']))} push")
+            elif time.time() - int(oldest) > 86400:  # "offline" that lasts a day is likely a blocked port or a proxy
+                warnings.append(f"{b['name']} has {ahead} commit(s) that haven't reached the remote for over a day "
+                                f"(last sync: {last_sync(b['root']) or 'never'}); check it accepts them: "
+                                f"git -C {quote(str(b['root']))} push")
         for hit in secret_hits(b):
             if hit.startswith("notes/"):
                 problems.append(f"{b['name']}: {hit} may hold a secret; move it to secure storage (e.g. a password manager) and leave a pointer in the note")

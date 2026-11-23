@@ -20,7 +20,7 @@ from pathlib import Path
 # AWS_SECRET_ACCESS_KEY) assigned something long, or a well-known token format. Placeholders like
 # ${VAR} or <redacted> don't count.
 LEAK_SHAPES = [re.compile(p) for p in [
-    r"(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|token|passw(?:or)?d|credential|private[_-]?key)[A-Za-z0-9_]*"
+    r"(?i)(?:api[_-]?key|secret|token|passw(?:or)?d|credential|private[_-]?key)[A-Za-z0-9_]*"
     r"[\"']?\s*[:=]\s*[\"']?(?![$<{(])[^\s\"'`]{12,}",
     r"Bearer\s+[A-Za-z0-9._~+/-]{20,}",
     r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b",
@@ -35,7 +35,7 @@ LEAK_SHAPES = [re.compile(p) for p in [
 ]]
 
 SYNCED = ("memory", "projects", "outbox")  # what sync commits by itself; everything else is committed by hand
-NETWORK_TIMEOUT = 5  # seconds per network call; a session start makes at most three, within its 20s hook
+NETWORK_TIMEOUT = 5  # seconds per network call; a session start makes at most two, within its 20s hook
 # Parts of a plugin that run code on the person's machine (hooks, servers, executables).
 CODE_PATHS = ("hooks", ".claude-plugin/plugin.json", ".mcp.json", ".lsp.json", "bin")
 
@@ -176,6 +176,13 @@ def looks_secret(text):
     return any(p.search(text) for p in LEAK_SHAPES)
 
 
+def as_text(data):
+    """File bytes as text for the secret check; UTF-16 (with its byte-order mark) would otherwise never match."""
+    if data[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        return data.decode("utf-16", errors="ignore")
+    return data.decode("utf-8", errors="ignore")
+
+
 def secret_hits(root, rel_paths):
     """The given files (relative to root) that look like they hold a credential."""
     hits = []
@@ -183,7 +190,7 @@ def secret_hits(root, rel_paths):
         f = Path(root) / rel
         if f.is_file() and not f.is_symlink():
             try:
-                text = f.read_bytes().decode("utf-8", errors="ignore")
+                text = as_text(f.read_bytes())
             except OSError:
                 continue
             if looks_secret(text):
@@ -196,9 +203,11 @@ def read_objects(root, shas):
     shas = list(dict.fromkeys(x for x in shas if x))
     if not shas:
         return {}
-    out = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"], input=("\n".join(shas) + "\n").encode(),
-                         capture_output=True).stdout
-    found, i = {}, 0
+    r = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"], input=("\n".join(shas) + "\n").encode(),
+                       capture_output=True)
+    if r.returncode != 0:
+        raise OSError("git cat-file failed")
+    out, found, i = r.stdout, {}, 0
     while i < len(out):
         nl = out.index(b"\n", i)
         head = out[i:nl].split()
@@ -218,7 +227,7 @@ def outgoing_secret_hits(root):
     have (a remote file merged in, or a line already there, isn't new)."""
     listed = git(root, "rev-list", "--objects", "@{upstream}..HEAD")
     if listed.returncode != 0:
-        return []
+        return ["(the check couldn't run: git rev-list failed)"]
     new = [(sha, path) for sha, _, path in (l.partition(" ") for l in listed.stdout.splitlines()) if path]
     remote = {}
     for entry in git(root, "ls-tree", "-r", "-z", "@{upstream}").stdout.split("\0"):
@@ -226,14 +235,17 @@ def outgoing_secret_hits(root):
         parts = meta.split()
         if len(parts) == 3 and parts[1] == "blob":
             remote[path] = parts[2]
-    objects = read_objects(root, [sha for sha, _ in new] + [remote.get(path) for _, path in new])
+    try:
+        objects = read_objects(root, [sha for sha, _ in new] + [remote.get(path) for _, path in new])
+    except OSError:
+        return ["(the check couldn't run: git cat-file failed)"]
     hits = []
     for sha, path in new:
         kind, data = objects.get(sha, ("", b""))
         if kind != "blob" or path in hits:
             continue
-        old = set(objects.get(remote.get(path), ("", b""))[1].decode("utf-8", errors="ignore").splitlines())
-        added = [l for l in data.decode("utf-8", errors="ignore").splitlines() if l not in old]
+        old = set(as_text(objects.get(remote.get(path), ("", b""))[1]).splitlines())
+        added = [l for l in as_text(data).splitlines() if l not in old]
         if looks_secret("\n".join(added)):
             hits.append(path)
     return hits
@@ -258,7 +270,7 @@ class Log:
 
     def __init__(self, root, echo=False, label=""):
         self.path, self.echo, self.lines, self.label = git_path(root, "bindle-sync.log"), echo, [], label
-        self.up_to_date = False  # set once this run has fetched or pushed, so the pull can be skipped
+        self.up_to_date = False  # set once this run has fetched, so the pull needs no second network call
 
     def say(self, msg, problem=False):
         """Record a sync step. Problems start with "problem:", which doctor and the session start look for."""
@@ -283,7 +295,9 @@ def sync_pull(root, log):
         return log.say("pull: a merge or rebase is in progress; skipped", problem=True)
     if not has_upstream(root):
         return log.say(no_upstream_message(root, "pull"))
-    if log.up_to_date:  # this run already fetched or pushed
+    if log.up_to_date:  # this run already fetched: catch up locally, no second network call
+        if git(root, "merge", "-q", "--ff-only", "@{upstream}").returncode == 0:
+            log.say("pulled")
         return
     r = git(root, "pull", "-q", "--ff-only", network=True)
     if r.returncode == 0:
@@ -322,48 +336,65 @@ def no_upstream_message(root, step):
     return f"{step}: no remote, kept local"
 
 
+def push_checked(root):
+    """Push HEAD to its upstream branch only: exactly the range outgoing_secret_hits checked."""
+    branch = git_out(root, "symbolic-ref", "--short", "HEAD") or ""
+    remote = git_out(root, "config", f"branch.{branch}.remote") or "origin"
+    merge = git_out(root, "config", f"branch.{branch}.merge") or f"refs/heads/{branch}"
+    return git(root, "push", "-q", "--no-follow-tags", remote, f"HEAD:{merge}", network=True)
+
+
 def push_leftovers(root, log):
-    """Push local commits after checking everything they add for secrets. Only when the remote moved does it
-    rebase onto it, and then only if no uncommitted file here is one the remote changed (stashing such a file
+    """Push local commits. It fetches first, so it can see a remote whose history was rewritten (to remove a
+    leaked secret, say) and check for secrets against what the remote really has. If the remote moved, it
+    rebases onto it, but only when no uncommitted file here is one the remote changed (stashing such a file
     could leave conflict markers in it)."""
     if not has_upstream(root):
         return log.say(no_upstream_message(root, "push"))
     if (git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0") == "0":
         return
+    old_upstream = git_out(root, "rev-parse", "@{upstream}")
+    r = git(root, "fetch", "-q", network=True)
+    if r.returncode != 0:
+        if unreachable(r):
+            return log.say("offline or the remote is unreachable; commits kept local until next time")
+        return log.say("couldn't fetch the remote; commits kept local: "
+                       + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
+    log.up_to_date = True
+    if old_upstream and git(root, "merge-base", "--is-ancestor", old_upstream, "@{upstream}").returncode != 0:
+        return log.say(f"the remote's history was rewritten (perhaps to remove something), so this copy's commits "
+                       f"weren't pushed or replayed onto it; look at git -C {root} log @{{upstream}}...HEAD and keep "
+                       f"only what belongs", problem=True)
+    if (git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0") == "0":
+        return
+    if git(root, "merge-base", "--is-ancestor", "@{upstream}", "HEAD").returncode != 0:  # the remote moved
+        # Without rename detection a renamed file lists both names, so an uncommitted edit to the old one is caught.
+        incoming = set((git_out(root, "diff", "--name-only", "--no-renames", "HEAD...@{upstream}") or "").splitlines())
+        clash = sorted(incoming & set(changed_paths(root)))
+        if clash:
+            return log.say(f"the remote changed {', '.join(clash)}, which have uncommitted changes here; commit or "
+                           f"discard them, then run bindle sync", problem=True)
+        stashes = len((git_out(root, "stash", "list") or "").splitlines())
+        r = git(root, "rebase", "-q", "--autostash", "@{upstream}")
+        if r.returncode != 0:
+            if operation_in_progress(root):
+                git(root, "rebase", "--abort")
+            return log.say("couldn't rebase onto the remote; commits kept local: "
+                           + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
+        if unmerged_paths(root) or len((git_out(root, "stash", "list") or "").splitlines()) > stashes:
+            log.say(f"your uncommitted changes didn't apply cleanly over the remote's; they're in git stash and "
+                    f"{', '.join(unmerged_paths(root)) or 'the stash'} needs resolving (git -C {root} status)", problem=True)
     hits = outgoing_secret_hits(root)
     if hits:
         return log.say(f"not pushing: unpushed commits add what looks like a secret to {', '.join(hits)}. Take it out "
                        f"of those commits (git -C {root} reset --soft @{{upstream}}, remove it, commit again), then "
                        f"run bindle sync", problem=True)
-    r = git(root, "push", "-q", network=True)
+    r = push_checked(root)
     if r.returncode == 0:
-        log.up_to_date = True
         return log.say("pushed")
     if unreachable(r):
         return log.say("offline or the remote is unreachable; commits kept local until next time")
-    if git(root, "fetch", "-q", network=True).returncode != 0:
-        return log.say("push failed and the remote couldn't be fetched; commits kept local: "
-                       + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
-    log.up_to_date = True
-    # Without rename detection a renamed file lists both names, so an uncommitted edit to the old one is caught.
-    incoming = set((git_out(root, "diff", "--name-only", "--no-renames", "HEAD...@{upstream}") or "").splitlines())
-    clash = sorted(incoming & set(changed_paths(root)))
-    if clash:
-        return log.say(f"the remote changed {', '.join(clash)}, which have uncommitted changes here; commit or "
-                       f"discard them, then run bindle sync", problem=True)
-    stashes = len((git_out(root, "stash", "list") or "").splitlines())
-    r = git(root, "rebase", "-q", "--autostash", "@{upstream}")
-    if r.returncode != 0:
-        if operation_in_progress(root):
-            git(root, "rebase", "--abort")
-        return log.say("couldn't rebase onto the remote; commits kept local: "
-                       + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
-    if unmerged_paths(root) or len((git_out(root, "stash", "list") or "").splitlines()) > stashes:
-        log.say(f"your uncommitted changes didn't apply cleanly over the remote's; they're in git stash and "
-                f"{', '.join(unmerged_paths(root)) or 'the stash'} needs resolving (git -C {root} status)", problem=True)
-    if git(root, "push", "-q", network=True).returncode == 0:
-        return log.say("pushed")
-    log.say("push failed; commits kept local", problem=True)
+    log.say("push failed; commits kept local: " + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
 
 
 # ---------- session text ----------
