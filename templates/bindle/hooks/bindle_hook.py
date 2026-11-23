@@ -19,7 +19,7 @@ from pathlib import Path
 # A value that looks like a credential: a keyword (case-insensitive, inside longer names such as
 # AWS_SECRET_ACCESS_KEY) assigned something long, or a well-known token format. Placeholders like
 # ${VAR} or <redacted> don't count.
-SECRET_PATTERNS = [re.compile(p) for p in [
+LEAK_SHAPES = [re.compile(p) for p in [
     r"(?i)[A-Za-z0-9_]*(?:api[_-]?key|secret|token|passw(?:or)?d|credential|private[_-]?key)[A-Za-z0-9_]*"
     r"[\"']?\s*[:=]\s*[\"']?(?![$<{(])[^\s\"'`]{12,}",
     r"Bearer\s+[A-Za-z0-9._~+/-]{20,}",
@@ -101,8 +101,10 @@ def git(root, *args, network=False):
         return subprocess.CompletedProcess(cmd, 124, "", "timed out")
 
 
-OFFLINE = ("Could not resolve host", "Could not resolve hostname", "Connection refused", "Connection timed out",
-           "Operation timed out", "Network is unreachable", "No route to host", "Failed to connect")
+OFFLINE = ("Could not resolve host", "Could not resolve hostname", "Resolving timed out", "Temporary failure in name",
+           "Connection refused", "Connection timed out", "Connection reset", "Connection closed by", "Operation timed out",
+           "Operation too slow", "Network is unreachable", "No route to host", "Failed to connect", "SSL_ERROR_SYSCALL",
+           "returned error: 502", "returned error: 503", "returned error: 504")
 
 
 def unreachable(r):
@@ -171,7 +173,7 @@ def committable_files(root, *pathspec):
 # ---------- checks ----------
 
 def looks_secret(text):
-    return any(p.search(text) for p in SECRET_PATTERNS)
+    return any(p.search(text) for p in LEAK_SHAPES)
 
 
 def secret_hits(root, rel_paths):
@@ -189,20 +191,51 @@ def secret_hits(root, rel_paths):
     return hits
 
 
+def read_objects(root, shas):
+    """{sha: (type, bytes)} for the given objects, read in one git process."""
+    shas = list(dict.fromkeys(x for x in shas if x))
+    if not shas:
+        return {}
+    out = subprocess.run(["git", "-C", str(root), "cat-file", "--batch"], input=("\n".join(shas) + "\n").encode(),
+                         capture_output=True).stdout
+    found, i = {}, 0
+    while i < len(out):
+        nl = out.index(b"\n", i)
+        head = out[i:nl].split()
+        if len(head) == 3:
+            size = int(head[2])
+            found[head[0].decode()] = (head[1].decode(), out[nl + 1:nl + 1 + size])
+            i = nl + 1 + size + 1
+        else:  # "<sha> missing"
+            i = nl + 1
+    return found
+
+
 def outgoing_secret_hits(root):
-    """Files that look like they hold a credential in any commit about to be pushed, whoever made it. Every
-    commit counts, not just the latest state, since a secret added and later removed is still in the pushed
-    history. Each file a commit touches is read as committed, as raw bytes (binary files, any name, merges, and
-    whatever diff settings the person has), rather than parsed out of a diff."""
+    """Files whose new content looks like it holds a credential, in exactly what a push would send: every file
+    version the remote doesn't have yet (so a secret added and later removed counts, and so do binary files and
+    odd names, whatever the diff settings), checking only lines the remote's copy of that file doesn't already
+    have (a remote file merged in, or a line already there, isn't new)."""
+    listed = git(root, "rev-list", "--objects", "@{upstream}..HEAD")
+    if listed.returncode != 0:
+        return []
+    new = [(sha, path) for sha, _, path in (l.partition(" ") for l in listed.stdout.splitlines()) if path]
+    remote = {}
+    for entry in git(root, "ls-tree", "-r", "-z", "@{upstream}").stdout.split("\0"):
+        meta, _, path = entry.partition("\t")
+        parts = meta.split()
+        if len(parts) == 3 and parts[1] == "blob":
+            remote[path] = parts[2]
+    objects = read_objects(root, [sha for sha, _ in new] + [remote.get(path) for _, path in new])
     hits = []
-    for commit in (git_out(root, "rev-list", "@{upstream}..HEAD") or "").split():
-        r = git(root, "diff-tree", "-r", "-z", "--name-only", "--no-renames", "-m", "--root", "--no-commit-id", commit)
-        for rel in dict.fromkeys(p for p in (r.stdout if r.returncode == 0 else "").split("\0") if p):
-            if rel in hits:
-                continue
-            blob = subprocess.run(["git", "-C", str(root), "show", f"{commit}:{rel}"], capture_output=True)
-            if blob.returncode == 0 and looks_secret(blob.stdout.decode("utf-8", errors="ignore")):
-                hits.append(rel)
+    for sha, path in new:
+        kind, data = objects.get(sha, ("", b""))
+        if kind != "blob" or path in hits:
+            continue
+        old = set(objects.get(remote.get(path), ("", b""))[1].decode("utf-8", errors="ignore").splitlines())
+        added = [l for l in data.decode("utf-8", errors="ignore").splitlines() if l not in old]
+        if looks_secret("\n".join(added)):
+            hits.append(path)
     return hits
 
 
@@ -258,7 +291,7 @@ def sync_pull(root, log):
     if unreachable(r):
         return log.say("offline or the remote is unreachable; not pulled")
     ahead = git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0"
-    if ahead != "0":
+    if ahead != "0" and ("fast-forward" in r.stderr or "diverg" in r.stderr):
         return log.say(f"not pulled: this copy has {ahead} commit(s) the remote doesn't, and the remote moved on; "
                        f"put them on top of it and push (git -C {root} pull --rebase && git -C {root} push)", problem=True)
     log.say("pull failed; left as is: " + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
@@ -318,13 +351,14 @@ def push_leftovers(root, log):
     if clash:
         return log.say(f"the remote changed {', '.join(clash)}, which have uncommitted changes here; commit or "
                        f"discard them, then run bindle sync", problem=True)
+    stashes = len((git_out(root, "stash", "list") or "").splitlines())
     r = git(root, "rebase", "-q", "--autostash", "@{upstream}")
     if r.returncode != 0:
         if operation_in_progress(root):
             git(root, "rebase", "--abort")
         return log.say("couldn't rebase onto the remote; commits kept local: "
                        + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
-    if unmerged_paths(root) or "autostash" in (git_out(root, "stash", "list") or ""):
+    if unmerged_paths(root) or len((git_out(root, "stash", "list") or "").splitlines()) > stashes:
         log.say(f"your uncommitted changes didn't apply cleanly over the remote's; they're in git stash and "
                 f"{', '.join(unmerged_paths(root)) or 'the stash'} needs resolving (git -C {root} status)", problem=True)
     if git(root, "push", "-q", network=True).returncode == 0:
@@ -405,7 +439,7 @@ def main(argv):
     try:
         if command == "session-start":
             # Problems the last session's end ran into (it can't show anything itself), shown before this run's.
-            ended = last_run_problems(root, label="session-end") or []
+            ended = (last_run_problems(root, label="session-end") or []) if sync_enabled(root) else []
             changed_code, before = [], git_out(root, "rev-parse", "HEAD")
             if sync_enabled(root):
                 if writable_here(root, project_dir):
@@ -430,8 +464,9 @@ def main(argv):
                 visible.append(f"bindle: {bindle_name(root)} pulled changes to code that runs on this machine "
                                f"({', '.join(changed_code)}); review them before your next session: "
                                f"{review}")
-            visible += [f"bindle: {bindle_name(root)} sync at the last session's end: problem: {l}" for l in ended]
-            visible += [f"bindle: {bindle_name(root)} sync {l}" for l in log.lines if l.startswith("problem:")]
+            now = [l[len("problem: "):] for l in log.lines if l.startswith("problem: ")]
+            visible += [f"bindle: {bindle_name(root)} sync at the last session's end: problem: {l}" for l in ended if l not in now]
+            visible += [f"bindle: {bindle_name(root)} sync problem: {l}" for l in now]
             conflicted = unmerged_paths(root)
             if conflicted:
                 visible.append(f"bindle: {bindle_name(root)} has unresolved conflicts in {', '.join(conflicted)}; "

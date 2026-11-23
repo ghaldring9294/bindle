@@ -561,13 +561,11 @@ def cmd_doctor(args):
             print(f"    {line}")
         problems += git_problems
         ahead = git(b["root"], "rev-list", "--count", "@{upstream}..HEAD")
-        if ahead and ahead != "0":
-            if b["writes"] == "explicit" or b["name"] not in domains().values():  # a promotion into it, say
-                warnings.append(f"{b['name']} has {ahead} commit(s) not pushed, and it isn't writable in any folder, so "
-                                f"no session pushes it: git -C {quote(str(b['root']))} push")
-            else:  # sync pushes these at the next session; if they linger, the remote may be refusing them
-                warnings.append(f"{b['name']} has {ahead} commit(s) not pushed yet; if that lasts, check the remote "
-                                f"accepts them: git -C {quote(str(b['root']))} push")
+        # A promotion into a bindle no session writes to (craft, say) is never pushed by sync. Where sync does push
+        # it, a failure is already reported from the sync log.
+        if ahead and ahead != "0" and (b["writes"] == "explicit" or b["name"] not in domains().values()):
+            warnings.append(f"{b['name']} has {ahead} commit(s) not pushed, and it isn't writable in any folder, so "
+                            f"no session pushes it: git -C {quote(str(b['root']))} push")
         for hit in secret_hits(b):
             if hit.startswith("notes/"):
                 problems.append(f"{b['name']}: {hit} may hold a secret; move it to secure storage (e.g. a password manager) and leave a pointer in the note")

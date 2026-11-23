@@ -676,6 +676,16 @@ class NewerFilesTest(BindleTest):
         self.assertEqual(json.loads((b / "bindle.json").read_text())["bindle_version"], bindle.core.VERSION)
 
 
+class TemplateSecretTest(BindleTest):
+    # Sync's secret check reads every file a push sends, bindle's own included; a template file that looked like
+    # a credential would block sync for everyone after each upgrade.
+    def test_no_template_file_looks_like_a_secret(self):
+        hook = bindle.core.hooks()
+        for f in bindle.TEMPLATE.rglob("*"):
+            if f.is_file() and "__pycache__" not in f.parts:
+                self.assertFalse(hook.looks_secret(f.read_bytes().decode("utf-8", errors="ignore")), f)
+
+
 class ReleaseCheckTest(BindleTest):
     """Nobody runs `git pull` in bindle unprompted, so a fix that shipped never arrives. The check must also never
     make a session wait on the network, or fetch at every start."""
@@ -2065,7 +2075,18 @@ class SyncTest(BindleTest):
         self.assertIn("problem:", last)
         self.assertNotIn("conflict", last)
         start = json.loads(self.hook(self.laptop, self.laptop_folder, "session-start.sh").stdout)
+        self.assertIn("does not appear to be a git repository", start["systemMessage"])
+
+    # A rebase at session end can bring in someone's hook change; session end can't say so, so the next start must.
+    def test_code_a_session_end_brought_in_is_shown_at_the_next_start(self):
+        (self.desktop / "hooks/extra.sh").write_text("echo hi\n")
+        bindle.git(self.desktop, "add", "-A"); bindle.git(self.desktop, "commit", "-qm", "hook"); bindle.git(self.desktop, "push", "-q")
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertTrue((self.laptop / "hooks/extra.sh").exists())  # the rebase brought it in
+        start = json.loads(self.hook(self.laptop, self.laptop_folder, "session-start.sh").stdout)
         self.assertIn("at the last session's end", start["systemMessage"])
+        self.assertIn("hooks/extra.sh", start["systemMessage"])
 
     # A revoked key says "Could not read from remote" too; filing it as offline hid it for good.
     def test_a_rejected_key_is_a_problem_not_offline(self):
@@ -2100,6 +2121,31 @@ class SyncTest(BindleTest):
         (self.laptop / "memory/merged.md").write_text(secret)
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "merge")
         self.assertIn("memory/merged.md", hook.outgoing_secret_hits(self.laptop))
+
+    # The hook's own pattern list once looked like a credential, so every upgrade blocked all memory sync.
+    def test_an_upgrade_then_a_session_end_still_pushes_memories(self):
+        (self.laptop / "hooks/bindle_hook.py").write_text("# an older hook\n")
+        bindle.git(self.laptop, "commit", "-qam", "older hook"); bindle.git(self.laptop, "push", "-q")
+        self.run_cli("upgrade", self.laptop)
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertIn("memory/fact.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"))
+
+    # Merging in the remote, or editing a file that already had a secret-like line on the remote, adds nothing
+    # new; blocking the push for it would stop every memory over something already there.
+    def test_only_content_the_remote_doesnt_have_is_checked(self):
+        hook = bindle.core.hooks()
+        (self.desktop / "notes/example.md").write_text("example token = abcdefghijklmnop1234\n")
+        bindle.git(self.desktop, "add", "-A"); bindle.git(self.desktop, "commit", "-qm", "example"); bindle.git(self.desktop, "push", "-q")
+        (self.laptop / "memory/local.md").write_text("local\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "local")
+        bindle.git(self.laptop, "pull", "-q", "--no-rebase", "--no-edit")  # a merge commit bringing the remote's file in
+        self.assertEqual(hook.outgoing_secret_hits(self.laptop), [])
+        bindle.git(self.laptop, "push", "-q")
+        with open(self.laptop / "notes/example.md", "a") as f:
+            f.write("a harmless second line\n")
+        bindle.git(self.laptop, "commit", "-qam", "edit")
+        self.assertEqual(hook.outgoing_secret_hits(self.laptop), [])
 
     # A rename by the remote once hid an overlap, so autostash left conflict markers in a note.
     def test_an_uncommitted_edit_to_a_file_the_remote_renamed_stops_sync_cleanly(self):
