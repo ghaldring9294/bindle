@@ -2,6 +2,21 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.26.0 (2026-11-23)
+
+Run `bindle upgrade` (the hook changed), then push each bindle. On Windows, `bindle install` again (`/bindle` and the promotion skill changed). Fixes from a whole-repo adversarial review.
+
+- Sync commits and pushes `projects/` (project memories) too, and secret-checks it. Before every push it checks the outgoing commits, so a secret committed by hand is never pushed.
+- A file that looks like a secret is held back and the rest still sync; the session start says so in the terminal.
+- A bindle that's read-only in a folder is pulled (fast-forward only) and never pushed.
+- Sync pushes first and rebases only when the remote moved, never over uncommitted changes (no autostash, so no conflict markers in your notes). Sync problems show at the next session start and in `doctor`, with unresolved conflicts and a leftover autostash.
+- Pulls and pushes give up after a few seconds on a stalled network, and use a repo's own `core.sshCommand`.
+- The code-change warning's review command covers every commit the pull brought.
+- `upgrade` never goes backwards: `bindle.json` records the bindle version that wrote a bindle's files, and an older copy says to pull bindle instead. It also leaves deleted template files deleted.
+- `collect` shows each item's content, takes allowed terms only from its own `--allow` (an item's record isn't trusted), and rejects multi-line descriptions.
+- The read-only lock also covers a bindle's path through a linked `~/bindles`.
+- Docs: the README quick start pushes `HEAD` (works where git's default branch is `master`); MIGRATION.md no longer attaches personal in work folders.
+
 ## 0.25.0 (2026-11-23)
 
 No upgrade needed. On Windows, `bindle install` again (`/bindle` changed).
