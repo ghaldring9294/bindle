@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.20.0 (2026-11-22)
+
+No upgrade needed. Recommended: `bindle install --session-check`, then `bindle attach <bindle> <folder> --writable` again in each folder with a writable bindle, so the check knows it (`bindle doctor` reminds you).
+
+- The session check (opt-in): `bindle install --session-check` adds one SessionStart hook to `~/.claude/settings.json` that warns when a session starts inside a folder attached writable, in a folder (usually a repo) with no writable bindle of its own, and gives the attach command. Silent everywhere else. `--no-session-check` removes it.
+- `bindle session-check [<folder>]` shows what it would say.
+- The registry records folders attached writable (`domains`); `detach` removes them.
+
 ## 0.19.0 (2026-11-22)
 
 No upgrade needed.

@@ -41,7 +41,13 @@ git clone https://github.com/ghaldring9294/bindle.git
 bindle/bin/bindle install
 ```
 
-`install` puts the `bindle` command in `~/.local/bin` and adds two things to `~/.claude`: the `/bindle` command and the `/bindle-promote` skill. It never touches your settings or `CLAUDE.md`. If `~/.local/bin` isn't on your `PATH`, it tells you how to add it.
+`install` puts the `bindle` command in `~/.local/bin` and adds two things to `~/.claude`: the `/bindle` command and the `/bindle-promote` skill. It doesn't touch your settings or `CLAUDE.md` unless you ask for the session check below. If `~/.local/bin` isn't on your `PATH`, it tells you how to add it.
+
+**Recommended: turn on the session check.**
+```
+bindle install --session-check
+```
+Claude Code reads settings only from the folder a session starts in (on macOS and Linux, that folder's git repo), never from the folders above it. So a session started in `~/acme/web` doesn't load the acme bindle attached to `~/acme` unless `~/acme/web` has it too, and its memories go to Claude Code's default folder instead. The session check is one hook in `~/.claude/settings.json` that warns at the start of such a session and gives the command that fixes it. It warns only inside folders you've attached a bindle to as writable; everywhere else it stays silent. `bindle install --no-session-check` removes it, leaving the rest of the file as it was.
 
 **On Windows:** install [Git for Windows](https://git-scm.com/download/win) (Claude Code runs hooks in its Git Bash) and Python from [python.org](https://www.python.org/downloads/), then run the same two lines from a terminal, with `python bindle\bin\bindle install` for the second. Without developer mode, Windows doesn't allow symlinks, so `install` copies files instead and writes a `bindle.cmd` launcher; run `bindle install` again after updating bindle. Add `%USERPROFILE%\.local\bin` to your `PATH`.
 
@@ -69,6 +75,7 @@ Create a personal bindle and turn it on for the folder you keep side projects in
    bindle doctor ~/projects
    ```
    You should see `personal: on, writable, sync on` and `No problems found.`
+   If you haven't yet, turn on the session check (`bindle install --session-check`, see [Install](#install)).
 5. **Start Claude Code from `~/projects`.** The first lines of the session name the bindle and say it's writable. Ask Claude to remember something; it lands in `~/bindles/personal/memory/`, and with sync on, it's committed and pushed when the session ends.
 
 On another machine: run `bindle install` once, clone the bindle to the same kind of place (`git clone <url> ~/bindles/personal`; plain `git clone <url>` would put it in the current folder as `bindle-personal`), and `bindle attach` once per folder.
@@ -154,7 +161,8 @@ What you write in craft isn't checked against acme's private terms (only promoti
 
 | Command | What it does |
 |---|---|
-| `bindle install` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude` |
+| `bindle install [--session-check \| --no-session-check]` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude`; `--session-check` adds the hook that warns when a session starts inside a domain folder without its bindle (recommended) |
+| `bindle session-check [<folder>]` | Show what the session check would say for a session started in that folder |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
 | `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder. `<bindle>` is a path, or a name (a folder in `~/bindles`, or a bindle in its registry) |
 | `bindle detach <name-or-path> [<folder>] [--repos]` | Turn a bindle off for a folder; `--repos` also each git repo directly inside it that has it |
@@ -199,7 +207,7 @@ AGENTS.md              orientation for AI agents working in the bindle
 | `audience` | `private` / `shared` / `public` | Who the bindle is for. Visibility itself is your git host's setting. |
 | `writes` | `implicit` / `explicit` | `explicit` bindles take material only through promotion and can't be writable |
 
-**`~/bindles/registry.json`:** where bindles outside `~/bindles` live, by name (`{"bindles": {"acme": "/Users/you/acme/.bindle"}}`). `new` and `attach` keep it current; you can edit it. Names must be unique on a machine, because Claude Code's marketplace names are machine-wide; `new` and `attach` warn about a duplicate.
+**`~/bindles/registry.json`:** where bindles outside `~/bindles` live, by name (`{"bindles": {"acme": "/Users/you/acme/.bindle"}}`). `new` and `attach` keep it current; you can edit it. It also records, under `domains`, each folder a bindle was attached to as writable, which is where the session check looks; `detach` removes the entry. Names must be unique on a machine, because Claude Code's marketplace names are machine-wide; `new` and `attach` warn about a duplicate.
 
 **`private-terms.txt`:** one name per line (organization, products, repos, ticket prefixes, people). Matching ignores case and whole words only; a term ending in punctuation, like the ticket prefix `ACME-`, also matches what follows it. Anything promoted out of the bindle is checked against these. `bindle terms <bindle>` suggests candidates from the domain folder: its name, its repos' names and remotes, and ticket prefixes in their commits. You choose which to add; it never writes the file. `doctor` warns when the writable bindle has none.
 

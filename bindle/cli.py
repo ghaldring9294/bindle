@@ -2,7 +2,7 @@
 import argparse
 import sys
 
-from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_sync
+from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_session_check, cmd_sync
 from .core import VERSION, BindleError
 from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms
 from .upgrade import cmd_upgrade
@@ -16,7 +16,15 @@ def build_parser():
     sub = p.add_subparsers(dest="cmd", required=True)
 
     s = sub.add_parser("install", help="link bindle onto PATH, and /bindle and /bindle-promote into ~/.claude")
+    s.add_argument("--session-check", action=argparse.BooleanOptionalAction, default=None,
+                   help="add (or with --no-session-check remove) a hook in ~/.claude/settings.json that warns when a "
+                        "session starts inside a domain folder with no writable bindle")
     s.set_defaults(fn=cmd_install)
+
+    s = sub.add_parser("session-check", help="what the session check would say for a folder")
+    s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.add_argument("--hook", action="store_true", help="run as the hook: read the folder from Claude Code, answer in hook JSON")
+    s.set_defaults(fn=cmd_session_check)
 
     s = sub.add_parser("new", help="create a bindle repo")
     s.add_argument("name")

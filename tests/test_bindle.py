@@ -636,11 +636,87 @@ class InstallTest(BindleTest):
         self.assertFalse((self.home / ".local/bin/bindle").exists())
 
 
+class SessionCheckTest(InstallTest):
+    """A session started in a repo inside a domain folder reads only that repo's settings; without a warning, its
+    memories silently go to Claude Code's default folder instead of the domain's bindle."""
+
+    def setUp(self):
+        super().setUp()
+        self.acme = self.make_bindle("acme")
+        self.domain = self.folder("acme-work")
+        for name in ("web", "api"):
+            subprocess.run(["git", "init", "-q", str(self.domain / name)], check=True)
+        self.run_cli("attach", self.acme, self.domain, "--writable")
+
+    def user_settings(self):
+        return json.loads((self.home / ".claude" / "settings.json").read_text())
+
+    def hook(self, cwd):
+        """Runs the installed hook command the way Claude Code does: through bash, with the session's JSON on stdin."""
+        command = self.user_settings()["hooks"]["SessionStart"][-1]["hooks"][0]["command"]
+        return subprocess.run([git_bash(), "-c", command], input=json.dumps({"cwd": str(cwd)}),
+                              capture_output=True, text=True, env=os.environ)
+
+    # ~/.claude/settings.json is the person's own; bindle may add its one hook but must leave the rest exactly.
+    def test_install_adds_one_hook_and_removing_it_leaves_everything_else(self):
+        (self.home / ".claude").mkdir()
+        mine = {"model": "opus", "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo mine"}]}]}}
+        (self.home / ".claude" / "settings.json").write_text(json.dumps(mine))
+        self.run_cli("install", "--session-check")
+        self.run_cli("install", "--session-check")  # again: still one
+        groups = self.user_settings()["hooks"]["SessionStart"]
+        self.assertEqual(len(groups), 2)
+        self.assertEqual(groups[0], mine["hooks"]["SessionStart"][0])
+        self.run_cli("install", "--no-session-check")
+        self.assertEqual(self.user_settings(), mine)
+
+    def test_plain_install_never_touches_user_settings(self):
+        self.run_cli("install")
+        self.assertFalse((self.home / ".claude" / "settings.json").exists())
+
+    def test_the_hook_warns_in_a_repo_without_the_bindle_and_the_fix_quiets_it(self):
+        self.run_cli("install", "--session-check")
+        out = self.hook(self.domain / "web")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        message = json.loads(out.stdout)["systemMessage"]
+        self.assertIn("won't load acme", message)
+        self.assertIn(f"bindle attach acme {self.domain / 'web'} --writable", message)
+        self.run_cli("attach", "acme", self.domain / "web", "--writable")
+        self.assertEqual(self.hook(self.domain / "web").stdout, "")
+
+    # Folders outside any domain stay silent, or the warning becomes noise people learn to skip.
+    def test_silent_outside_domains_in_the_domain_itself_and_after_detach(self):
+        self.run_cli("install", "--session-check")
+        self.assertEqual(self.hook(self.folder("downloads")).stdout, "")
+        self.assertEqual(self.hook(self.domain).stdout, "")
+        self.run_cli("detach", "acme", self.domain)
+        self.assertEqual(self.hook(self.domain / "web").stdout, "")
+
+    # A hook that errors would show up in every session; a broken settings file is the person's to fix, not a crash.
+    def test_a_broken_settings_file_keeps_the_hook_quiet(self):
+        self.run_cli("install", "--session-check")
+        (self.domain / "web" / ".claude").mkdir()
+        (self.domain / "web" / ".claude" / "settings.local.json").write_text("{not json")
+        out = self.hook(self.domain / "web")
+        self.assertEqual((out.returncode, out.stdout), (0, ""))
+
+    # Writable attaches made before domains were recorded are invisible to the check until attached again.
+    def test_doctor_asks_for_a_reattach_when_the_domain_isnt_recorded(self):
+        self.run_cli("install", "--session-check")
+        registry = self.tmp / "bindles" / "registry.json"
+        data = json.loads(registry.read_text())
+        data.pop("domains")
+        registry.write_text(json.dumps(data))
+        self.assertIn("doesn't know", self.run_cli("doctor", self.domain)[1])
+        self.run_cli("attach", self.acme, self.domain, "--writable")
+        self.assertNotIn("doesn't know", self.run_cli("doctor", self.domain)[1])
+
+
 class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text()
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))

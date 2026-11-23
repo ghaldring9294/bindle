@@ -26,7 +26,8 @@ Help the user with bindle: $ARGUMENTS
 - `bindle promote <source> <draft> --into <target> --name <slug> [--kind memory|skill|command|note] [--description …]`: copy an approved, general draft into another bindle on this machine (target by path or name), after the private-terms and secrets checks. A note is appended to the target's `notes/inbox.md`. Without `--replace` it never overwrites; `--replace` updates an existing memory, skill or command, and `--dry-run` prints the diff to show the user first. Draft with the `/bindle-promote` skill.
 - `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle> | --all`, `bindle outbox clean <bindle> [--items …] [--dry-run]`, `bindle outbox remove <bindle> --items …`: approved items waiting for a target that's on another machine; `remove` drops named ones, `clean` removes items an older bindle left marked collected.
 - `bindle collect <source> --into <target> --items <slugs>`: on the machine where the target lives, deliver waiting outbox items into it and remove them from the outbox.
-- `bindle install`: put `bindle` on PATH and link `/bindle` and `/bindle-promote` into `~/.claude`.
+- `bindle install [--session-check | --no-session-check]`: put `bindle` on PATH and link `/bindle` and `/bindle-promote` into `~/.claude`. `--session-check` adds one user-level SessionStart hook to `~/.claude/settings.json` (the only thing bindle writes there) that warns when a session starts inside a folder attached writable, in a folder with no writable bindle of its own; recommend it when setting someone up. `--no-session-check` removes it.
+- `bindle session-check [<folder>]`: what the session check would say for that folder. If a session opens with a "bindle: this session started in …" warning, offer to run the attach command it gives (it takes effect next session).
 
 ## Common requests
 

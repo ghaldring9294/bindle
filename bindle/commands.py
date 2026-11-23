@@ -1,5 +1,6 @@
-"""install, new, attach, detach, sync and doctor."""
+"""install, new, attach, detach, sync, doctor and the session check."""
 import filecmp
+import json
 import os
 import shlex
 import shutil
@@ -9,12 +10,13 @@ from pathlib import Path
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, bindles_home, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
+                   exclude_from_enclosing_repo, bindles_home, domains, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json, write_text)
 
 
 INSTALLED_MARK = "Installed by bindle install"
+SESSION_CHECK = "session-check --hook"  # how the hook entry in ~/.claude/settings.json is recognized
 
 
 def quote(path):
@@ -26,8 +28,8 @@ def quote(path):
 
 
 def cmd_install(args):
-    """Puts the bindle command on PATH and links /bindle and /bindle-promote into ~/.claude. Nothing else:
-    bindle never takes over ~/.claude's settings or CLAUDE.md. Where symlinks aren't allowed (Windows without
+    """Puts the bindle command on PATH and links /bindle and /bindle-promote into ~/.claude. Nothing else, unless
+    asked: --session-check adds one hook to ~/.claude/settings.json (--no-session-check removes it). Where symlinks aren't allowed (Windows without
     developer mode) it copies instead, and on Windows it writes a bindle.cmd launcher."""
     home = Path.home()
     bindir = home / ".local" / "bin"
@@ -61,11 +63,88 @@ def cmd_install(args):
             else:
                 write_text(dest, src.read_text(encoding="utf-8") + f"\n<!-- {INSTALLED_MARK} -->\n")
             print(f"Copied {src} -> {dest} (symlinks aren't available; run bindle install again after updating bindle)")
+    if args.session_check is not None:
+        set_session_check(args.session_check)
     if str(bindir) not in os.environ.get("PATH", "").split(os.pathsep):
         if WINDOWS:
             print(f"Add {bindir} to your PATH (System settings > Environment Variables), then open a new terminal.")
         else:
             print(f'Add {bindir} to PATH: export PATH="$HOME/.local/bin:$PATH"')
+
+
+def user_settings_path():
+    return Path.home() / ".claude" / "settings.json"
+
+
+def is_session_check(group):
+    return any(SESSION_CHECK in h.get("command", "") for h in group.get("hooks", []))
+
+
+def session_check_installed():
+    return any(is_session_check(g) for g in read_json(user_settings_path()).get("hooks", {}).get("SessionStart", []))
+
+
+def set_session_check(on):
+    """Add or remove the user-level SessionStart hook, leaving every other setting and hook as it was."""
+    path = user_settings_path()
+    settings = read_json(path)
+    hooks_ = settings.get("hooks", {})
+    groups = [g for g in hooks_.get("SessionStart", []) if not is_session_check(g)]
+    if on:
+        command = f'bash "{(BASE / "bin" / "py").as_posix()}" "{(BASE / "bin" / "bindle").as_posix()}" {SESSION_CHECK}'
+        groups.append({"hooks": [{"type": "command", "command": command, "timeout": 10}]})
+    if groups:
+        settings.setdefault("hooks", {})["SessionStart"] = groups
+    elif "SessionStart" in hooks_:
+        del hooks_["SessionStart"]
+        if not hooks_:
+            del settings["hooks"]
+    if on or path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_json(path, settings)
+    print(f"Session check {'on' if on else 'off'} ({path}): " + (
+        "sessions started inside a domain folder with no writable bindle will warn." if on else "no warnings at session start."))
+
+
+def session_warning(start):
+    """The warning for a session started in `start`, or None: only when it's inside a folder recorded as a
+    domain (attached writable) and the folder Claude Code reads settings from has no writable bindle."""
+    start = real(start)
+    top = None if WINDOWS else git(start, "rev-parse", "--show-toplevel")
+    root = real(top) if top else start  # where Claude Code reads settings.local.json
+    if read_json(settings_path(root)).get("autoMemoryDirectory"):
+        return None
+    inside = [(real(f), name) for f, name in domains().items() if real(f) == root or real(f) in root.parents]
+    if not inside:
+        return None
+    folder, name = max(inside, key=lambda d: len(d[0].parts))
+    return (f"bindle: this session started in {root}, inside {folder} where {name} is writable, but {root} has no "
+            f"writable bindle of its own (Claude Code reads only its settings). This session won't load {name}, "
+            f"and its memories go to Claude Code's default folder, not {name}. For the next session: "
+            f"bindle attach {name} {quote(str(root))} --writable")
+
+
+def cmd_session_check(args):
+    """What the session-check hook runs. With --hook it reads the session's folder from Claude Code's input and
+    answers in hook JSON, so the person sees the warning; any failure stays quiet rather than break a session."""
+    try:
+        start = args.folder
+        if args.hook and not start:
+            start = (json.loads(sys.stdin.read() or "{}").get("cwd")
+                     or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
+        warning = session_warning(start or Path.cwd())
+    except Exception as e:  # noqa: BLE001 (a hook must never stop a session)
+        if not args.hook:
+            raise
+        print(f"bindle session check didn't run: {e}", file=sys.stderr)
+        return 0
+    if args.hook:
+        if warning:
+            print(json.dumps({"systemMessage": warning, "hookSpecificOutput": {
+                "hookEventName": "SessionStart", "additionalContext": warning}}))
+    else:
+        print(warning or "No warning: this folder has a writable bindle, or isn't inside a domain folder.")
+    return 0
 
 
 def launcher_files(bindir):
@@ -214,6 +293,8 @@ def attach_to(b, folder, writable_flag):
     # Read-only bindles are locked; the writable one must stay editable for memory writes.
     set_lock(settings, b["root"], locked=not writable)
     write_json(sp, settings)
+    if writable:
+        set_domain(folder, b["name"])
 
     print(f"{b['name']} is on in {folder}" + (", and writable" if writable else ", read-only (locked against Claude's file-editing tools)"))
     return writable
@@ -290,6 +371,7 @@ def detach_from(b, folder):
     settings = read_json(sp)
     if is_writable(settings, b):
         del settings["autoMemoryDirectory"]
+        set_domain(folder, None)
         print(f"{folder} no longer writes memories to {b['name']}; it uses Claude Code's default memory folder.")
     if settings.get("permissions"):
         set_lock(settings, b["root"], locked=False)
@@ -314,6 +396,7 @@ def detach_missing(folder, settings, ref):
         memory_dir = settings.get("autoMemoryDirectory")
         if memory_dir and Path(memory_dir) == Path(path) / "memory":
             del settings["autoMemoryDirectory"]
+            set_domain(folder, None)
         if settings.get("permissions"):
             set_lock(settings, path, locked=False)
         write_json(settings_path(folder), settings)
@@ -474,6 +557,9 @@ def cmd_doctor(args):
 
     if writable:
         warnings += unattached_repos(folder, writable)
+        if session_check_installed() and str(folder) not in domains():  # attached before domains were recorded
+            warnings.append(f"the session check doesn't know {folder} is {writable['name']}'s domain folder; run "
+                            f"`bindle attach {quote(str(writable['root']))} {quote(str(folder))} --writable` again to record it")
 
     if memory_dir and not writable:
         print(f"  Memory: {memory_dir} (not a bindle attached here)")

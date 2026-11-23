@@ -18,7 +18,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.19.0"
+VERSION = "0.20.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -114,7 +114,7 @@ def register(b):
     if real(root.parent) == real(home) and root.name == name:
         if name in entries:  # it moved into the home folder; its folder name finds it now
             del entries[name]
-            write_json(registry_path(), {"bindles": entries})
+            save_registry("bindles", entries)
         return None
     other = entries.get(name)
     if other and real(other) != root and (Path(other) / "bindle.json").exists():
@@ -123,8 +123,32 @@ def register(b):
     if other and real(other) == root:
         return None
     entries[name] = str(root)
-    write_json(registry_path(), {"bindles": dict(sorted(entries.items()))})
+    save_registry("bindles", entries)
     return None
+
+
+def save_registry(key, entries):
+    """Rewrite one section of registry.json, keeping the others."""
+    data = read_json(registry_path())
+    data[key] = dict(sorted(entries.items()))
+    write_json(registry_path(), data)
+
+
+def domains():
+    """Folders a bindle was attached to as writable: {folder: bindle name}. The session check warns when a
+    session starts inside one of them with no writable bindle, since its memories would miss the domain."""
+    entries = read_json(registry_path()).get("domains", {})
+    return entries if isinstance(entries, dict) else {}
+
+
+def set_domain(folder, name):
+    """Record (or with name None, forget) a folder's writable bindle."""
+    entries = domains()
+    if name:
+        entries[str(folder)] = name
+    elif entries.pop(str(folder), None) is None:
+        return
+    save_registry("domains", entries)
 
 
 def known_bindles():

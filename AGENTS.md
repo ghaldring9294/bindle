@@ -8,7 +8,7 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 
 ## Layout
 
-- `bin/bindle`: the entry point; the CLI is the `bindle/` package (`core.py` shared helpers, `commands.py`, `upgrade.py`, `promote.py`, `cli.py`). Python standard library only; must run on 3.9.
+- `bin/bindle`: the entry point (`bin/py` finds a working Python for the user-level session-check hook); the CLI is the `bindle/` package (`core.py` shared helpers, `commands.py`, `upgrade.py`, `promote.py`, `cli.py`). Python standard library only; must run on 3.9.
 - `templates/bindle/`: what `bindle new` copies. Files listed in `MANAGED` (in `bindle/core.py`) are copied byte for byte into every bindle and `bindle doctor` flags drift, so change them only here, deliberately, then update existing bindles.
 - `templates/bindle/hooks/bindle_hook.py`: the one implementation of the hooks, sync, the writable check and the secret check. The CLI imports it from the template (`core.hooks()`), so never reimplement that logic in the CLI.
 - `tests/`: `python3 -m unittest discover -s tests` (fast, fake `claude`); `tests/e2e.sh` (real Claude Code in a scratch folder; costs a few short sessions).

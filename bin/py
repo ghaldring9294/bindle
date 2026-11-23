@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Runs the first working Python 3.9+ (python3, python, py -3) with these arguments, like a bindle's hooks/run;
+# the user-level session check runs through it, since `python3` may be missing or a stub on Windows.
+for py in python3 python "py -3"; do
+  if $py -c 'import sys; sys.exit(0 if sys.version_info >= (3, 9) else 1)' >/dev/null 2>&1; then
+    exec $py "$@"
+  fi
+done
+echo "bindle: no Python 3.9+ found (tried python3, python, py), so the session check didn't run" >&2
+exit 0
