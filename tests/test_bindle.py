@@ -797,6 +797,35 @@ class PromotionTest(BindleTest):
         self.assertIn("widgetd", out)
         self.assertFalse((self.personal / "memory/small-prs.md").exists())
 
+    # The check is for ourselves: a named term is a prompt to think, and the person can decide it's fine.
+    def test_a_private_term_can_be_allowed_on_purpose_but_only_that_term(self):
+        self.draft.write_text("Keep PRs small, like Acme does on widgetd.\n")
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
+        self.assertEqual(code, 1)
+        self.assertIn("--allow <term>", out)
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--allow", "acme")
+        self.assertEqual(code, 1)  # widgetd is still listed and not allowed
+        self.assertIn("widgetd", out)
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs",
+                                 "--allow", "acme", "--allow", "widgetd")
+        self.assertEqual(code, 0, out)
+
+    # A secret in git history can't be taken back, so it stays a hard stop whatever is allowed.
+    def test_a_possible_secret_cannot_be_allowed(self):
+        self.draft.write_text("token = ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8" + "\n")
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "tok",
+                                 "--allow", "possible secret")
+        self.assertEqual(code, 1)
+        self.assertIn("password manager or vault", out)
+        self.assertFalse((self.personal / "memory/tok.md").exists())
+
+    # An item allowed at approval time is collected later, maybe on another machine, without being refused again.
+    def test_terms_allowed_when_added_to_the_outbox_are_honored_by_collect(self):
+        self.draft.write_text("Keep PRs small, like Acme does.\n")
+        self.assertEqual(self.run_cli("outbox", "add", self.acme, self.draft, "--name", "small-prs", "--allow", "Acme")[0], 0)
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.assertEqual(code, 0, out)
+
     def test_promote_never_overwrites_something_in_the_target(self):
         (self.personal / "memory/small-prs.md").write_text("mine\n")
         code, _ = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")

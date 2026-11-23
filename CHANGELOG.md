@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.17.0 (2026-11-22)
+
+No upgrade needed. On Windows, `bindle install` again (the promotion skill changed).
+
+- A private term in a draft is now a confirmation, not a wall: `--allow <term>` (on `promote` and `outbox add`, honored by `collect`) lets through a term you've decided is fine. Possible secrets stay a hard stop.
+- `/bindle-promote`: offers to remove the original when you're moving rather than copying; says to remove things from another bindle in that bindle's own folder; explains that rules move by hand; covers customizing a craft skill for a domain (craft as the source).
+
 ## 0.16.0 (2026-11-22)
 
 No upgrade needed. On Windows, `bindle install` again (the promotion skill changed).

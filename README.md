@@ -122,7 +122,7 @@ bindle attach ~/bindles/craft ~/clients/globex
 ```
 bindle promote ~/acme/.bindle draft.md --into craft --name small-prs --description "keep PRs small"
 ```
-The original stays where it was. To send it to a second bindle, promote it again. To improve something already promoted (say, a craft skill you noticed was wrong while using it at work), ask Claude to update it: you see a diff against the current version, and on approval it's replaced with `--replace` (git history keeps the old one). Nothing is ever replaced without that flag.
+The original stays where it was. To send it to a second bindle, promote it again. If a draft names one of the source's private terms, the promotion stops and shows where; that's a prompt to check, not a wall. If the term is fine to share (a public name, or a target that's yours alone), allow it for that promotion (`--allow <term>`). A possible secret is the one hard stop: take it out, and keep it in a password manager or vault. Rules (`rules.md`) aren't promoted; move a rule by hand in a session in the target's folder. To improve something already promoted (say, a craft skill you noticed was wrong while using it at work), ask Claude to update it: you see a diff against the current version, and on approval it's replaced with `--replace` (git history keeps the old one). Nothing is ever replaced without that flag.
 
 **A reminder for another domain.** Working in one client's folder and remember something for another? Ask Claude to send it ("remind me in globex to send the March invoice"). It's promoted as a note (`--kind note`): checked against this domain's private terms like anything else, then added to the other bindle's `notes/inbox.md` with the date and where it came from. The next session there mentions it. When the target isn't on this machine (personal, from a work laptop), the approved draft waits in the source's outbox (`bindle outbox add`) until you run `bindle collect` where the target lives.
 
@@ -151,7 +151,7 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder> \| --all]` | Pull the bindles that are on; commit and push the writable one's memories. `--all`: every bindle `bindle list` finds |
 | `bindle upgrade [<bindle> \| --all] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
-| `bindle promote <source> <draft> --into <target> --name <slug> [--kind …] [--description …] [--replace] [--dry-run]` | Copy an approved, general draft into another bindle on this machine, after the private-terms and secrets checks. `--replace` updates what's there; `--dry-run` shows the diff |
+| `bindle promote <source> <draft> --into <target> --name <slug> [--kind …] [--description …] [--allow <term>] [--replace] [--dry-run]` | Copy an approved, general draft into another bindle on this machine, after the private-terms and secrets checks. `--replace` updates what's there; `--dry-run` shows the diff |
 | `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …]` | Store an approved draft for promotion, after the leak and secret checks |
 | `bindle outbox list <bindle> \| --all` | Show a bindle's outbox, or every outbox that has items |
 | `bindle outbox clean <bindle> [--items …] [--dry-run]` | Remove items already collected (they're in the target and in git history) |

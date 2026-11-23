@@ -128,10 +128,12 @@ def content_hash(src):
     return h.hexdigest()
 
 
-def leak_hits(b, slug, description, src):
+def leak_hits(b, slug, description, src, allowed=()):
     """Reasons a draft can't leave the bindle: a private term in its name, description, file names or contents,
-    or content that looks like a credential."""
-    terms, hits = private_terms(b), []
+    or content that looks like a credential. Terms the person allowed for this promotion are skipped; a possible
+    secret never is, since git history can't un-leak it."""
+    ok = {a.lower() for a in allowed}
+    terms, hits = [t for t in private_terms(b) if t.lower() not in ok], []
     src = Path(src)
     for label, text in (("name", slug), ("description", description or "")):
         hits += [(label, t) for t in terms_in(text, terms)]
@@ -146,7 +148,13 @@ def leak_hits(b, slug, description, src):
 
 
 def describe_hits(hits):
-    return "\n".join(f"  {where}: {what}" for where, what in hits)
+    lines = [f"  {where}: {what}" for where, what in hits]
+    if any(what != "possible secret" for _, what in hits):
+        lines.append("A private term is a prompt to check, not a wall: if it's fine here (a public name, or a target "
+                     "that's yours alone), run the same command with --allow <term> for each one.")
+    if any(what == "possible secret" for _, what in hits):
+        lines.append("A possible secret can't be promoted: take it out, and keep it in a password manager or vault.")
+    return "\n".join(lines)
 
 
 def commit(root, message, *paths):
@@ -154,7 +162,7 @@ def commit(root, message, *paths):
     return git(root, "commit", "-q", "-m", message, "--", *paths) is not None
 
 
-def check_draft(b, slug, kind, src, description, verb):
+def check_draft(b, slug, kind, src, description, verb, allowed=()):
     """A draft is fit to leave bindle b: a valid name, the right shape for its kind, and nothing that names
     b's domain or looks like a secret."""
     if not SLUG_RE.match(slug):
@@ -165,7 +173,7 @@ def check_draft(b, slug, kind, src, description, verb):
         raise BindleError(f"A {kind} is a single .md file.")
     if kind == "skill" and not (src.is_dir() and (src / "SKILL.md").is_file()):
         raise BindleError("A skill is a folder with a SKILL.md.")
-    hits = leak_hits(b, slug, description, src)
+    hits = leak_hits(b, slug, description, src, allowed)
     if hits:
         raise BindleError(f"Not {verb}; the draft still names this domain or looks like it holds a secret:\n" + describe_hits(hits))
 
@@ -228,7 +236,7 @@ def cmd_promote(args):
     if source["root"] == target["root"]:
         raise BindleError("Source and target are the same bindle.")
     src = Path(args.path)
-    check_draft(source, args.name, args.kind, src, args.description, "promoted")
+    check_draft(source, args.name, args.kind, src, args.description, "promoted", args.allow)
     if args.replace and args.kind == "note":
         raise BindleError("Notes are added to the inbox, never replaced; drop --replace.")
     if args.dry_run:
@@ -272,7 +280,7 @@ def show_change(target, slug, kind, src):
 def cmd_outbox_add(args):
     b = load_bindle(args.bindle)
     slug, kind, src = args.name, args.kind, Path(args.path)
-    check_draft(b, slug, kind, src, args.description, "added")
+    check_draft(b, slug, kind, src, args.description, "added", args.allow)
     dest = b["root"] / "outbox" / slug
     if dest.exists():
         raise BindleError(f"{dest} already exists; pick another name.")
@@ -283,6 +291,7 @@ def cmd_outbox_add(args):
     else:
         shutil.copy2(src, dest / stored)
     write_json(dest / "item.json", {"kind": kind, "file": stored, "description": args.description, "status": "approved",
+                                    "allowed_terms": list(args.allow),
                                     "sha256": content_hash(dest / stored), "collected_into": []})
     committed = commit(b["root"], f"Outbox: {slug}", f"outbox/{slug}")
     print(f"Added {kind} {slug} to {b['name']}'s outbox (leak check and secret check passed)."
@@ -420,7 +429,8 @@ def cmd_collect(args):
     ready = []
     for it in todo:
         src = validate_item(it)
-        hits = leak_hits(source, it["slug"], it.get("description"), src)
+        allowed = [t for t in it.get("allowed_terms") or [] if isinstance(t, str)]
+        hits = leak_hits(source, it["slug"], it.get("description"), src, allowed)
         if hits:
             raise BindleError(f"Nothing collected; {it['slug']} names the source domain or looks like it holds a secret:\n" + describe_hits(hits))
         ready.append((it["slug"], it["kind"], src, it.get("description")))
