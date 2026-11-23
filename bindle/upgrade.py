@@ -108,7 +108,7 @@ def cmd_upgrade(args):
         # Commit only what upgrade touched, so a person's own uncommitted work stays theirs.
         git(b["root"], "add", "-A", "--", *touched)
         if git(b["root"], "commit", "-q", "-m", f"Upgrade bindle files to bindle {VERSION}", "--", *touched) is not None:
-            print("  committed (push when ready; sync pushes only memory/ and outbox/)")
+            print("  committed (push when ready; sync pushes only memory/, projects/ and outbox/)")
         else:
             print("  changed, not committed (no git identity here?)")
     return 0

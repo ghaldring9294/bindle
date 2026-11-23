@@ -245,7 +245,7 @@ def cmd_promote(args):
     print(f"{'Replaced' if args.replace else 'Promoted'} {args.kind} {args.name} from {source['name']} into {target['name']}: {', '.join(moved)} "
           f"(leak check and secret check passed)." + ("" if committed else f" Not committed in {target['name']}; commit by hand."))
     if args.kind != "memory" or target["writes"] == "explicit":
-        print(f"Push {target['name']} when ready (sync pushes only memory/ and outbox/ of a writable bindle).")
+        print(f"Push {target['name']} when ready (sync pushes only memory/, projects/ and outbox/ of a writable bindle).")
     return 0
 
 

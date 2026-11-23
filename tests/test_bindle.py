@@ -1672,6 +1672,8 @@ class TrustTest(BindleTest):
                                         capture_output=True, text=True).stdout)
         # The person must see it, not just Claude, which may never mention it.
         self.assertIn("pulled changes to code that runs on this machine (hooks/new.sh)", out["systemMessage"])
+        # Several commits can arrive in one pull; reviewing only the newest would hide the others.
+        self.assertRegex(out["systemMessage"], r"git -C \S+ diff [0-9a-f]{12}\.\.[0-9a-f]{12} -- hooks")
         self.assertIn("just pulled changes to files that run code", out["hookSpecificOutput"]["additionalContext"])
 
 
@@ -1811,17 +1813,104 @@ class SyncTest(BindleTest):
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
         self.assertEqual((self.desktop / "memory/fact.md").read_text(), "ion cannon ready\n")
 
-    # A pushed secret can't be taken back, so a suspicious memory must never be committed.
-    def test_refuses_to_commit_a_memory_that_looks_like_a_secret(self):
-        head = bindle.git(self.laptop, "rev-parse", "HEAD")
+    # A pushed secret can't be taken back, so a suspicious memory is never committed; but one false match
+    # mustn't stop every other memory from syncing, and the person has to hear about it.
+    def test_holds_back_a_memory_that_looks_like_a_secret_and_syncs_the_rest(self):
         (self.laptop / "memory/oops.md").write_text("api_key: abcdefghijklmnopqrstuvwx123456\n")
-        r = self.hook(self.laptop, self.laptop_folder, "session-end.sh")
-        self.assertEqual(r.returncode, 0)
-        self.assertIn("possible secret", r.stderr)
-        self.assertEqual(bindle.git(self.laptop, "rev-parse", "HEAD"), head)
+        (self.laptop / "memory/fact.md").write_text("ion cannon ready\n")
+        self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-end.sh").returncode, 0)
+        pushed = bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD")
+        self.assertIn("memory/fact.md", pushed)
+        self.assertNotIn("memory/oops.md", pushed)
+        start = json.loads(self.hook(self.laptop, self.laptop_folder, "session-start.sh").stdout)
+        self.assertIn("held back, may hold a secret: memory/oops.md", start["systemMessage"])
         code, out = self.run_cli("doctor", self.laptop_folder)
         self.assertEqual(code, 1)
         self.assertIn("memory/oops.md may hold a secret", out)
+
+    # Project memories are where most memories go; they must travel like the rest, under the same secret check,
+    # and a secret committed by hand (as the session start suggests for other files) must still never be pushed.
+    def test_project_memories_sync_and_a_committed_secret_is_never_pushed(self):
+        (self.laptop / "projects/web").mkdir(parents=True)
+        (self.laptop / "projects/web/rate-limit.md").write_text("100 requests a minute\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.hook(self.desktop, self.desktop_folder, "session-start.sh")
+        self.assertEqual((self.desktop / "projects/web/rate-limit.md").read_text(), "100 requests a minute\n")
+        (self.laptop / "projects/web/deploy.md").write_text("api_key = sk_live_abcdefghijklmnopqrstuvwx\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertIn("projects/web/deploy.md", self.run_cli("doctor", self.laptop_folder)[1])
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "by hand")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertNotIn("deploy.md", bindle.git(self.remote, "log", "--name-only", "--format="))
+
+    # Autostash once left conflict markers in an uncommitted note and stalled sync for good, silently.
+    def test_never_rebases_over_uncommitted_notes_and_says_why_it_stopped(self):
+        (self.laptop / "notes/plan.md").write_text("v1\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "plan")
+        bindle.git(self.laptop, "push", "-q")
+        self.hook(self.desktop, self.desktop_folder, "session-start.sh")
+        (self.desktop / "notes/plan.md").write_text("desktop\n")
+        bindle.git(self.desktop, "commit", "-qam", "desktop plan"); bindle.git(self.desktop, "push", "-q")
+        (self.laptop / "notes/plan.md").write_text("laptop\n")  # uncommitted
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertEqual((self.laptop / "notes/plan.md").read_text(), "laptop\n")
+        self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
+        code, out = self.run_cli("doctor", self.laptop_folder)
+        self.assertEqual(code, 1)
+        self.assertIn("the last sync didn't finish", out)
+
+    # A read-only bindle is someone's shared work; a session elsewhere must never push its unfinished commits.
+    def test_a_read_only_bindle_is_pulled_but_never_pushed(self):
+        f = self.folder("work")
+        self.run_cli("attach", self.desktop, f)
+        (self.desktop / "skills/wip.md").write_text("do not push\n")
+        bindle.git(self.desktop, "add", "-A"); bindle.git(self.desktop, "commit", "-qm", "WIP")
+        head = bindle.git(self.remote, "rev-parse", "HEAD")
+        self.hook(self.desktop, f, "session-start.sh")
+        self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), head)
+
+    # Offline is not a conflict; a wrong log sends people hunting for a conflict that isn't there.
+    def test_an_unreachable_remote_is_reported_as_offline_not_a_conflict(self):
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", str(self.tmp / "gone.git")], check=True)
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        last = bindle.core.last_sync(self.laptop)
+        self.assertIn("offline", last)
+        self.assertNotIn("conflict", last)
+
+    # A stalled network (captive portal, half-up VPN) must not eat the session start's context.
+    def test_a_stalled_remote_cant_hold_up_the_session_start(self):
+        import socket, threading, time
+        server = socket.socket(); server.bind(("127.0.0.1", 0)); server.listen(5)
+        held = []
+        def hold():  # accept connections and never answer
+            try:
+                while True:
+                    held.append(server.accept())
+            except OSError:
+                pass
+        threading.Thread(target=hold, daemon=True).start()
+        url = f"http://127.0.0.1:{server.getsockname()[1]}/remote.git"
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", url], check=True)
+        started = time.time()
+        out = self.hook(self.laptop, self.laptop_folder, "session-start.sh").stdout
+        self.assertLess(time.time() - started, 15)
+        self.assertIn("is on and writable", out)
+        server.close()
+
+    # Two accounts on one machine is usually a per-repo core.sshCommand; overriding it makes sync fail.
+    def test_a_repos_own_ssh_command_is_used(self):
+        marker, script = self.tmp / "ssh-used", self.tmp / "fake-ssh.sh"
+        script.write_text(f"#!/bin/sh\ntouch '{marker.as_posix()}'\nexit 1\n")
+        script.chmod(0o755)
+        subprocess.run(["git", "-C", str(self.laptop), "config", "core.sshCommand", f"sh '{script.as_posix()}'"], check=True)
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "ssh://nobody@127.0.0.1/remote.git"], check=True)
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        env = {k: v for k, v in os.environ.items() if k != "GIT_SSH_COMMAND"}
+        subprocess.run([sys.executable, str(self.laptop / "hooks/bindle_hook.py"), "session-end"], capture_output=True,
+                       env={**env, "CLAUDE_PLUGIN_ROOT": str(self.laptop), "CLAUDE_PROJECT_DIR": str(self.laptop_folder)})
+        self.assertTrue(marker.exists())
 
     # The outbox syncs too, so items prepared on one machine can be collected on another.
     def test_outbox_changes_sync_with_memories(self):

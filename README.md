@@ -95,7 +95,7 @@ Bindles not attached to the folder contribute nothing. Individual memory files l
 
 **Memory.** Claude saves new memories into the writable bindle's `memory/`. A memory about only one project goes in `projects/<project>/` with that folder's own `index.md`, and `MEMORY.md` keeps one pointer line per project, so the index loaded at every start stays short.
 
-**Sync.** With `"sync": true` in `bindle.json`, each session start pulls the latest from the bindle's remote, and each session end commits changes under `memory/` and `outbox/` and pushes them. Without a remote, it commits locally. Everything else (skills, rules, notes) you commit yourself; the session start reminds you when something's waiting. `bindle sync` does the same on demand.
+**Sync.** With `"sync": true` in `bindle.json`, each session start pulls the latest from the bindle's remote, and each session end commits changes under `memory/`, `projects/` and `outbox/` and pushes them. A bindle that's read-only in the folder is only pulled, never pushed. Without a remote, it commits locally. Everything else (skills, rules, notes) you commit yourself; the session start reminds you when something's waiting. `bindle sync` does the same on demand.
 
 **Notes.** Each bindle has a `notes/` folder for anything you want to keep: ticket notes, plans, research. Notes aren't loaded automatically; the session is told where they are. `notes/scratch/` is ignored by git, for things that should never leave the machine.
 
@@ -203,7 +203,7 @@ AGENTS.md              orientation for AI agents working in the bindle
 | Field | Values | Effect |
 |---|---|---|
 | `name` | lowercase letters, digits, hyphens | The bindle's name, and the prefix of its skills. Pick it for how you'll type it. |
-| `sync` | `true` / `false` | Pull at session start; commit and push `memory/` and `outbox/` at session end |
+| `sync` | `true` / `false` | Pull at session start; commit and push `memory/`, `projects/` and `outbox/` at session end |
 | `audience` | `private` / `shared` / `public` | Who the bindle is for. Visibility itself is your git host's setting. |
 | `writes` | `implicit` / `explicit` | `explicit` bindles take material only through promotion and can't be writable |
 
@@ -263,7 +263,7 @@ A server that only exists on one machine (a local path, a tool installed in one 
 - **Read-only bindles are locked against Claude's file-editing tools.** `attach` adds a permission rule, so Claude can't edit them. It isn't a sandbox: it doesn't cover shell commands, though Claude Code refuses attempts to work around the lock that way.
 - **Promotion is the only way bindle moves material between bindles.** Material crosses as a general rewrite you approved. `promote` (and `outbox add`) check it against the source's private terms (in its name, description, file names and contents) and for credentials, and Claude Code's permission prompt shows exactly what moves. An item that waits in an outbox gets a hash, and `collect` refuses it if it changed since you approved it. The private terms are a backstop for names you've listed, not a guarantee.
 - **A read-only bindle is visible, not sealed.** Its rules and memory index are shown in sessions where it's attached, so what a session sees there could end up in the writable bindle's memories. Attach a bindle to a folder only if that domain may see it, which is why personal stays off at work and craft holds only general material.
-- **Secrets are never committed by sync.** A memory or outbox file that looks like it holds a credential stops the commit, and `doctor` reports it. `doctor` also checks notes and suggests moving a secret to a password manager, leaving a pointer in the note.
+- **Secrets are never pushed by sync.** A memory, project or outbox file that looks like it holds a credential is held back (the rest still sync), the next session start says so, and `doctor` reports it. Sync also checks the commits it's about to push, so a secret committed by hand stays local too. `doctor` also checks notes and suggests moving a secret to a password manager, leaving a pointer in the note.
 - **A bindle inside a project repo is excluded there.** `bindle new` adds it to that repo's `.git/info/exclude`, so a `git add -A` in the project can't commit your bindle. `doctor` warns if a repo would commit or already tracks one.
 - **bindle never adds or pushes a remote.** Where each bindle lives is your decision. A work bindle belongs only on storage your employer allows.
 - **Trust what you attach.** A bindle's hooks and servers run with your permissions, and its skills and rules are instructions to Claude. Attach only bindles you control or trust. `attach` and `doctor` warn when a read-only bindle runs code beyond bindle's own hooks, and if a sync pulls changes to such code, the session start says so in the terminal before it next runs. These are warnings, not blocks: you decide.

@@ -47,7 +47,7 @@ Tell them to collect it there (or in a session there): `bindle collect <source> 
 ## 5. Finish
 
 - Say where it landed, and how to use it there (a skill is `/<target>:<skill>` from the next session where the target is on).
-- If the target has a remote, offer to push it (`git -C <target path> push`). Sync pushes only a writable bindle's memories, so a skill, a command, or anything in an explicit-writes bindle like craft needs this push to reach other machines. Ask first.
+- If the target has a remote, offer to push it (`git -C <target path> push`). Sync pushes only a writable bindle's memories (`memory/`, `projects/`, `outbox/`), so a skill, a command, or anything in an explicit-writes bindle like craft needs this push to reach other machines. Ask first.
 - If they're moving it rather than copying, offer to remove the original from the source (it's writable here). Removing something from another bindle can't happen from here, since that bindle is read-only: tell them to open a session in that bindle's own folder (for craft, `~/bindles/craft`) and remove it there.
 - Rules (`rules.md`, `~/.claude/CLAUDE.md`) aren't promoted. To move a rule, show them the text and where it goes; they add it in a session in the target bindle's folder. General instructions belong in a craft bindle's `rules.md`, which loads wherever craft is on.
 - Sending it to a second bindle is a second promotion. To drop a waiting outbox item: `bindle outbox remove <source> --items <slug>`.

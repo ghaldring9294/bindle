@@ -478,7 +478,7 @@ def cmd_sync(args):
 
 
 def sync_all():
-    """Every bindle bindle can find: pull each; commit and push memory/ and outbox/ in those that can be a
+    """Every bindle bindle can find: pull each; commit and push memory/, projects/ and outbox/ in those that can be a
     folder's writable bindle. Explicit-writes bindles get no session writes (collect commits for them)."""
     found, missing = known_bindles()
     for name, path in missing:

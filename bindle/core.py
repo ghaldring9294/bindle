@@ -395,6 +395,16 @@ def git_health(root):
         ahead = git(root, "rev-list", "--count", "@{upstream}..HEAD")
         if ahead and ahead != "0":
             lines.append(f"{ahead} commit(s) not pushed")
+    conflicted = hooks().unmerged_paths(root)
+    if conflicted:
+        problems.append(f"{root}: unresolved conflicts in {', '.join(conflicted)}; resolve them before committing, "
+                        f"or sync stays stuck (git -C {root} status)")
+    if "autostash" in (git(root, "stash", "list") or ""):
+        problems.append(f"{root}: a leftover autostash holds uncommitted changes from an old sync; "
+                        f"see `git -C {root} stash list` and apply or drop it")
+    last = last_sync(root)
+    if last and " problem: " in last:
+        problems.append(f"{root}: the last sync didn't finish: {last.split(' problem: ', 1)[1]}")
     return lines, problems
 
 
@@ -422,7 +432,7 @@ def extra_code(b):
 
 
 def secret_hits(b):
-    """Committable files in memory/, outbox/ and notes/ that look like they hold a credential. Files git
-    ignores (scratch notes, local query outputs) never leave the machine, so they aren't checked."""
+    """Committable files in what sync commits (memory/, projects/, outbox/) and in notes/ that look like they hold
+    a credential. Files git ignores (scratch notes, local query outputs) never leave the machine, so they aren't checked."""
     h = hooks()
-    return h.secret_hits(b["root"], h.committable_files(b["root"], "memory", "outbox", "notes"))
+    return h.secret_hits(b["root"], h.committable_files(b["root"], *h.SYNCED, "notes"))
