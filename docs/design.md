@@ -162,4 +162,5 @@ Not needed for 1.0; recorded so they aren't lost.
 - **More guardrails in the same spirit:** warn when a bindle's remote isn't on its domain's host; warn when a project's private files are committed to a team repo.
 - **Freshness stamps for derived docs:** record the commit a doc was built from, and use `git diff` to say whether it's stale.
 - **Promoting rules:** `collect` carries memories, skills and commands; rules move between bindles by hand for now.
+- **Cross-domain notes (a `note` promotion kind):** a todo or reminder for another domain, written while working in this one ("remind me in globex to send the invoice"). It would cross through the source's outbox like any promotion, so the source's private terms check it, and `collect` would append it, dated and labelled with where it came from, to the target's `notes/inbox.md`; the target's next session start would mention the inbox. Until then, such reminders go in a task app or a plain file outside every bindle.
 - **`bindle rename`:** documented as manual steps instead, since a rename touches every folder a bindle is attached to.
