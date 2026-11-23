@@ -645,6 +645,29 @@ class UpgradeAllTest(BindleTest):
         self.assertEqual(self.run_cli("upgrade", "--all", self.tmp)[0], 1)
 
 
+class SyncAllTest(BindleTest):
+    # Several bindles, several remotes: one command should bring every one up to date and save every memory.
+    def test_all_pulls_every_bindle_and_pushes_memories_only_where_sessions_write(self):
+        roots = {"acme": self.tmp / "acme" / ".bindle", "craft": self.tmp / "bindles" / "craft"}
+        self.run_cli("new", "acme", "--at", roots["acme"])
+        self.run_cli("new", "craft", "--at", roots["craft"], "--writes", "explicit")
+        for name, root in roots.items():
+            remote = self.tmp / f"{name}-remote.git"
+            bindle.git(self.tmp, "clone", "-q", "--bare", str(root), str(remote))
+            bindle.git(root, "remote", "add", "origin", str(remote))
+            bindle.git(root, "fetch", "-q", "origin")
+            bindle.git(root, "branch", "-q", "-u", "origin/" + bindle.git(root, "rev-parse", "--abbrev-ref", "HEAD"))
+            (root / "memory" / "fact.md").write_text("a fact\n")
+        code, out = self.run_cli("sync", "--all")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(bindle.git(roots["acme"], "status", "--porcelain"), "")  # committed
+        self.assertEqual(bindle.git(roots["acme"], "rev-list", "--count", "@{upstream}..HEAD"), "0")  # pushed
+        self.assertIn("memory/fact.md", bindle.git(roots["craft"], "status", "--porcelain"))  # explicit: untouched
+
+    def test_all_and_a_folder_together_is_refused(self):
+        self.assertEqual(self.run_cli("sync", "--all", self.folder())[0], 1)
+
+
 class PromotionTest(BindleTest):
     """Material crosses between bindles only as reviewed, general text, through the source's outbox."""
 

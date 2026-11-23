@@ -146,7 +146,7 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
 | `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
-| `bindle sync [<folder>]` | Pull the bindles that are on; commit and push the writable one's memories |
+| `bindle sync [<folder> \| --all]` | Pull the bindles that are on; commit and push the writable one's memories. `--all`: every bindle `bindle list` finds |
 | `bindle upgrade [<bindle> \| --all] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
 | `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …]` | Store an approved draft for promotion, after the leak and secret checks |
 | `bindle outbox list <bindle>` | Show a bindle's outbox |

@@ -50,6 +50,7 @@ def build_parser():
 
     s = sub.add_parser("sync", help="pull the bindles that are on, and commit and push the writable one's memories")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.add_argument("--all", action="store_true", help="every bindle `bindle list` finds: pull each, and commit and push memories in those that can be writable")
     s.set_defaults(fn=cmd_sync)
 
     s = sub.add_parser("upgrade", help="bring a bindle's managed files and layout up to this bindle version")

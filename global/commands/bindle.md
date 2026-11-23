@@ -21,7 +21,7 @@ Help the user with bindle: $ARGUMENTS
 - `bindle detach <name-or-path> [<folder>]`: turn it off. Takes the bindle's name.
 - `bindle new <name> [--at <dir>] [--sync] [--audience private|shared|public] [--writes implicit|explicit]`: create a bindle repo (default `./.bindle`).
 - `bindle terms <bindle> [<folder>]`: suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
-- `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
+- `bindle sync [<folder> | --all]`: pull the bindles that are on; commit and push the writable one's memories. `--all` does every bindle `bindle list` finds (commit and push only in those that can be writable). Sessions already sync on their own when a bindle has `"sync": true`; this is for catching up by hand.
 - `bindle upgrade [<bindle> | --all] [--dry-run]`: bring a bindle's managed files up to this version of bindle; `--all` does every bindle `bindle list` finds. A bindle read-only in this folder is locked to Claude: give the user the command with a `!` prefix instead of running it.
 - `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`, `bindle outbox clean <bindle> [--items …] [--dry-run]`, `bindle outbox remove <bindle> --items …`: the source's reviewed items, leak-checked; `clean` removes ones already collected, `remove` drops named ones whatever their status. Draft with the `/bindle-promote` skill.
 - `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle.

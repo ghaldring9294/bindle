@@ -267,6 +267,10 @@ def detach_missing(folder, settings, ref):
 
 
 def cmd_sync(args):
+    if args.all:
+        if args.folder:
+            raise BindleError("Pass a folder or --all, not both.")
+        return sync_all()
     folder = real(args.folder or Path.cwd())
     settings = read_json(settings_path(folder))
     enabled = settings.get("enabledPlugins", {})
@@ -284,6 +288,26 @@ def cmd_sync(args):
         if is_writable(settings, b):
             h.sync_push(b["root"], log)
         for line in log.lines:
+            print(f"  {line}")
+    return 0
+
+
+def sync_all():
+    """Every bindle bindle can find: pull each; commit and push memory/ and outbox/ in those that can be a
+    folder's writable bindle. Explicit-writes bindles get no session writes (collect commits for them)."""
+    found, missing = known_bindles()
+    for name, path in missing:
+        print(f"{name}: skipped, registered at {path} but nothing is there now")
+    if not found:
+        raise BindleError("No bindles found in ~/bindles or its registry.")
+    h = hooks()
+    for b in sorted(found.values(), key=lambda b: b["name"]):
+        print(f"{b['name']}:")
+        log = h.Log(b["root"], echo=False)
+        h.sync_pull(b["root"], log)
+        if b["writes"] == "implicit":
+            h.sync_push(b["root"], log)
+        for line in log.lines or ["up to date"]:
             print(f"  {line}")
     return 0
 
