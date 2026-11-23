@@ -110,6 +110,17 @@ class NewTest(BindleTest):
         self.assertEqual(self.run_cli("new", "acme", "--at", self.tmp / "bindle-acme")[0], 1)
 
 
+class OwnFolderTest(BindleTest):
+    # Attaching another bindle to a bindle's own folder (sp read-only in craft, to read real patterns while writing
+    # general skills) writes that bindle's paths and name there; the bindle's repo must never commit them.
+    def test_a_bindle_ignores_attach_settings_in_its_own_folder(self):
+        craft, sp = self.make_bindle("craft"), self.make_bindle("sp")
+        self.run_cli("attach", sp, craft)
+        # Without the person's global excludes, which may happen to cover it: the bindle's own .gitignore must.
+        status = bindle.git(craft, "-c", "core.excludesFile=" + os.devnull, "status", "--porcelain")
+        self.assertNotIn(".claude", status or "")
+
+
 class EnclosingRepoTest(BindleTest):
     """A bindle inside a project repo must never be committable into that repo."""
 

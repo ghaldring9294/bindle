@@ -140,6 +140,12 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 /plugin marketplace add git@github.com:you/bindle-craft.git
 ```
 
+**Writing craft with real history at hand.** Work on craft in its own folder, where its files are editable. To draw on what actually happened at work while keeping the skills general, attach the work bindle there read-only: its memories are listed at session start and readable, and locked against edits.
+```
+bindle attach acme ~/bindles/craft
+```
+What you write in craft isn't checked against acme's private terms (only promotion is), so keep acme's specifics out of craft's files yourself; craft's `rules.md` is a good place to say so.
+
 **The same tools on every machine.** Put the domain's MCP servers in its bindle's `.mcp.json` (see [Configuration](#configuration)), with secrets as environment variables. On each machine, set the variables once; every folder the bindle is attached to then has the same tools.
 
 **Working with a friend on a project.** You each keep your own bindles. Anything you both need goes into the project's repo itself (its `CLAUDE.md` and docs), where it's reviewed like code.

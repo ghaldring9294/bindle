@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-22, v0.17.0)
+## Where it stands (2026-11-22, v0.17.1)
 
 - **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 104 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -43,3 +43,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** v0.15.0: the `note` kind (reminders for another domain land in its `notes/inbox.md`, mentioned at session start). Next: the demo repo.
 - **2026-11-22:** v0.16.0: `promote --replace` and `--dry-run`, so promoted items can be updated from any domain.
 - **2026-11-22:** v0.17.0: private terms are a confirmation (`--allow`), secrets a hard stop; promotion skill covers moving, removing elsewhere, rules and craft-to-domain copies.
+- **2026-11-22:** v0.17.1: every bindle ignores `.claude/settings.local.json` (found attaching sp read-only to craft's folder); README covers writing craft with a work bindle read-only.

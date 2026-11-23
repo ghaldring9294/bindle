@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.17.1 (2026-11-22)
+
+**Run `bindle upgrade --all`** (adds a line to each bindle's `.gitignore`); for a bindle that's read-only where you are, run it yourself.
+
+- Every bindle ignores `.claude/settings.local.json`, so attaching another bindle to a bindle's own folder (for example a work bindle read-only in craft's folder, to draw on real patterns while writing general skills) never commits that bindle's paths and name. Before, this relied on a global gitignore.
+- README: attaching a domain bindle read-only to craft's folder.
+
 ## 0.17.0 (2026-11-22)
 
 No upgrade needed. On Windows, `bindle install` again (the promotion skill changed).

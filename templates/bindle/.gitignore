@@ -5,3 +5,5 @@ secrets.env
 # Machine-local scratch notes (see notes/scratch/README.md)
 notes/scratch/*
 !notes/scratch/README.md
+# Attach settings for this bindle's own folder (other bindles' paths and names); they stay on this machine
+.claude/settings.local.json
