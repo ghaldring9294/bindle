@@ -296,14 +296,20 @@ def sync_pull(root, log):
     if not has_upstream(root):
         return log.say(no_upstream_message(root, "pull"))
     if log.up_to_date:  # this run already fetched: catch up locally, no second network call
-        if git(root, "merge", "-q", "--ff-only", "@{upstream}").returncode == 0:
+        r = git(root, "merge", "-q", "--ff-only", "@{upstream}")
+        if r.returncode == 0:
             log.say("pulled")
+        elif (git_out(root, "rev-list", "--count", "HEAD..@{upstream}") or "0") != "0":
+            log.say("couldn't catch up with the remote: " + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
         return
     r = git(root, "pull", "-q", "--ff-only", network=True)
     if r.returncode == 0:
         return log.say("pulled")
     if unreachable(r):
         return log.say("offline or the remote is unreachable; not pulled")
+    gone = removed_from_remote(root)
+    if gone:
+        return log.say(rewritten_message(root, gone), problem=True)
     ahead = git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0"
     if ahead != "0" and ("fast-forward" in r.stderr or "diverg" in r.stderr):
         return log.say(f"not pulled: this copy has {ahead} commit(s) the remote doesn't, and the remote moved on; "
@@ -336,6 +342,24 @@ def no_upstream_message(root, step):
     return f"{step}: no remote, kept local"
 
 
+def removed_from_remote(root):
+    """Commits this copy has that the remote once had and no longer does: its history was rewritten, usually to
+    remove something. Read from the tracking ref's reflog, so it stays true after later fetches move the ref."""
+    ref = git_out(root, "rev-parse", "--symbolic-full-name", "@{upstream}")
+    olds = (git_out(root, "reflog", "show", "--format=%H", "-n", "200", ref) or "").split() if ref else []
+    if not olds:
+        return []
+    gone = set((git_out(root, "rev-list", *dict.fromkeys(olds), "--not", "@{upstream}") or "").split())
+    mine = set((git_out(root, "rev-list", "HEAD", "--not", "@{upstream}") or "").split()) if gone else set()
+    return sorted(gone & mine)
+
+
+def rewritten_message(root, gone):
+    return (f"the remote's history was rewritten and no longer has {len(gone)} commit(s) this copy still has "
+            f"(perhaps removed on purpose), so sync won't push or replay them. Look at git -C {root} log "
+            f"@{{upstream}}..HEAD, drop what should stay gone (git -C {root} rebase -i @{{upstream}}), then run bindle sync")
+
+
 def push_checked(root):
     """Push HEAD to its upstream branch only: exactly the range outgoing_secret_hits checked."""
     branch = git_out(root, "symbolic-ref", "--short", "HEAD") or ""
@@ -353,7 +377,6 @@ def push_leftovers(root, log):
         return log.say(no_upstream_message(root, "push"))
     if (git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0") == "0":
         return
-    old_upstream = git_out(root, "rev-parse", "@{upstream}")
     r = git(root, "fetch", "-q", network=True)
     if r.returncode != 0:
         if unreachable(r):
@@ -361,10 +384,9 @@ def push_leftovers(root, log):
         return log.say("couldn't fetch the remote; commits kept local: "
                        + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
     log.up_to_date = True
-    if old_upstream and git(root, "merge-base", "--is-ancestor", old_upstream, "@{upstream}").returncode != 0:
-        return log.say(f"the remote's history was rewritten (perhaps to remove something), so this copy's commits "
-                       f"weren't pushed or replayed onto it; look at git -C {root} log @{{upstream}}...HEAD and keep "
-                       f"only what belongs", problem=True)
+    gone = removed_from_remote(root)
+    if gone:
+        return log.say(rewritten_message(root, gone), problem=True)
     if (git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0") == "0":
         return
     if git(root, "merge-base", "--is-ancestor", "@{upstream}", "HEAD").returncode != 0:  # the remote moved
@@ -394,6 +416,8 @@ def push_leftovers(root, log):
         return log.say("pushed")
     if unreachable(r):
         return log.say("offline or the remote is unreachable; commits kept local until next time")
+    if "[rejected]" in r.stderr:  # another machine pushed between our fetch and our push
+        return log.say("the remote moved during sync; commits kept local, pushed next time")
     log.say("push failed; commits kept local: " + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
 
 

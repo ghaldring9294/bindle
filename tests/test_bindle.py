@@ -2171,9 +2171,21 @@ class SyncTest(BindleTest):
         self.assertTrue((self.desktop / "notes/leak.md").exists())
         bindle.git(self.laptop, "reset", "-q", "--hard", "HEAD~1"); bindle.git(self.laptop, "push", "-q", "--force")
         (self.desktop / "memory/fact.md").write_text("x\n")
-        self.hook(self.desktop, self.desktop_folder, "session-end.sh")
-        self.assertNotIn("leak.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"))
-        self.assertIn("history was rewritten", bindle.core.last_sync(self.desktop))
+        for step in ("session-end.sh", "session-start.sh", "session-end.sh", "session-start.sh"):  # not just once
+            self.hook(self.desktop, self.desktop_folder, step)
+            self.assertNotIn("leak.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"), step)
+        self.assertIn("history was rewritten", " ".join(bindle.core.last_run_problems(self.desktop)))
+
+    # The same with nothing of this copy's own to push: the removed commit mustn't pass as local work.
+    def test_a_rewritten_remote_stays_clean_when_this_copy_has_nothing_to_push(self):
+        (self.laptop / "notes/leak.md").write_text("pasted by mistake\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "oops"); bindle.git(self.laptop, "push", "-q")
+        self.hook(self.desktop, self.desktop_folder, "session-start.sh")
+        bindle.git(self.laptop, "reset", "-q", "--hard", "HEAD~1"); bindle.git(self.laptop, "push", "-q", "--force")
+        for step in ("session-start.sh", "session-start.sh", "session-end.sh"):
+            self.hook(self.desktop, self.desktop_folder, step)
+            self.assertNotIn("leak.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"), step)
+        self.assertIn("history was rewritten", " ".join(bindle.core.last_run_problems(self.desktop)))
 
     # "Offline" that lasts (a blocked port, a broken proxy) would otherwise keep memories on one machine silently.
     def test_doctor_warns_when_commits_havent_left_for_a_day(self):
