@@ -38,6 +38,7 @@ Help the user with bindle: $ARGUMENTS
 - **"Remind me in globex to …" / a todo for another domain:** promote it as a note with `/bindle-promote` (kind `note`); it lands in that bindle's `notes/inbox.md`, and the next session there mentions it. Never write into another bindle directly.
 - **Setting up on another machine:** don't use `bindle new`; clone the existing repo into place: `git clone <url> ~/bindles/<name>` for one used in many folders, `git clone <url> <domain folder>/.bindle` for a domain bindle. Then attach it per folder. Plain `git clone <url>` lands in the current folder under the repo's name, which `attach <name>` won't find.
 - **"Rename this bindle":** there's no rename command; follow README's "Renaming a bindle" (detach everywhere, change the three names, attach again, `bindle doctor`). Show the plan first.
+- **"Make a bindle" / "bindle new X":** always pass `--at`; the default (`./.bindle` in the current folder) is right only for a domain bindle created in its domain folder. Unless it's clear, ask which kind: a domain bindle (an employer, a client) goes in `<domain folder>/.bindle`; one used in many folders (personal, craft) goes in `~/bindles/<name>`. The name becomes the skill prefix (`/<name>:…`), so suggest a short one without "bindle" in it.
 - **A new domain:** `bindle new <name> --at <domain folder>/.bindle`, then `bindle terms`, have them pick terms and write the chosen ones to its `private-terms.txt`, then attach it writable. Ask before setting `--sync`; it needs a remote they add themselves.
 
 ## Rules
