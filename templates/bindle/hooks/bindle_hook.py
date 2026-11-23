@@ -247,13 +247,19 @@ def session_start_text(root, project_dir):
             if risky:
                 out.append(f"Before committing: {', '.join(risky)} may hold a secret. Suggest moving it to secure "
                            f"storage (a password manager) and leaving a pointer in the note.")
+        inbox = root / "notes" / "inbox.md"
+        waiting = sum(1 for l in inbox.read_text(encoding="utf-8", errors="ignore").splitlines()
+                      if l.startswith("## ")) if inbox.is_file() else 0
+        if waiting:
+            out.append(f"{inbox} has {waiting} note(s) sent from other domains (reminders, todos). Mention them to the "
+                       f"person early in the session, and remove each one once they've handled it.")
         if has_notes(root):
             readme = root / "notes" / "README.md"
             out.append(f"Notes for this domain are in {root}/notes (read them when relevant; they aren't loaded "
                        f"automatically)." + (f" Start at {readme}." if readme.is_file() else ""))
         return "\n".join(out)
     out.append(f"Bindle {name} is on and read-only in this folder ({root}): use its skills and memories, but don't "
-               f"edit its files. Material moves into it only through promotion (its outbox), never a direct edit.")
+               f"edit its files. Material moves into it only through promotion (bindle promote, which the user approves), never a direct edit.")
     index = memory / "MEMORY.md"
     if index.is_file() and index.stat().st_size:
         out.append(f"Memory index from the {name} bindle (files are in {memory}):")

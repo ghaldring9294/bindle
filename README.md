@@ -122,7 +122,9 @@ bindle attach ~/bindles/craft ~/clients/globex
 ```
 bindle promote ~/acme/.bindle draft.md --into craft --name small-prs --description "keep PRs small"
 ```
-The original stays where it was. To send it to a second bindle, promote it again. When the target isn't on this machine (personal, from a work laptop), the approved draft waits in the source's outbox (`bindle outbox add`) until you run `bindle collect` where the target lives.
+The original stays where it was. To send it to a second bindle, promote it again.
+
+**A reminder for another domain.** Working in one client's folder and remember something for another? Ask Claude to send it ("remind me in globex to send the March invoice"). It's promoted as a note (`--kind note`): checked against this domain's private terms like anything else, then added to the other bindle's `notes/inbox.md` with the date and where it came from. The next session there mentions it. When the target isn't on this machine (personal, from a work laptop), the approved draft waits in the source's outbox (`bindle outbox add`) until you run `bindle collect` where the target lives.
 
 **Sharing your craft.** Keep finished, general skills in a craft bindle that only takes promoted material, and share its repo. Anyone with access can install it as an ordinary plugin, with no bindle needed:
 ```

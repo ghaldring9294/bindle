@@ -93,6 +93,8 @@ Promotion is the only way bindle moves material between bindles, and it has to c
 
 **When the target isn't on this machine,** the approved draft waits instead: `bindle outbox add` runs the same checks, stores it in the source's `outbox/` and records a SHA-256 of the approved content. The outbox syncs with the source, so on the machine where the target lives, `bindle collect` treats it as untrusted input: it refuses anything that isn't approved, has changed since approval (the hash), points outside its own folder, or contains links, runs the checks again, places it like `promote`, and removes it from the outbox. An outbox normally sits empty; anything in it is waiting to go somewhere.
 
+**Notes for another domain.** A reminder or todo for another domain, thought of while working in this one, is promoted as a `note`: the same checks, then appended to the target's `notes/inbox.md` with the date and the source's name, rather than placed in its memory. The target's next session start mentions how many are waiting. Notes cross the same way as everything else because they're the likeliest place for this domain's specifics to slip into another.
+
 No session reads another domain's raw memories; only outboxes are read across bindles, and they hold only reviewed text. A craft bindle receives material only this way.
 
 The leak check is only as good as the term list. `bindle terms` suggests candidates from the domain folder (code finds the names its repos reveal; the person judges which are private), and `doctor` warns when the writable bindle has none. It's a warning, not a refusal, because a personal bindle may have nothing private.
@@ -164,5 +166,4 @@ Not needed for 1.0; recorded so they aren't lost.
 - **More guardrails in the same spirit:** warn when a bindle's remote isn't on its domain's host; warn when a project's private files are committed to a team repo.
 - **Freshness stamps for derived docs:** record the commit a doc was built from, and use `git diff` to say whether it's stale.
 - **Promoting rules:** promotion carries memories, skills and commands; rules move between bindles by hand for now.
-- **Cross-domain notes (a `note` promotion kind):** a todo or reminder for another domain, written while working in this one ("remind me in globex to send the invoice"). It would cross through the source's outbox like any promotion, so the source's private terms check it, and `collect` would append it, dated and labelled with where it came from, to the target's `notes/inbox.md`; the target's next session start would mention the inbox. Until then, such reminders go in a task app or a plain file outside every bindle.
 - **`bindle rename`:** documented as manual steps instead, since a rename touches every folder a bindle is attached to.

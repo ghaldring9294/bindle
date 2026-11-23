@@ -756,6 +756,39 @@ class PromotionTest(BindleTest):
         self.assertFalse((self.acme / "outbox/small-prs").exists())  # nothing left waiting
         self.assertEqual(bindle.git(self.acme, "status", "--porcelain"), "")  # source untouched
 
+    # A reminder for another domain belongs in its notes, not its memory, and must not replace earlier ones.
+    def test_a_note_is_appended_to_the_targets_inbox_with_where_it_came_from(self):
+        note = self.tmp / "note.md"
+        for slug, text in (("invoice", "Send the March invoice.\n"), ("call-back", "Call back about the renewal.\n")):
+            note.write_text(text)
+            code, out = self.run_cli("promote", self.acme, note, "--into", self.personal, "--kind", "note", "--name", slug)
+            self.assertEqual(code, 0, out)
+        inbox = (self.personal / "notes/inbox.md").read_text()
+        self.assertEqual(inbox.count("## "), 2)
+        self.assertIn("from acme · invoice", inbox)
+        self.assertIn("Send the March invoice.", inbox)
+        self.assertIn("Call back about the renewal.", inbox)
+        self.assertNotIn("invoice", (self.personal / "memory/MEMORY.md").read_text() if (self.personal / "memory/MEMORY.md").exists() else "")
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+
+    # A note is text written in the source's session, so it's the likeliest way for the source's specifics to leak.
+    def test_a_note_naming_the_source_domain_is_refused(self):
+        note = self.tmp / "note.md"
+        note.write_text("Tell them how widgetd does retries.\n")
+        code, out = self.run_cli("promote", self.acme, note, "--into", self.personal, "--kind", "note", "--name", "retries")
+        self.assertEqual(code, 1)
+        self.assertFalse((self.personal / "notes/inbox.md").exists())
+
+    # The target may be on another machine; the note waits in the outbox and is delivered there.
+    def test_a_waiting_note_is_delivered_by_collect(self):
+        note = self.tmp / "note.md"
+        note.write_text("Renew the domain.\n")
+        self.run_cli("outbox", "add", self.acme, note, "--kind", "note", "--name", "renew")
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "renew")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Renew the domain.", (self.personal / "notes/inbox.md").read_text())
+        self.assertFalse((self.acme / "outbox/renew").exists())
+
     # The same guard as the outbox: a draft that still names the source domain never reaches another bindle.
     def test_promote_refuses_a_draft_naming_the_domain_and_writes_nothing(self):
         self.draft.write_text("Keep PRs small, like we do on widgetd.\n")
@@ -1261,6 +1294,16 @@ class MemoryHookTest(BindleTest):
         self.assertIn("Memory index from the personal bindle", out)
         self.assertIn("read-only in this folder", out)
         self.assertIn("a personal fact", out)
+
+    # A note sent from another domain is useless if nobody notices it when work returns to this one.
+    def test_mentions_inbox_notes_where_the_bindle_is_writable(self):
+        b, f = self.make_bindle("personal"), self.folder()
+        (b / "notes").mkdir(exist_ok=True)
+        (b / "notes/inbox.md").write_text("# Inbox\n\n## 2026-11-22 · from acme · invoice\n\nSend it.\n")
+        self.run_cli("attach", b, f, "--writable")
+        self.assertIn("has 1 note(s) sent from other domains", self.run_hook(b, f))
+        (b / "notes/inbox.md").write_text("# Inbox\n")
+        self.assertNotIn("sent from other domains", self.run_hook(b, f))
 
     # Where it's writable, Claude Code loads the index itself; printing it again would duplicate it.
     def test_says_writable_without_repeating_the_index(self):

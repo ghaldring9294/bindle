@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.15.0 (2026-11-22)
+
+**Run `bindle upgrade --all`** (changed `hooks/bindle_hook.py`); for a bindle that's read-only where you are, run it yourself. On Windows, also `bindle install`.
+
+- A `note` promotion kind: a reminder or todo for another domain ("remind me in globex to send the invoice"), checked like any promotion and appended to the target's `notes/inbox.md` with the date and where it came from.
+- Session start in a writable bindle mentions notes waiting in its inbox.
+
 ## 0.14.0 (2026-11-22)
 
 No upgrade needed. Run `bindle install` again on Windows (the promotion skill changed).

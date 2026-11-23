@@ -5,6 +5,7 @@ source's outbox and records a hash of the approved content. `collect` validates 
 unchanged, no paths outside its folder, no symlinks), checks again, and copies it into the target only once
 every destination is known to be free.
 """
+import datetime
 import hashlib
 import os
 import re
@@ -13,7 +14,8 @@ from pathlib import Path
 
 from .core import BindleError, find_bindle, git, hooks, known_bindles, load_bindle, read_json, real, write_json, write_text
 
-KINDS = {"memory": "memory", "skill": "skills", "command": "commands"}
+KINDS = {"memory": "memory", "skill": "skills", "command": "commands", "note": "notes"}
+INBOX_HEADER = "# Inbox\n\nNotes sent from other domains, oldest first. Remove each one once it's handled.\n"
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 COLLECTABLE = ("approved",)  # items collected before 0.14 kept status "collected"; outbox clean removes them
 
@@ -157,7 +159,7 @@ def check_draft(b, slug, kind, src, description, verb):
         raise BindleError("Name must be lowercase letters, digits, hyphens or underscores.")
     if not src.exists():
         raise BindleError(f"{src} doesn't exist.")
-    if kind in ("memory", "command") and not (src.is_file() and src.suffix == ".md"):
+    if kind in ("memory", "command", "note") and not (src.is_file() and src.suffix == ".md"):
         raise BindleError(f"A {kind} is a single .md file.")
     if kind == "skill" and not (src.is_dir() and (src / "SKILL.md").is_file()):
         raise BindleError("A skill is a folder with a SKILL.md.")
@@ -170,16 +172,22 @@ def place(source, target, items):
     """Copy items [(slug, kind, src, description)] into target, add memory index lines and commit there.
     Every destination is checked before anything is written, so a failure leaves the target as it was.
     Returns (paths written, committed)."""
-    dests = {}
+    dests, inbox = {}, target["root"] / "notes" / "inbox.md"
     for slug, kind, src, _ in items:
+        if kind == "note":
+            continue  # notes are appended to the inbox, never placed as files
         out = target["root"] / "skills" / src.name if kind == "skill" else target["root"] / KINDS[kind] / f"{slug}.md"
         if out.resolve().parent != (target["root"] / KINDS[kind]).resolve():
             raise BindleError(f"{slug}: its destination {out} is outside {target['name']}.")
         if out.exists() or out in dests.values():
             raise BindleError(f"{out} already exists in {target['name']} (or two items want it); nothing written.")
         dests[slug] = out
-    moved, index_lines = [], []
+    moved, index_lines, notes = [], [], []
     for slug, kind, src, description in items:
+        if kind == "note":
+            body = src.read_text(encoding="utf-8").strip()
+            notes.append(f"\n## {datetime.date.today().isoformat()} · from {source['name']} · {slug}\n\n{body}\n")
+            continue
         out = dests[slug]
         out.parent.mkdir(parents=True, exist_ok=True)
         if kind == "skill":
@@ -191,6 +199,10 @@ def place(source, target, items):
         moved.append(out.relative_to(target["root"]).as_posix())
     if index_lines:
         write_text(target["root"] / "memory" / "MEMORY.md", "".join(index_lines), mode="a")
+    if notes:
+        inbox.parent.mkdir(parents=True, exist_ok=True)
+        write_text(inbox, ("" if inbox.exists() else INBOX_HEADER) + "".join(notes), mode="a")
+        moved.append("notes/inbox.md")
     names = ", ".join(i[0] for i in items)
     committed = commit(target["root"], f"Promote from {source['name']}: {names}", *moved, *(["memory/MEMORY.md"] if index_lines else []))
     return moved, committed
@@ -220,7 +232,7 @@ def cmd_outbox_add(args):
     if dest.exists():
         raise BindleError(f"{dest} already exists; pick another name.")
     dest.mkdir(parents=True)
-    stored = "memory.md" if kind == "memory" else ("command.md" if kind == "command" else src.name)
+    stored = {"memory": "memory.md", "command": "command.md", "note": "note.md"}.get(kind, src.name)
     if src.is_dir():
         shutil.copytree(src, dest / stored)
     else:
