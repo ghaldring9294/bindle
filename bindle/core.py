@@ -277,7 +277,12 @@ def lock_rules(root):
     """Permission rules that stop Claude's file-editing tools changing a bindle that's read-only in a folder.
     `//` makes the path absolute; an Edit rule covers every file-editing tool (Claude Code ignores Write(path)
     rules). It doesn't cover shell commands."""
-    return [f"Edit(/{rule_path(root)}/**)"]
+    paths, root = [Path(root)], Path(root)
+    # When ~/bindles (or $BINDLE_HOME) is a link, Claude may see a bindle's files by the link's path; lock both.
+    link_home = Path(os.path.abspath(os.path.expanduser(str(os.environ.get("BINDLE_HOME") or Path.home() / "bindles"))))
+    if link_home != real(link_home) and real(link_home) in root.parents:
+        paths.append(link_home / root.relative_to(real(link_home)))
+    return [f"Edit(/{rule_path(p)}/**)" for p in paths]
 
 
 def rule_path(root):

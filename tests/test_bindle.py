@@ -1668,6 +1668,26 @@ class ReviewRegressionTest(BindleTest):
 
 class PortabilityTest(BindleTest):
     # Claude Code normalizes Windows paths to POSIX form before matching permission rules: C:\\x -> /c/x.
+    # A bindles home kept in a synced folder is often reached through a link; Claude may use either path, so a
+    # lock on only the resolved one could leave the link's path editable.
+    def test_a_bindle_reached_through_a_linked_home_is_locked_by_both_paths(self):
+        real_home, link = self.tmp / "synced-bindles", self.tmp / "bindles-link"
+        real_home.mkdir()
+        try:
+            link.symlink_to(real_home, target_is_directory=True)
+        except OSError:  # Windows without developer mode can't make links
+            self.skipTest("can't create a symlink here")
+        os.environ["BINDLE_HOME"] = str(link)
+        try:
+            self.run_cli("new", "craft", "--at", link / "craft")
+            f = self.folder()
+            self.run_cli("attach", "craft", f)
+            deny = json.loads((f / ".claude/settings.local.json").read_text())["permissions"]["deny"]
+        finally:
+            os.environ["BINDLE_HOME"] = self.env["BINDLE_HOME"]
+        self.assertIn(f"Edit(/{(real_home / 'craft').as_posix()}/**)", deny)
+        self.assertIn(f"Edit(/{(link / 'craft').as_posix()}/**)", deny)
+
     def test_lock_rules_use_claude_codes_path_form(self):
         self.assertEqual(bindle.core.rule_path("C:\\Users\\me\\bindle"), "/c/Users/me/bindle")
         self.assertEqual(bindle.core.rule_path("/Users/me/bindle"), "/Users/me/bindle")

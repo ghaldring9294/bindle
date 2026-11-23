@@ -63,7 +63,7 @@ Create a personal bindle and turn it on for the folder you keep side projects in
    ```
    cd ~/bindles/personal
    git remote add origin git@github.com:you/bindle-personal.git
-   git push -u origin main
+   git push -u origin HEAD
    ```
 3. **Attach it** to the folder you launch Claude Code from, as the writable bindle:
    ```
