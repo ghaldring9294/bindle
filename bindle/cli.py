@@ -89,7 +89,7 @@ def build_parser():
     o.add_argument("--kind", choices=list(KINDS), default="memory")
     o.add_argument("--name", required=True, help="the item's slug, e.g. small-prs")
     o.add_argument("--description", default="", help="one line for the target's index")
-    o.add_argument("--allow", action="append", default=[], metavar="TERM", help="a private term you've decided is fine to share (repeatable); collect honors it")
+    o.add_argument("--allow", action="append", default=[], metavar="TERM", help="a private term you've decided is fine to share (repeatable); pass it to collect again")
     o.set_defaults(fn=cmd_outbox_add)
     o = osub.add_parser("list", help="show a bindle's outbox, or every outbox with --all")
     o.add_argument("bindle", nargs="?")
@@ -116,6 +116,8 @@ def build_parser():
     s.add_argument("--into", required=True, help="the target bindle")
     s.add_argument("--items", help="comma-separated item names")
     s.add_argument("--all", action="store_true", help="every item not yet in the target")
+    s.add_argument("--allow", action="append", default=[], metavar="TERM",
+                   help="a private term you've decided is fine to share (repeatable); an item's own record of allowed terms isn't trusted")
     s.set_defaults(fn=cmd_collect)
     return p
 

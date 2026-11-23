@@ -176,7 +176,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | `bindle outbox list <bindle> \| --all` | Show a bindle's outbox, or every outbox that has items |
 | `bindle outbox clean <bindle> [--items …] [--dry-run]` | Remove items already collected (they're in the target and in git history) |
 | `bindle outbox remove <bindle> --items … [--dry-run]` | Drop named items, collected or not (an approval you changed your mind about) |
-| `bindle collect <source> --into <target> --items <slugs>` | Move approved outbox items into another bindle |
+| `bindle collect <source> --into <target> --items <slugs> [--allow <term>]` | Move approved outbox items into another bindle, showing each one's content; a private term allowed at approval needs `--allow` again |
 
 `<bindle>`, `<source>` and `<target>` take a bindle's name (a folder in `~/bindles`, or a bindle in its registry) or its path. `<folder>` always means the folder you start Claude Code from; it defaults to the current one. Run `bindle <command> --help` for every option.
 

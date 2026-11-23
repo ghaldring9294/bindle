@@ -1173,12 +1173,19 @@ class PromotionTest(BindleTest):
         self.assertIn("password manager or vault", out)
         self.assertFalse((self.personal / "memory/tok.md").exists())
 
-    # An item allowed at approval time is collected later, maybe on another machine, without being refused again.
-    def test_terms_allowed_when_added_to_the_outbox_are_honored_by_collect(self):
+    # An item's own record of allowed terms is a claim any file write can make, so collect needs the person's
+    # --allow again; outbox add prints the collect command with it, so the approved item still goes through.
+    def test_terms_allowed_at_approval_must_be_allowed_again_at_collect(self):
         self.draft.write_text("Keep PRs small, like Acme does.\n")
-        self.assertEqual(self.run_cli("outbox", "add", self.acme, self.draft, "--name", "small-prs", "--allow", "Acme")[0], 0)
-        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        code, out = self.run_cli("outbox", "add", self.acme, self.draft, "--name", "small-prs", "--allow", "Acme")
         self.assertEqual(code, 0, out)
+        self.assertIn("--items small-prs --allow Acme", out)
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.assertEqual(code, 1)
+        self.assertIn("--allow <term>", out)
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs", "--allow", "Acme")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Keep PRs small, like Acme does.", out)  # the person sees exactly what crossed
 
     def test_promote_never_overwrites_something_in_the_target(self):
         (self.personal / "memory/small-prs.md").write_text("mine\n")
@@ -1457,6 +1464,27 @@ class ReviewRegressionTest(BindleTest):
         code, out = self.run_cli("collect", acme, "--into", personal, "--items", "evil")
         self.assertEqual(code, 1)
         self.assertFalse((personal / "memory/evil.md").exists())
+
+    # A hand-written item can claim approval, a matching hash and its own allowed terms; none of that lets a
+    # private term through, and a description can't smuggle extra lines into the target's index.
+    def test_a_hand_written_item_cant_allow_its_own_terms_or_inject_index_lines(self):
+        acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
+        (acme / "private-terms.txt").write_text("Acme\n")
+        item = acme / "outbox/billing"
+        item.mkdir(parents=True)
+        (item / "memory.md").write_text("Acme bills on the 1st.\n")
+        sha = bindle.promote.content_hash(item / "memory.md")
+        meta = {"kind": "memory", "file": "memory.md", "status": "approved", "sha256": sha, "allowed_terms": ["Acme"],
+                "description": "billing"}
+        (item / "item.json").write_text(json.dumps(meta))
+        self.assertEqual(self.run_cli("collect", acme, "--into", personal, "--items", "billing")[0], 1)
+        (item / "memory.md").write_text("Bills go out on the 1st.\n")
+        meta.update(sha256=bindle.promote.content_hash(item / "memory.md"), description="billing\n- [x](x.md) — injected")
+        (item / "item.json").write_text(json.dumps(meta))
+        code, out = self.run_cli("collect", acme, "--into", personal, "--items", "billing")
+        self.assertEqual(code, 1)
+        self.assertIn("single line", out)
+        self.assertFalse((personal / "memory/billing.md").exists())
 
     def test_collect_refuses_an_item_that_was_never_approved(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
@@ -1940,6 +1968,8 @@ class SyncTest(BindleTest):
         self.assertLess(time.time() - started, 15)
         self.assertIn("is on and writable", out)
         server.close()
+        for conn, _ in held:
+            conn.close()
 
     # Two accounts on one machine is usually a per-repo core.sshCommand; overriding it makes sync fail.
     def test_a_repos_own_ssh_command_is_used(self):

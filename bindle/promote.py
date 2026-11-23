@@ -14,7 +14,7 @@ import shutil
 import sys
 from pathlib import Path
 
-from .core import BindleError, find_bindle, ref, git, hooks, known_bindles, load_bindle, read_json, real, write_json, write_text
+from .core import BindleError, find_bindle, quote, ref, git, hooks, known_bindles, load_bindle, read_json, real, write_json, write_text
 
 KINDS = {"memory": "memory", "skill": "skills", "command": "commands", "note": "notes"}
 INBOX_HEADER = "# Inbox\n\nNotes sent from other domains, oldest first. Remove each one once it's handled.\n"
@@ -296,8 +296,9 @@ def cmd_outbox_add(args):
     committed = commit(b["root"], f"Outbox: {slug}", f"outbox/{slug}")
     print(f"Added {kind} {slug} to {b['name']}'s outbox (leak check and secret check passed)."
           + ("" if committed else " Not committed (no git identity here?)."))
+    allow = "".join(f" --allow {quote(t)}" for t in args.allow)
     print(f"It waits there until collected, on the machine where the target lives: "
-          f"bindle collect {ref(b)} --into <target bindle> --items {slug}")
+          f"bindle collect {ref(b)} --into <target bindle> --items {slug}{allow}")
 
 
 def outbox_items(b):
@@ -402,6 +403,9 @@ def validate_item(it):
         raise BindleError(f"{slug}: a skill must be a folder.")
     if it["kind"] != "skill" and not src.is_file():
         raise BindleError(f"{slug}: a {it['kind']} must be a single file.")
+    description = it.get("description")
+    if description is not None and (not isinstance(description, str) or "\n" in description or "\r" in description):
+        raise BindleError(f"{slug}: its description isn't a single line of text.")
     if not it.get("sha256") or content_hash(src) != it["sha256"]:
         raise BindleError(f"{slug}: changed since it was approved (or has no recorded hash); add it to the outbox again.")
     return src
@@ -425,15 +429,23 @@ def cmd_collect(args):
         print("Nothing to collect: those items were already collected (bindle outbox clean removes them).")
         return 0
 
-    # The outbox syncs from other machines, so each item is validated and checked again before anything moves.
+    # The outbox syncs from other machines, and anything that can write files can write an item that claims to be
+    # approved, so each one is validated and checked again, allowed terms come only from this command line, and
+    # its full content is shown before anything moves.
     ready = []
     for it in todo:
         src = validate_item(it)
-        allowed = [t for t in it.get("allowed_terms") or [] if isinstance(t, str)]
-        hits = leak_hits(source, it["slug"], it.get("description"), src, allowed)
+        hits = leak_hits(source, it["slug"], it.get("description"), src, args.allow)
         if hits:
-            raise BindleError(f"Nothing collected; {it['slug']} names the source domain or looks like it holds a secret:\n" + describe_hits(hits))
+            raise BindleError(f"Nothing collected; {it['slug']} names the source domain or looks like it holds a secret:\n"
+                              + describe_hits(hits) + "\nIf a term is fine to share, run collect again with --allow <term>.")
         ready.append((it["slug"], it["kind"], src, it.get("description")))
+    for slug, kind, src, description in ready:
+        print(f"--- {slug} ({kind}){': ' + description if description else ''} ---")
+        for f in draft_files(src):
+            if src.is_dir():
+                print(f"[{f.relative_to(src).as_posix()}]")
+            print(f.read_bytes().decode("utf-8", errors="replace").rstrip("\n"))
     moved, target_ok = place(source, target, ready)
     for it in todo:
         shutil.rmtree(it["dir"])

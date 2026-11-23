@@ -42,7 +42,7 @@ If the target lives on another machine, the draft waits in the source's outbox i
 ```
 bindle outbox add <source path> <draft> --kind … --name <slug> --description "…"
 ```
-Tell them to collect it there (or in a session there): `bindle collect <source> --into <target> --items <slug>`.
+Tell them to collect it there (or in a session there) with the command `outbox add` printed: `bindle collect <source> --into <target> --items <slug>`, plus `--allow <term>` for each term they allowed. Collect prints the item's content; show it to them.
 
 ## 5. Finish
 
