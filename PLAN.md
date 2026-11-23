@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-22, v0.15.0)
+## Where it stands (2026-11-22, v0.16.0)
 
 - **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 104 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -38,3 +38,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** v0.12.0–0.13.0: `bindle upgrade --all`, `bindle sync --all`.
 - **2026-11-22:** v0.14.0: one-step promotion (`bindle promote`); the outbox only holds items waiting for a target on another machine; `outbox list --all`; `/bindle-promote` built around plain-language requests.
 - **2026-11-22:** v0.15.0: the `note` kind (reminders for another domain land in its `notes/inbox.md`, mentioned at session start). Next: the demo repo.
+- **2026-11-22:** v0.16.0: `promote --replace` and `--dry-run`, so promoted items can be updated from any domain.

@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.16.0 (2026-11-22)
+
+No upgrade needed. On Windows, `bindle install` again (the promotion skill changed).
+
+- `bindle promote --replace` updates a memory, skill or command already in the target, such as improving a craft skill from a session in another domain. It's checked like any promotion; without the flag nothing is overwritten. A replaced skill folder loses files the new version dropped.
+- `bindle promote --dry-run` prints what would change, as a diff when replacing, so you approve the exact change.
+
 ## 0.15.0 (2026-11-22)
 
 **Run `bindle upgrade --all`** (changed `hooks/bindle_hook.py`); for a bindle that's read-only where you are, run it yourself. On Windows, also `bindle install`.

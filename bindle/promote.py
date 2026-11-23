@@ -6,10 +6,12 @@ unchanged, no paths outside its folder, no symlinks), checks again, and copies i
 every destination is known to be free.
 """
 import datetime
+import difflib
 import hashlib
 import os
 import re
 import shutil
+import sys
 from pathlib import Path
 
 from .core import BindleError, find_bindle, git, hooks, known_bindles, load_bindle, read_json, real, write_json, write_text
@@ -168,20 +170,29 @@ def check_draft(b, slug, kind, src, description, verb):
         raise BindleError(f"Not {verb}; the draft still names this domain or looks like it holds a secret:\n" + describe_hits(hits))
 
 
-def place(source, target, items):
+def destination(target, slug, kind, src):
+    out = target["root"] / "skills" / src.name if kind == "skill" else target["root"] / KINDS[kind] / f"{slug}.md"
+    if out.resolve().parent != (target["root"] / KINDS[kind]).resolve():
+        raise BindleError(f"{slug}: its destination {out} is outside {target['name']}.")
+    return out
+
+
+def place(source, target, items, replace=False):
     """Copy items [(slug, kind, src, description)] into target, add memory index lines and commit there.
     Every destination is checked before anything is written, so a failure leaves the target as it was.
+    Something already in the target is replaced only when asked; git history keeps the old version.
     Returns (paths written, committed)."""
     dests, inbox = {}, target["root"] / "notes" / "inbox.md"
     for slug, kind, src, _ in items:
         if kind == "note":
             continue  # notes are appended to the inbox, never placed as files
-        out = target["root"] / "skills" / src.name if kind == "skill" else target["root"] / KINDS[kind] / f"{slug}.md"
-        if out.resolve().parent != (target["root"] / KINDS[kind]).resolve():
-            raise BindleError(f"{slug}: its destination {out} is outside {target['name']}.")
-        if out.exists() or out in dests.values():
-            raise BindleError(f"{out} already exists in {target['name']} (or two items want it); nothing written.")
+        out = destination(target, slug, kind, src)
+        if out in dests.values() or (out.exists() and not replace):
+            raise BindleError(f"{out} already exists in {target['name']} (or two items want it); nothing written. "
+                              f"To update it, promote with --replace.")
         dests[slug] = out
+    index = target["root"] / "memory" / "MEMORY.md"
+    indexed = index.read_text(encoding="utf-8") if index.exists() else ""
     moved, index_lines, notes = [], [], []
     for slug, kind, src, description in items:
         if kind == "note":
@@ -191,10 +202,12 @@ def place(source, target, items):
         out = dests[slug]
         out.parent.mkdir(parents=True, exist_ok=True)
         if kind == "skill":
+            if out.exists():
+                shutil.rmtree(out)  # replacing: files the new version dropped must go too
             shutil.copytree(src, out)
         else:
             shutil.copy2(src, out)
-        if kind == "memory":
+        if kind == "memory" and f"({slug}.md)" not in indexed:
             index_lines.append(f"- [{slug}]({slug}.md) — {description or 'promoted from ' + source['name']}\n")
         moved.append(out.relative_to(target["root"]).as_posix())
     if index_lines:
@@ -216,11 +229,43 @@ def cmd_promote(args):
         raise BindleError("Source and target are the same bindle.")
     src = Path(args.path)
     check_draft(source, args.name, args.kind, src, args.description, "promoted")
-    moved, committed = place(source, target, [(args.name, args.kind, src, args.description)])
-    print(f"Promoted {args.kind} {args.name} from {source['name']} into {target['name']}: {', '.join(moved)} "
+    if args.replace and args.kind == "note":
+        raise BindleError("Notes are added to the inbox, never replaced; drop --replace.")
+    if args.dry_run:
+        return show_change(target, args.name, args.kind, src)
+    moved, committed = place(source, target, [(args.name, args.kind, src, args.description)], replace=args.replace)
+    print(f"{'Replaced' if args.replace else 'Promoted'} {args.kind} {args.name} from {source['name']} into {target['name']}: {', '.join(moved)} "
           f"(leak check and secret check passed)." + ("" if committed else f" Not committed in {target['name']}; commit by hand."))
     if args.kind != "memory" or target["writes"] == "explicit":
         print(f"Push {target['name']} when ready (sync pushes only memory/ and outbox/ of a writable bindle).")
+    return 0
+
+
+def show_change(target, slug, kind, src):
+    """Print what promoting would change in the target: a new item, or a diff against what's there."""
+    if kind == "note":
+        print(f"Would add to {target['name']}'s notes/inbox.md:\n{src.read_text(encoding='utf-8').strip()}")
+        return 0
+    out = destination(target, slug, kind, src)
+    if not out.exists():
+        print(f"Would add {out.relative_to(target['root']).as_posix()} to {target['name']} (nothing there yet).")
+        return 0
+    pairs = ([(f, out / f.relative_to(src)) for f in sorted(src.rglob("*")) if f.is_file()]
+             + [(src / f.relative_to(out), f) for f in sorted(out.rglob("*")) if f.is_file() and not (src / f.relative_to(out)).exists()]
+             if kind == "skill" else [(src, out)])
+    changed = False
+    for new, old in pairs:
+        before = old.read_text(encoding="utf-8").splitlines(keepends=True) if old.exists() else []
+        after = new.read_text(encoding="utf-8").splitlines(keepends=True) if new.exists() else []
+        rel = old.relative_to(target["root"]).as_posix()
+        diff = list(difflib.unified_diff(before, after, f"{target['name']}/{rel}", f"draft/{rel}"))
+        if diff:
+            changed = True
+            sys.stdout.writelines(diff)
+    if not changed:
+        print(f"No change: {target['name']} already has exactly this.")
+    else:
+        print(f"\nPromote again with --replace to apply this to {target['name']}.")
     return 0
 
 

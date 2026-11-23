@@ -24,7 +24,7 @@ The user asks in plain words; you do the judgment (finding, drafting, asking), a
 
 ## 3. Check with them
 
-Show the draft beside the original, say briefly what you removed, and name the target: "This goes to craft as a memory named small-prs. Approve, edit, or drop?" Nothing moves without a yes for that item.
+If the target already has it (an update, such as improving a craft skill you're using here), run the promote command below with `--dry-run` and show them that diff; on approval, run it with `--replace`. Otherwise show the draft beside the original, say briefly what you removed, and name the target: "This goes to craft as a memory named small-prs. Approve, edit, or drop?" Nothing moves without a yes for that item.
 
 ## 4. Move it
 

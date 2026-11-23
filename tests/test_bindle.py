@@ -803,6 +803,46 @@ class PromotionTest(BindleTest):
         self.assertEqual(code, 1)
         self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
 
+    # Improving a craft skill while using it in another domain is the natural moment; --replace allows it, on purpose only.
+    def test_replace_updates_a_memory_without_a_second_index_line(self):
+        self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--description", "keep PRs small")
+        self.draft.write_text("---\nname: small-prs\ndescription: keep PRs small\ntype: feedback\nboundary: craft\n---\nKeep PRs small and focused.\n")
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--replace")
+        self.assertEqual(code, 0, out)
+        self.assertIn("small and focused", (self.personal / "memory/small-prs.md").read_text())
+        self.assertEqual((self.personal / "memory/MEMORY.md").read_text().count("(small-prs.md)"), 1)
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+        self.assertIn("small and focused", bindle.git(self.personal, "show", "HEAD"))  # the update is its own commit
+
+    # A file the new version of a skill dropped must not linger from the old one.
+    def test_replace_swaps_a_whole_skill_folder(self):
+        skill = self.tmp / "review" ; skill.mkdir()
+        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nv1\n")
+        (skill / "old.md").write_text("gone in v2\n")
+        self.run_cli("promote", self.acme, skill, "--into", self.personal, "--kind", "skill", "--name", "review")
+        (skill / "old.md").unlink()
+        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nv2\n")
+        self.assertEqual(self.run_cli("promote", self.acme, skill, "--into", self.personal, "--kind", "skill", "--name", "review", "--replace")[0], 0)
+        self.assertIn("v2", (self.personal / "skills/review/SKILL.md").read_text())
+        self.assertFalse((self.personal / "skills/review/old.md").exists())
+
+    # The person approves an update by seeing what changes; --dry-run gives Claude the exact diff to show.
+    def test_dry_run_shows_the_diff_and_writes_nothing(self):
+        self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
+        self.draft.write_text(self.draft.read_text().replace("Keep PRs small.", "Keep PRs tiny."))
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("-Keep PRs small.", out)
+        self.assertIn("+Keep PRs tiny.", out)
+        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text())
+
+    # The replacement still crosses the boundary, so it's checked like a first promotion.
+    def test_replace_is_still_leak_checked(self):
+        self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
+        self.draft.write_text("Keep PRs small, as on widgetd.\n")
+        self.assertEqual(self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--replace")[0], 1)
+        self.assertNotIn("widgetd", (self.personal / "memory/small-prs.md").read_text())
+
     def test_promote_finds_the_target_by_name(self):
         self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft", "--writes", "explicit")
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", "craft", "--name", "small-prs")

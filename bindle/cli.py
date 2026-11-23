@@ -66,6 +66,8 @@ def build_parser():
     s.add_argument("--kind", choices=list(KINDS), default="memory")
     s.add_argument("--name", required=True, help="the item's slug, e.g. small-prs")
     s.add_argument("--description", default="", help="one line for the target's memory index")
+    s.add_argument("--replace", action="store_true", help="update what's already in the target (git history keeps the old version)")
+    s.add_argument("--dry-run", action="store_true", help="show what would change in the target, as a diff when replacing")
     s.set_defaults(fn=cmd_promote)
 
     s = sub.add_parser("outbox", help="a bindle's outbox: reviewed, general items waiting to be promoted")
