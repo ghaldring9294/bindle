@@ -58,3 +58,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** drift tests: AGENTS.md's layout, the changelog's newest entry, every option in the README and `/bindle`, every example command parses.
 - **2026-11-22:** the demo repo (bindle-demo): `demo.py setup|cleanup`, Acme and Globex fixtures, a six-step walkthrough.
 - **2026-11-22:** v0.21.0: every command takes a bindle by name or path; doctor's fixes use names.
+- **2026-11-22:** v0.21.3: the promotion skill asks approve/edit/drop as a select (asked for during the walkthrough).
