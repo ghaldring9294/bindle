@@ -62,3 +62,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** v0.22.0: waiting inbox notes show in the terminal at session start (they reached only Claude, so nothing appeared); every choice Claude asks is a select. Both found during the walkthrough.
 - **2026-11-22:** demo walkthrough done on another Mac. v0.23.0: `bindle list` says "not attached here". Next: the contract test.
 - **2026-11-23:** v0.24.0: a pull that changes a bindle's code says so in the terminal at session start. Inbox line and choice selects confirmed in real sessions.
+- **2026-11-23:** v0.25.0: the session check says when bindle has a release to pull or a bindle needs an upgrade. Raised for the whole-repo review: sync pulls code into shared read-only bindles with a warning, not an approval.

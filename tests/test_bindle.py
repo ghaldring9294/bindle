@@ -45,6 +45,7 @@ class BindleTest(unittest.TestCase):
             "BINDLE_CLAUDE": str(HERE / "fake_claude"),
             "FAKE_CLAUDE_LOG": str(self.log),
             "BINDLE_HOME": str(self.tmp / "bindles"),  # never the real ~/bindles
+            "BINDLE_UPDATE_CHECK": "off",  # never fetch from the network; ReleaseCheckTest covers it against a local remote
             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
         }
@@ -642,6 +643,27 @@ class InstallTest(BindleTest):
         self.assertFalse((self.home / ".local/bin/bindle").exists())
 
 
+class ReleaseCheckTest(BindleTest):
+    """Nobody runs `git pull` in bindle unprompted, so a fix that shipped never arrives. The check must also never
+    make a session wait on the network, or fetch at every start."""
+
+    def test_a_new_tag_is_fetched_in_the_background_once_a_day_and_named(self):
+        from bindle import commands
+        origin, clone = self.tmp / "origin", self.tmp / "clone"
+        subprocess.run(["git", "init", "-q", str(origin)], check=True)
+        subprocess.run(["git", "-C", str(origin), "commit", "-q", "--allow-empty", "-m", "first"], check=True)
+        subprocess.run(["git", "-C", str(origin), "tag", "v0.0.1"], check=True)
+        subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True)
+        self.assertIsNone(commands.newer_release(clone))  # an older tag isn't an update
+        subprocess.run(["git", "-C", str(origin), "tag", "v99.0.0"], check=True)
+        self.assertIsNone(commands.newer_release(clone))  # not fetched yet: nothing local says so
+        fetch = commands.refresh_tags(clone)
+        self.assertIsNotNone(fetch)
+        self.assertEqual(fetch.wait(timeout=30), 0)
+        self.assertEqual(commands.newer_release(clone), "99.0.0")
+        self.assertIsNone(commands.refresh_tags(clone))  # fetched today: no second fetch
+
+
 class SessionCheckTest(InstallTest):
     """A session started in a repo inside a domain folder reads only that repo's settings; without a warning, its
     memories silently go to Claude Code's default folder instead of the domain's bindle."""
@@ -705,6 +727,16 @@ class SessionCheckTest(InstallTest):
         (self.domain / "web" / ".claude" / "settings.local.json").write_text("{not json")
         out = self.hook(self.domain / "web")
         self.assertEqual((out.returncode, out.stdout), (0, ""))
+
+    # After `git pull` in bindle, every bindle keeps running its old hooks until upgraded; people forget that step.
+    def test_every_session_names_bindles_due_for_an_upgrade_until_upgraded(self):
+        self.run_cli("install", "--session-check")
+        with open(self.acme / "hooks/run", "a") as f:
+            f.write("# older copy\n")
+        message = json.loads(self.hook(self.folder("downloads")).stdout)["systemMessage"]
+        self.assertIn("bindle: acme needs an upgrade; bindle upgrade --all", message)
+        self.run_cli("upgrade", "--all")
+        self.assertEqual(self.hook(self.folder("downloads")).stdout, "")
 
     # Writable attaches made before domains were recorded are invisible to the check until attached again.
     def test_doctor_asks_for_a_reattach_when_the_domain_isnt_recorded(self):

@@ -47,7 +47,7 @@ bindle/bin/bindle install
 ```
 bindle install --session-check
 ```
-Claude Code reads settings only from the folder a session starts in (on macOS and Linux, that folder's git repo), never from the folders above it. So a session started in `~/acme/web` doesn't load the acme bindle attached to `~/acme` unless `~/acme/web` has it too, and its memories go to Claude Code's default folder instead. The session check is one hook in `~/.claude/settings.json` that warns at the start of such a session and gives the command that fixes it. It warns only inside folders you've attached a bindle to as writable; everywhere else it stays silent. `bindle install --no-session-check` removes it, leaving the rest of the file as it was.
+Claude Code reads settings only from the folder a session starts in (on macOS and Linux, that folder's git repo), never from the folders above it. So a session started in `~/acme/web` doesn't load the acme bindle attached to `~/acme` unless `~/acme/web` has it too, and its memories go to Claude Code's default folder instead. The session check is one hook in `~/.claude/settings.json` that warns at the start of such a session and gives the command that fixes it. It warns only inside folders you've attached a bindle to as writable; everywhere else it stays silent. In any folder, it also says when bindle has a new release to pull (it checks for new tags in the background, at most once a day; set `BINDLE_UPDATE_CHECK=off` to stop that) or when a bindle needs `bindle upgrade`. `bindle install --no-session-check` removes it, leaving the rest of the file as it was.
 
 **On Windows:** install [Git for Windows](https://git-scm.com/download/win) (Claude Code runs hooks in its Git Bash) and Python from [python.org](https://www.python.org/downloads/), then run the same two lines from a terminal, with `python bindle\bin\bindle install` for the second. Without developer mode, Windows doesn't allow symlinks, so `install` copies files instead and writes a `bindle.cmd` launcher; run `bindle install` again after updating bindle. Add `%USERPROFILE%\.local\bin` to your `PATH`.
 
@@ -161,7 +161,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 
 | Command | What it does |
 |---|---|
-| `bindle install [--session-check \| --no-session-check]` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude`; `--session-check` adds the hook that warns when a session starts inside a domain folder without its bindle (recommended) |
+| `bindle install [--session-check \| --no-session-check]` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude`; `--session-check` adds the hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating (recommended) |
 | `bindle session-check [<folder>]` | Show what the session check would say for a session started in that folder (the installed hook runs it with `--hook`) |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
 | `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder |

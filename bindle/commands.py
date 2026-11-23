@@ -2,12 +2,15 @@
 import filecmp
 import json
 import os
+import re
 import shutil
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 from .promote import private_terms
-from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
+from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, VERSION, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
                    exclude_from_enclosing_repo, bindles_home, domains, quote, ref, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
@@ -94,7 +97,8 @@ def set_session_check(on):
         path.parent.mkdir(parents=True, exist_ok=True)
         write_json(path, settings)
     print(f"Session check {'on' if on else 'off'} ({path}): " + (
-        "sessions started inside a domain folder with no writable bindle will warn." if on else "no warnings at session start."))
+        "sessions started inside a domain folder with no writable bindle will warn, and every session says when "
+        "bindle or a bindle needs updating." if on else "no warnings at session start."))
 
 
 def session_warning(start):
@@ -115,6 +119,55 @@ def session_warning(start):
             f"bindle attach {name} {quote(str(root))} --writable")
 
 
+def managed_drift(b):
+    """Managed files missing from a bindle or differing from bindle's template: what `bindle upgrade` fixes."""
+    root = b["root"]
+    return [(rel, "is missing" if not (root / rel).exists() else "differs from bindle's template") for rel in MANAGED
+            if not (root / rel).exists() or not filecmp.cmp(root / rel, TEMPLATE / rel, shallow=False)]
+
+
+def upgrade_due(b):
+    return bool(managed_drift(b)) or ((b["layout"] or 1) <= LAYOUT and b["layout"] != LAYOUT)
+
+
+def version_tuple(text):
+    m = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", text.strip())
+    return tuple(int(n) for n in m.groups()) if m else None
+
+
+def newer_release(repo):
+    """The newest vX.Y.Z tag in bindle's own repo, when it's newer than this copy. Local only; refresh_tags fetches."""
+    tags = [version_tuple(t) for t in (hooks().git_out(repo, "tag", "--list", "v*") or "").split()]
+    newest = max((t for t in tags if t), default=None)
+    return ".".join(map(str, newest)) if newest and newest > version_tuple(VERSION) else None
+
+
+def refresh_tags(repo, max_age=86400):
+    """Fetch bindle's tags in the background, at most once a day (git's FETCH_HEAD records the last fetch), so a
+    session never waits on the network and an offline machine just tries again next time. Returns the process."""
+    stamp = hooks().git_path(repo, "FETCH_HEAD")
+    if "origin" not in (hooks().git_out(repo, "remote") or "").split() or stamp is None:
+        return None
+    if stamp.exists() and time.time() - stamp.stat().st_mtime < max_age:
+        return None
+    env = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}
+    env.setdefault("GIT_SSH_COMMAND", "ssh -o ConnectTimeout=5 -o BatchMode=yes")
+    detach = {"creationflags": 0x00000008} if WINDOWS else {"start_new_session": True}  # DETACHED_PROCESS
+    return subprocess.Popen(["git", "-C", str(repo), "fetch", "-q", "--tags", "origin"], env=env,
+                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **detach)
+
+
+def update_notes():
+    """The session check's lines about bindle itself: a newer release to pull, or bindles due for `bindle upgrade`."""
+    if os.environ.get("BINDLE_UPDATE_CHECK") != "off":
+        refresh_tags(BASE)
+        release = newer_release(BASE)
+        if release:  # pull first: upgrading from an old copy would put old hooks back
+            return [f"bindle: {release} is available (this is {VERSION}); git -C {quote(str(BASE))} pull && bindle upgrade --all"]
+    due = sorted(b["name"] for b in known_bindles()[0].values() if upgrade_due(b))
+    return [f"bindle: {', '.join(due)} {'needs' if len(due) == 1 else 'need'} an upgrade; bindle upgrade --all"] if due else []
+
+
 def cmd_session_check(args):
     """What the session-check hook runs. With --hook it reads the session's folder from Claude Code's input and
     answers in hook JSON, so the person sees the warning; any failure stays quiet rather than break a session."""
@@ -123,18 +176,20 @@ def cmd_session_check(args):
         if args.hook and not start:
             start = (json.loads(sys.stdin.read() or "{}").get("cwd")
                      or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
-        warning = session_warning(start or Path.cwd())
+        lines = [w for w in [session_warning(start or Path.cwd())] if w] + update_notes()
     except Exception as e:  # noqa: BLE001 (a hook must never stop a session)
         if not args.hook:
             raise
         print(f"bindle session check didn't run: {e}", file=sys.stderr)
         return 0
+    warning = "\n".join(lines)
     if args.hook:
         if warning:
             print(json.dumps({"systemMessage": warning, "hookSpecificOutput": {
                 "hookEventName": "SessionStart", "additionalContext": warning}}))
     else:
-        print(warning or "No warning: this folder has a writable bindle, or isn't inside a domain folder.")
+        print(warning or "No warning: this folder has a writable bindle or isn't inside a domain folder, and bindle "
+                         "and its bindles are up to date.")
     return 0
 
 
@@ -508,14 +563,9 @@ def cmd_doctor(args):
                 problems.append(f"{b['name']}: {hit} may hold a secret; move it to secure storage (e.g. a password manager) and leave a pointer in the note")
             else:
                 problems.append(f"{b['name']}: {hit} may hold a secret; sync won't commit it until it's removed")
-        for rel in MANAGED:
-            copy = b["root"] / rel
-            if not copy.exists():
-                problems.append(f"{b['name']}: {rel} is missing")
-                needs_upgrade.append(b)
-            elif not filecmp.cmp(copy, TEMPLATE / rel, shallow=False):
-                problems.append(f"{b['name']}: {rel} differs from bindle's template")
-                needs_upgrade.append(b)
+        for rel, how in managed_drift(b):
+            problems.append(f"{b['name']}: {rel} {how}")
+            needs_upgrade.append(b)
         problems += enclosing_repo_problems(b)
         problems += name_problems(b)
         if writable_here and not private_terms(b):
