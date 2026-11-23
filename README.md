@@ -106,6 +106,12 @@ bindle attach ~/acme/.bindle ~/acme --writable
 bindle attach craft ~/acme           # craft = ~/bindles/craft
 ```
 
+**Launching from a repo inside the domain folder.** Claude Code treats each git repo as its own starting point: a session started in `~/acme/web` reads `~/acme/web/.claude/settings.local.json`, not `~/acme`'s, and keeps its own memory folder. Either start Claude from `~/acme` (it sees every repo, and the bindle is on), or also attach the bindle to each repo you start from for narrow work:
+```
+bindle attach acme ~/acme/web --writable
+```
+If you used Claude Code in those repos before bindle, each has its own old memory folder under `~/.claude/projects/`; migrate those too (MIGRATION.md).
+
 **A freelancer with two clients.** Each client gets a folder and a bindle. Switching clients means starting Claude Code from the other folder, which also gives you separate session histories and permissions.
 ```
 bindle attach ~/clients/acme/.bindle ~/clients/acme --writable
