@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.14.0 (2026-11-22)
+
+No upgrade needed. Run `bindle install` again on Windows (the promotion skill changed).
+
+- Promotion is one step: `bindle promote <source> <draft> --into <target>` checks an approved draft (private terms, secrets, nothing overwritten) and places it in the target, which can be named. The original stays; a second target is a second promotion.
+- The outbox is now only for targets on another machine: `outbox add` there, then `bindle collect` where the target lives, which delivers the item and removes it from the outbox. `bindle outbox list --all` shows what's waiting anywhere. `outbox clean` removes items an older version left marked "collected".
+- `/bindle-promote` rewritten around asking in plain words ("promote the doc-style skill to my craft"): it finds the item and the target, drafts a general version, checks with you, promotes, and offers to push the target.
+
 ## 0.13.0 (2026-11-22)
 
 No upgrade needed.

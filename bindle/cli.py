@@ -4,7 +4,7 @@ import sys
 
 from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_sync
 from .core import VERSION, BindleError
-from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_terms
+from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms
 from .upgrade import cmd_upgrade
 
 FOLDER_HELP = "the folder you launch Claude from (default: here)"
@@ -59,6 +59,15 @@ def build_parser():
     s.add_argument("--dry-run", action="store_true", help="show what would change")
     s.set_defaults(fn=cmd_upgrade)
 
+    s = sub.add_parser("promote", help="copy an approved, general draft from one bindle into another (checked for domain names and secrets)")
+    s.add_argument("source", help="the bindle the draft comes from (its private terms are checked)")
+    s.add_argument("path", help="the draft: a memory or command .md file, or a skill folder")
+    s.add_argument("--into", required=True, help="the target bindle: a path or a name; it must be on this machine")
+    s.add_argument("--kind", choices=list(KINDS), default="memory")
+    s.add_argument("--name", required=True, help="the item's slug, e.g. small-prs")
+    s.add_argument("--description", default="", help="one line for the target's memory index")
+    s.set_defaults(fn=cmd_promote)
+
     s = sub.add_parser("outbox", help="a bindle's outbox: reviewed, general items waiting to be promoted")
     osub = s.add_subparsers(dest="outbox_cmd", required=True)
     o = osub.add_parser("add", help="add an approved draft (after a leak check and secret check)")
@@ -68,8 +77,9 @@ def build_parser():
     o.add_argument("--name", required=True, help="the item's slug, e.g. small-prs")
     o.add_argument("--description", default="", help="one line for the target's index")
     o.set_defaults(fn=cmd_outbox_add)
-    o = osub.add_parser("list", help="show the outbox")
-    o.add_argument("bindle")
+    o = osub.add_parser("list", help="show a bindle's outbox, or every outbox with --all")
+    o.add_argument("bindle", nargs="?")
+    o.add_argument("--all", action="store_true", help="every bindle `bindle list` finds")
     o.set_defaults(fn=cmd_outbox_list)
     o = osub.add_parser("clean", help="remove items already collected (they're in the target and in git history)")
     o.add_argument("bindle")

@@ -1,43 +1,46 @@
 ---
 name: bindle-promote
-description: Promote a general lesson, skill or command from the current domain's bindle to another bindle (such as a craft bindle, or personal) through the source bindle's outbox. Use when the user says something is a general lesson worth keeping elsewhere, asks to promote, or asks what could be promoted.
+description: Promote a memory, skill or command from the current domain's bindle into another bindle (a craft bindle, personal, another client), as a general rewrite the user approves. Use when the user asks to promote something ("promote the doc-style skill to my craft"), says a lesson is worth keeping elsewhere, or asks what could be promoted.
 ---
 
-# Promote through the outbox
+# Promote into another bindle
 
-Material leaves a bindle only as text the person reviewed and approved as general. You do the judgment (drafting); the `bindle` CLI does every write and the checks.
+The user asks in plain words; you do the judgment (finding, drafting, asking), and the `bindle` CLI does every write and check. They should never need to type a bindle command.
 
-## 1. Find the source and candidates
+## 1. Work out what and where
 
-- The source is the bindle that's writable in this folder (`bindle doctor` shows it). Promote out of it only.
-- Candidates: what the person points to, or memories tagged `boundary: craft` or `both` (in `memory/` and `projects/*/`). `context` memories are never promoted.
-- Read only the source bindle's memories. Never read another domain's memories to look for candidates.
+- **Source:** the bindle that's writable in this folder (`bindle doctor`). Promote out of it only.
+- **What:** the memory, skill or command they named. Memories are in the source's `memory/` and `projects/*/`, skills in `skills/<name>/`, commands in `commands/`. If they ask what could be promoted, offer memories tagged `boundary: craft` or `both`; `context` memories are never promoted.
+- **Where:** run `bindle list` and match what they said ("my craft" → `craft`). If it's ambiguous or not listed, ask; never choose for them. A domain bindle that isn't listed: ask for its path.
+- Read only the source's own files. Never read another domain's memories.
+- If the source's `private-terms.txt` is empty, run `bindle terms <source>` first and have them pick terms to add, so the check below means something.
 
-## 2. Draft a general rewrite of each
+## 2. Draft a general version
 
 - Keep the lesson; drop the domain: no organization, product, repo, system, ticket, people or data names. A reader outside this domain should find it true and useful.
 - A memory keeps the memory format (frontmatter `name`, `description`, `type`, `boundary: craft`; body with **Why:** and **How to apply:**).
-- A skill or command: rewrite its text the same way into a scratch folder; don't edit the original.
-- Write each draft to a scratch file. Never write into the target bindle.
+- A skill: copy its folder to a scratch folder and rewrite the copy; a command: the same with its file. Never edit the original, and never write into the target yourself.
 
-## 3. Show and get approval
+## 3. Check with them
 
-Show each draft beside the original, briefly say what you removed, and ask the person to approve, edit or drop each one. Nothing moves without a yes for that item. If they change their mind after an item is in the outbox, `bindle outbox remove <source> --items <slug>` drops it.
+Show the draft beside the original, say briefly what you removed, and name the target: "This goes to craft as a memory named small-prs. Approve, edit, or drop?" Nothing moves without a yes for that item.
 
-## 4. Add approved drafts to the outbox
+## 4. Move it
 
+If the target is on this machine (it's in `bindle list`):
 ```
-bindle outbox add <source bindle> <draft> --kind memory|skill|command --name <slug> --description "<one line>"
+bindle promote <source path> <draft> --into <target> --kind memory|skill|command --name <slug> --description "<one line>"
 ```
+It checks the draft against the source's private terms and for secrets, refuses to overwrite anything, places it, adds a memory index line, and commits the target. If it refuses, fix the draft, show them the change, and retry.
 
-It refuses a draft that names a term from the source's `private-terms.txt` or looks like it holds a secret; fix the draft, show the change, and retry. If `private-terms.txt` is empty, run `bindle terms <source bindle>` and have the person choose terms to add first.
-
-## 5. Collect, if the person wants it now
-
-Ask which bindle each item goes to; never choose for them. Offer the choices `bindle list` shows (the bindles in `~/bindles/`, in its registry, and on in this folder), other than the source; for a bindle it doesn't show, ask for its path. Outbox items aren't addressed to a target, so an item can be collected into more than one bindle, now or later.
-
+If the target lives on another machine, the draft waits in the source's outbox instead:
 ```
-bindle collect <source bindle> --into <target bindle> --items <slug>[,<slug>]
+bindle outbox add <source path> <draft> --kind … --name <slug> --description "…"
 ```
+Tell them to collect it there (or in a session there): `bindle collect <source> --into <target> --items <slug>`.
 
-Name the items, so the permission prompt shows exactly what moves. It rechecks, copies into the target, adds memory index lines, marks the items collected, and commits both bindles. Collecting can also wait for a session in the target's folder.
+## 5. Finish
+
+- Say where it landed, and how to use it there (a skill is `/<target>:<skill>` from the next session where the target is on).
+- If the target has a remote, offer to push it (`git -C <target path> push`). Sync pushes only a writable bindle's memories, so a skill, a command, or anything in an explicit-writes bindle like craft needs this push to reach other machines. Ask first.
+- Sending it to a second bindle is a second promotion. To drop a waiting outbox item: `bindle outbox remove <source> --items <slug>`.

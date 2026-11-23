@@ -23,8 +23,9 @@ Help the user with bindle: $ARGUMENTS
 - `bindle terms <bindle> [<folder>]`: suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
 - `bindle sync [<folder> | --all]`: pull the bindles that are on; commit and push the writable one's memories. `--all` does every bindle `bindle list` finds (commit and push only in those that can be writable). Sessions already sync on their own when a bindle has `"sync": true`; this is for catching up by hand.
 - `bindle upgrade [<bindle> | --all] [--dry-run]`: bring a bindle's managed files up to this version of bindle; `--all` does every bindle `bindle list` finds. A bindle read-only in this folder is locked to Claude: give the user the command with a `!` prefix instead of running it.
-- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`, `bindle outbox clean <bindle> [--items …] [--dry-run]`, `bindle outbox remove <bindle> --items …`: the source's reviewed items, leak-checked; `clean` removes ones already collected, `remove` drops named ones whatever their status. Draft with the `/bindle-promote` skill.
-- `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle.
+- `bindle promote <source> <draft> --into <target> --name <slug> [--kind memory|skill|command] [--description …]`: copy an approved, general draft into another bindle on this machine (target by path or name), after the private-terms and secrets checks. Draft with the `/bindle-promote` skill.
+- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle> | --all`, `bindle outbox clean <bindle> [--items …] [--dry-run]`, `bindle outbox remove <bindle> --items …`: approved items waiting for a target that's on another machine; `remove` drops named ones, `clean` removes items an older bindle left marked collected.
+- `bindle collect <source> --into <target> --items <slugs>`: on the machine where the target lives, deliver waiting outbox items into it and remove them from the outbox.
 - `bindle install`: put `bindle` on PATH and link `/bindle` and `/bindle-promote` into `~/.claude`.
 
 ## Common requests

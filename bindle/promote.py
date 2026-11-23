@@ -11,11 +11,11 @@ import re
 import shutil
 from pathlib import Path
 
-from .core import BindleError, find_bindle, git, hooks, load_bindle, read_json, real, write_json, write_text
+from .core import BindleError, find_bindle, git, hooks, known_bindles, load_bindle, read_json, real, write_json, write_text
 
 KINDS = {"memory": "memory", "skill": "skills", "command": "commands"}
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
-COLLECTABLE = ("approved", "collected")  # "collected" items may be collected into further targets
+COLLECTABLE = ("approved",)  # items collected before 0.14 kept status "collected"; outbox clean removes them
 
 
 def private_terms(b):
@@ -150,9 +150,9 @@ def commit(root, message, *paths):
     return git(root, "commit", "-q", "-m", message, "--", *paths) is not None
 
 
-def cmd_outbox_add(args):
-    b = load_bindle(args.bindle)
-    slug, kind, src = args.name, args.kind, Path(args.path)
+def check_draft(b, slug, kind, src, description, verb):
+    """A draft is fit to leave bindle b: a valid name, the right shape for its kind, and nothing that names
+    b's domain or looks like a secret."""
     if not SLUG_RE.match(slug):
         raise BindleError("Name must be lowercase letters, digits, hyphens or underscores.")
     if not src.exists():
@@ -161,9 +161,61 @@ def cmd_outbox_add(args):
         raise BindleError(f"A {kind} is a single .md file.")
     if kind == "skill" and not (src.is_dir() and (src / "SKILL.md").is_file()):
         raise BindleError("A skill is a folder with a SKILL.md.")
-    hits = leak_hits(b, slug, args.description, src)
+    hits = leak_hits(b, slug, description, src)
     if hits:
-        raise BindleError("Not added; the draft still names this domain or looks like it holds a secret:\n" + describe_hits(hits))
+        raise BindleError(f"Not {verb}; the draft still names this domain or looks like it holds a secret:\n" + describe_hits(hits))
+
+
+def place(source, target, items):
+    """Copy items [(slug, kind, src, description)] into target, add memory index lines and commit there.
+    Every destination is checked before anything is written, so a failure leaves the target as it was.
+    Returns (paths written, committed)."""
+    dests = {}
+    for slug, kind, src, _ in items:
+        out = target["root"] / "skills" / src.name if kind == "skill" else target["root"] / KINDS[kind] / f"{slug}.md"
+        if out.resolve().parent != (target["root"] / KINDS[kind]).resolve():
+            raise BindleError(f"{slug}: its destination {out} is outside {target['name']}.")
+        if out.exists() or out in dests.values():
+            raise BindleError(f"{out} already exists in {target['name']} (or two items want it); nothing written.")
+        dests[slug] = out
+    moved, index_lines = [], []
+    for slug, kind, src, description in items:
+        out = dests[slug]
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if kind == "skill":
+            shutil.copytree(src, out)
+        else:
+            shutil.copy2(src, out)
+        if kind == "memory":
+            index_lines.append(f"- [{slug}]({slug}.md) — {description or 'promoted from ' + source['name']}\n")
+        moved.append(out.relative_to(target["root"]).as_posix())
+    if index_lines:
+        write_text(target["root"] / "memory" / "MEMORY.md", "".join(index_lines), mode="a")
+    names = ", ".join(i[0] for i in items)
+    committed = commit(target["root"], f"Promote from {source['name']}: {names}", *moved, *(["memory/MEMORY.md"] if index_lines else []))
+    return moved, committed
+
+
+def cmd_promote(args):
+    """One step: check the approved draft and place it in the target, which must be on this machine. When it
+    isn't, the draft waits in the source's outbox instead (`bindle outbox add`)."""
+    source, target = load_bindle(args.source), find_bindle(args.into)
+    if source["root"] == target["root"]:
+        raise BindleError("Source and target are the same bindle.")
+    src = Path(args.path)
+    check_draft(source, args.name, args.kind, src, args.description, "promoted")
+    moved, committed = place(source, target, [(args.name, args.kind, src, args.description)])
+    print(f"Promoted {args.kind} {args.name} from {source['name']} into {target['name']}: {', '.join(moved)} "
+          f"(leak check and secret check passed)." + ("" if committed else f" Not committed in {target['name']}; commit by hand."))
+    if args.kind != "memory" or target["writes"] == "explicit":
+        print(f"Push {target['name']} when ready (sync pushes only memory/ and outbox/ of a writable bindle).")
+    return 0
+
+
+def cmd_outbox_add(args):
+    b = load_bindle(args.bindle)
+    slug, kind, src = args.name, args.kind, Path(args.path)
+    check_draft(b, slug, kind, src, args.description, "added")
     dest = b["root"] / "outbox" / slug
     if dest.exists():
         raise BindleError(f"{dest} already exists; pick another name.")
@@ -178,7 +230,8 @@ def cmd_outbox_add(args):
     committed = commit(b["root"], f"Outbox: {slug}", f"outbox/{slug}")
     print(f"Added {kind} {slug} to {b['name']}'s outbox (leak check and secret check passed)."
           + ("" if committed else " Not committed (no git identity here?)."))
-    print(f"Collect it: bindle collect {b['root']} --into <target bindle> --items {slug}")
+    print(f"It waits there until collected, on the machine where the target lives: "
+          f"bindle collect {b['root']} --into <target bindle> --items {slug}")
 
 
 def outbox_items(b):
@@ -186,14 +239,34 @@ def outbox_items(b):
     return [{**read_json(f), "dir": f.parent, "slug": f.parent.name} for f in sorted(box.glob("*/item.json"))] if box.is_dir() else []
 
 
-def cmd_outbox_list(args):
-    b = load_bindle(args.bindle)
-    items = outbox_items(b)
-    if not items:
-        print(f"{b['name']}'s outbox is empty.")
+def print_outbox(b, items):
     for it in items:
         where = f" -> {', '.join(it.get('collected_into') or [])}" if it.get("collected_into") else ""
         print(f"  {it['slug']}: {it.get('kind')}, {it.get('status')}{where}. {it.get('description') or ''}")
+
+
+def cmd_outbox_list(args):
+    if args.all == bool(args.bindle):
+        raise BindleError("Pass a bindle or --all.")
+    if args.bindle:
+        b = load_bindle(args.bindle)
+        items = outbox_items(b)
+        if not items:
+            print(f"{b['name']}'s outbox is empty.")
+        print_outbox(b, items)
+        return 0
+    # Across every bindle bindle can find; only outboxes are read, never memories.
+    found, _ = known_bindles()
+    shown = 0
+    for b in sorted(found.values(), key=lambda b: b["name"]):
+        items = outbox_items(b)
+        if items:
+            print(f"{b['name']} ({b['root']}):")
+            print_outbox(b, items)
+            shown += 1
+    if not shown:
+        print("Every outbox is empty.")
+    return 0
 
 
 def cmd_outbox_clean(args):
@@ -268,14 +341,10 @@ def validate_item(it):
     return src
 
 
-def destination(target, it):
-    if it["kind"] == "skill":
-        return target["root"] / "skills" / it["file"]
-    return target["root"] / KINDS[it["kind"]] / f"{it['slug']}.md"
-
-
 def cmd_collect(args):
-    source, target = load_bindle(args.source), load_bindle(args.into)
+    """Deliver waiting outbox items into the target, then remove them from the outbox: an item goes to one
+    target, and git history keeps the record."""
+    source, target = load_bindle(args.source), find_bindle(args.into)
     if source["root"] == target["root"]:
         raise BindleError("Source and target are the same bindle.")
     items = {it["slug"]: it for it in outbox_items(source)}
@@ -285,52 +354,27 @@ def cmd_collect(args):
     unknown = [s for s in wanted if s not in items]
     if unknown:
         raise BindleError(f"Not in {source['name']}'s outbox: {', '.join(unknown)}")
-    todo = [items[s] for s in dict.fromkeys(wanted) if target["name"] not in (items[s].get("collected_into") or [])]
+    todo = [items[s] for s in dict.fromkeys(wanted) if items[s].get("status") != "collected"]
     if not todo:
-        print(f"Nothing to collect: already in {target['name']}.")
+        print("Nothing to collect: those items were already collected (bindle outbox clean removes them).")
         return 0
 
-    # Check everything before writing anything, so a failure leaves both bindles as they were.
-    sources, dests = {}, {}
+    # The outbox syncs from other machines, so each item is validated and checked again before anything moves.
+    ready = []
     for it in todo:
-        sources[it["slug"]] = validate_item(it)
-        hits = leak_hits(source, it["slug"], it.get("description"), sources[it["slug"]])
+        src = validate_item(it)
+        hits = leak_hits(source, it["slug"], it.get("description"), src)
         if hits:
             raise BindleError(f"Nothing collected; {it['slug']} names the source domain or looks like it holds a secret:\n" + describe_hits(hits))
-        out = destination(target, it)
-        if out.resolve().parent != (target["root"] / KINDS[it["kind"]]).resolve():
-            raise BindleError(f"{it['slug']}: its destination {out} is outside {target['name']}.")
-        if out.exists() or out in dests.values():
-            raise BindleError(f"{out} already exists in {target['name']} (or two items want it); nothing collected.")
-        dests[it["slug"]] = out
-
-    moved, index_lines = [], []
+        ready.append((it["slug"], it["kind"], src, it.get("description")))
+    moved, target_ok = place(source, target, ready)
     for it in todo:
-        src, out = sources[it["slug"]], dests[it["slug"]]
-        out.parent.mkdir(parents=True, exist_ok=True)
-        if it["kind"] == "skill":
-            shutil.copytree(src, out)
-        else:
-            shutil.copy2(src, out)
-        if it["kind"] == "memory":
-            index_lines.append(f"- [{it['slug']}]({it['slug']}.md) — {it.get('description') or 'promoted from ' + source['name']}\n")
-        moved.append(out.relative_to(target["root"]).as_posix())
-    if index_lines:
-        write_text(target["root"] / "memory" / "MEMORY.md", "".join(index_lines), mode="a")
-    for it in todo:
-        meta = read_json(it["dir"] / "item.json")
-        meta["status"] = "collected"
-        meta["collected_into"] = sorted(set(meta.get("collected_into") or []) | {target["name"]})
-        write_json(it["dir"] / "item.json", meta)
-
+        shutil.rmtree(it["dir"])
     names = ", ".join(it["slug"] for it in todo)
-    paths = moved + (["memory/MEMORY.md"] if index_lines else [])
-    target_ok = commit(target["root"], f"Promote from {source['name']}: {names}", *paths)
-    source_ok = commit(source["root"], f"Outbox: collected into {target['name']}: {names}", "outbox")
-    print(f"Collected into {target['name']}: " + ", ".join(moved))
-    if target_ok and source_ok:
-        print(f"Committed in both bindles. Sync pushes memory/ and outbox/; push {target['name']} yourself if it got a skill or command.")
-    else:
+    source_ok = commit(source["root"], f"Outbox: delivered to {target['name']}: {names}", "outbox")
+    print(f"Collected into {target['name']}: " + ", ".join(moved) + f"; removed from {source['name']}'s outbox.")
+    if not (target_ok and source_ok):
         failed = [n for n, ok in ((target["name"], target_ok), (source["name"], source_ok)) if not ok]
-        print(f"Copied, but not committed in {', '.join(failed)} (no git identity, or a commit hook failed). Commit by hand.")
+        print(f"Not committed in {', '.join(failed)} (no git identity, or a commit hook failed). Commit by hand.")
     return 0
+

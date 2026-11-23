@@ -118,10 +118,11 @@ bindle attach ~/bindles/craft ~/clients/globex
 
 **A new machine.** Run `bindle install`, clone each bindle into place (a bindle used in many folders to `~/bindles/<name>`, a domain bindle to `<domain folder>/.bindle`), then `bindle attach` once per folder. Use `bindle new` only to create a bindle the first time. A folder's attach settings stay on that machine, so this is the only setup step.
 
-**Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle-promote` skill). It drafts a general rewrite, you approve it, and it goes into the source bindle's outbox after a check against that bindle's private terms. Then collect it into the target:
+**Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle-promote` skill). It drafts a general rewrite, asks where it should go, and once you approve, puts it there in one step, after a check against the source bindle's private terms:
 ```
-bindle collect ~/acme/.bindle --into ~/bindles/personal --items small-prs
+bindle promote ~/acme/.bindle draft.md --into craft --name small-prs --description "keep PRs small"
 ```
+The original stays where it was. To send it to a second bindle, promote it again. When the target isn't on this machine (personal, from a work laptop), the approved draft waits in the source's outbox (`bindle outbox add`) until you run `bindle collect` where the target lives.
 
 **Sharing your craft.** Keep finished, general skills in a craft bindle that only takes promoted material, and share its repo. Anyone with access can install it as an ordinary plugin, with no bindle needed:
 ```
@@ -148,8 +149,9 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder> \| --all]` | Pull the bindles that are on; commit and push the writable one's memories. `--all`: every bindle `bindle list` finds |
 | `bindle upgrade [<bindle> \| --all] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
+| `bindle promote <source> <draft> --into <target> --name <slug> [--kind …] [--description …]` | Copy an approved, general draft into another bindle on this machine, after the private-terms and secrets checks |
 | `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …]` | Store an approved draft for promotion, after the leak and secret checks |
-| `bindle outbox list <bindle>` | Show a bindle's outbox |
+| `bindle outbox list <bindle> \| --all` | Show a bindle's outbox, or every outbox that has items |
 | `bindle outbox clean <bindle> [--items …] [--dry-run]` | Remove items already collected (they're in the target and in git history) |
 | `bindle outbox remove <bindle> --items … [--dry-run]` | Drop named items, collected or not (an approval you changed your mind about) |
 | `bindle collect <source> --into <target> --items <slugs>` | Move approved outbox items into another bindle |
@@ -170,7 +172,7 @@ projects/<project>/    memories and notes about one project
 notes/                 your notes; notes/scratch/ is never committed
 rules.md               standing instructions for this domain
 private-terms.txt      names that must never leave this bindle
-outbox/                approved items waiting to be collected
+outbox/                approved items waiting for a target on another machine
 AGENTS.md              orientation for AI agents working in the bindle
 ```
 
@@ -181,7 +183,7 @@ AGENTS.md              orientation for AI agents working in the bindle
 | `name` | lowercase letters, digits, hyphens | The bindle's name, and the prefix of its skills. Pick it for how you'll type it. |
 | `sync` | `true` / `false` | Pull at session start; commit and push `memory/` and `outbox/` at session end |
 | `audience` | `private` / `shared` / `public` | Who the bindle is for. Visibility itself is your git host's setting. |
-| `writes` | `implicit` / `explicit` | `explicit` bindles take material only through `bindle collect` and can't be writable |
+| `writes` | `implicit` / `explicit` | `explicit` bindles take material only through promotion and can't be writable |
 
 **`~/bindles/registry.json`:** where bindles outside `~/bindles` live, by name (`{"bindles": {"acme": "/Users/you/acme/.bindle"}}`). `new` and `attach` keep it current; you can edit it. Names must be unique on a machine, because Claude Code's marketplace names are machine-wide; `new` and `attach` warn about a duplicate.
 
@@ -237,7 +239,7 @@ A server that only exists on one machine (a local path, a tool installed in one 
 
 - **One writable bindle per folder.** Every new memory has exactly one destination, so a session can't save work context into your personal bindle by mistake.
 - **Read-only bindles are locked against Claude's file-editing tools.** `attach` adds a permission rule, so Claude can't edit them. It isn't a sandbox: it doesn't cover shell commands, though Claude Code refuses attempts to work around the lock that way.
-- **Promotion is the only way bindle moves material between bindles.** Material crosses as a general rewrite you approved. `outbox add` checks it against the source's private terms (in its name, description, file names and contents) and for credentials, and records a hash; `collect` refuses anything that changed since you approved it, and names its items, so Claude Code's permission prompt shows exactly what moves. The private terms are a backstop for names you've listed, not a guarantee.
+- **Promotion is the only way bindle moves material between bindles.** Material crosses as a general rewrite you approved. `promote` (and `outbox add`) check it against the source's private terms (in its name, description, file names and contents) and for credentials, and Claude Code's permission prompt shows exactly what moves. An item that waits in an outbox gets a hash, and `collect` refuses it if it changed since you approved it. The private terms are a backstop for names you've listed, not a guarantee.
 - **A read-only bindle is visible, not sealed.** Its rules and memory index are shown in sessions where it's attached, so what a session sees there could end up in the writable bindle's memories. Attach a bindle to a folder only if that domain may see it, which is why personal stays off at work and craft holds only general material.
 - **Secrets are never committed by sync.** A memory or outbox file that looks like it holds a credential stops the commit, and `doctor` reports it. `doctor` also checks notes and suggests moving a secret to a password manager, leaving a pointer in the note.
 - **A bindle inside a project repo is excluded there.** `bindle new` adds it to that repo's `.git/info/exclude`, so a `git add -A` in the project can't commit your bindle. `doctor` warns if a repo would commit or already tracks one.

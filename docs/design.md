@@ -33,7 +33,7 @@ projects/<project>/    memories and notes about one project, with their own inde
 notes/                 notes; notes/scratch/ is ignored by git
 rules.md               standing instructions
 private-terms.txt      names that must never leave this bindle
-outbox/                approved items waiting to be collected
+outbox/                approved items waiting for a target on another machine
 ```
 
 **A folder turns bindles on.** Attaching a bindle to the folder you launch Claude Code from writes that folder's `.claude/settings.local.json`. Every attached bindle is **on** there: its skills, hooks, rules and memory index load. At most one is **writable**: new memories are saved into its `memory/`. The rest are **read-only** and locked against Claude's editing tools. Switching domains means starting Claude Code from a different folder, which also separates session histories and permissions. The folder is the boundary, and nothing toggles mid-session.
@@ -45,7 +45,7 @@ outbox/                approved items waiting to be collected
 | Property | Values | Meaning |
 |---|---|---|
 | `audience` | `private`, `shared`, `public` | Who the bindle is for (visibility itself is the git host's setting) |
-| `writes` | `implicit`, `explicit` | `implicit` bindles can be a folder's writable bindle; `explicit` ones receive material only through `bindle collect` |
+| `writes` | `implicit`, `explicit` | `implicit` bindles can be a folder's writable bindle; `explicit` ones receive material only through promotion |
 
 | Bindle | audience | writes |
 |---|---|---|
@@ -88,10 +88,12 @@ A plugin installed from a local directory runs in place: `CLAUDE_PLUGIN_ROOT` is
 
 Promotion is the only way bindle moves material between bindles, and it has to cross as text the person approved as general.
 
-1. **Prepare, in the source domain's session.** The `/bindle-promote` skill drafts a general rewrite of a memory tagged `boundary: craft` or `both` (or a skill or command) and shows it beside the original. The session knows its own domain, so it's the right place to separate the lesson from the specifics. On approval, `bindle outbox add` checks the draft against the source's `private-terms.txt` (in its name, description, file names and contents) and for credentials, refuses symlinks, stores it in the source's `outbox/`, and records a SHA-256 of the approved content.
-2. **Collect, which is code with no judgment.** `bindle collect <source> --into <target> --items <names>` is a shell command, so Claude Code's permission prompt shows exactly what moves. It treats the outbox as untrusted input, because it syncs from other machines. It refuses anything that isn't approved, has changed since approval (the hash), points outside its own folder, or contains links. It runs the checks again and confirms every destination is free before writing anything, then copies, adds index lines, marks items collected and commits both bindles.
+1. **Draft, in the source domain's session.** The `/bindle-promote` skill drafts a general rewrite of a memory tagged `boundary: craft` or `both` (or a skill or command), shows it beside the original, and asks where it should go. The session knows its own domain, so it's the right place to separate the lesson from the specifics.
+2. **Place it, which is code with no judgment.** On approval, `bindle promote <source> <draft> --into <target> --name <name>` checks the draft against the source's `private-terms.txt` (in its name, description, file names and contents) and for credentials, refuses symlinks, confirms the destination is free, copies it into the target, adds an index line for a memory and commits the target. It's a shell command, so Claude Code's permission prompt shows exactly what moves. The original stays in the source; a second target is a second promotion.
 
-No session reads another domain's raw memories; only outboxes are read across bindles, and they hold only reviewed text. Both steps can happen in one session. A craft bindle receives material only this way.
+**When the target isn't on this machine,** the approved draft waits instead: `bindle outbox add` runs the same checks, stores it in the source's `outbox/` and records a SHA-256 of the approved content. The outbox syncs with the source, so on the machine where the target lives, `bindle collect` treats it as untrusted input: it refuses anything that isn't approved, has changed since approval (the hash), points outside its own folder, or contains links, runs the checks again, places it like `promote`, and removes it from the outbox. An outbox normally sits empty; anything in it is waiting to go somewhere.
+
+No session reads another domain's raw memories; only outboxes are read across bindles, and they hold only reviewed text. A craft bindle receives material only this way.
 
 The leak check is only as good as the term list. `bindle terms` suggests candidates from the domain folder (code finds the names its repos reveal; the person judges which are private), and `doctor` warns when the writable bindle has none. It's a warning, not a refusal, because a personal bindle may have nothing private.
 
@@ -101,7 +103,7 @@ The leak check is only as good as the term list. `bindle terms` suggests candida
 |---|---|---|
 | One writable bindle per folder | Where new memories go | What a session chooses to write into the writable bindle |
 | Read-only lock | Claude's file-editing tools | Shell commands. Claude Code also refuses attempts to work around the lock that way, and bindle doesn't rely on it |
-| Outbox and collect | Material moved between bindles by bindle | Text a session copies from a read-only bindle's visible memories into its writable bindle's memories |
+| Promotion (promote, outbox and collect) | Material moved between bindles by bindle | Text a session copies from a read-only bindle's visible memories into its writable bindle's memories |
 | Private terms | Names you listed | Names you didn't list. It's a backstop, not a guarantee |
 | Secret check | Common credential formats in files that would be committed | Novel formats; anything in ignored files (which never leave the machine) |
 | Enclosing-repo exclude | A bindle inside a project repo being committed by `git add -A` there | A bindle deliberately tracked there (`doctor` warns) |
@@ -151,7 +153,7 @@ The problem is common; the domain boundary is rarely the focus. These are survey
 - **Closest in spirit:** [dotai](https://pypi.org/project/dotai-cli) (personal context in its own folder, never writes team files), [dotagents](https://pkg.go.dev/github.com/yourconscience/dotagents) (public tool and private config as separate repos), agentic-stack (a portable `.agent/` folder with layered memory), skills shared across agents through chezmoi.
 - **Separate config directories per life** (`CLAUDE_CONFIG_DIR`, separate machines): a hard boundary, but nothing carries craft across.
 
-What bindle adds: the structure decides where things go (one repo per domain, one writable bindle per folder) and checks what leaves (a reviewed, hash-verified outbox), while what goes into a bindle is up to the person and the rules. Craft versus context is decided per memory as it's written (`boundary:` tags), so methods travel and each domain's knowledge stays put.
+What bindle adds: the structure decides where things go (one repo per domain, one writable bindle per folder) and checks what leaves (reviewed, leak-checked promotion), while what goes into a bindle is up to the person and the rules. Craft versus context is decided per memory as it's written (`boundary:` tags), so methods travel and each domain's knowledge stays put.
 
 ## Later ideas
 
@@ -161,6 +163,6 @@ Not needed for 1.0; recorded so they aren't lost.
 - **Skill addendums:** how a domain's short addendum tailors a general skill from craft (a skill that references the base one, or a file the base skill looks for).
 - **More guardrails in the same spirit:** warn when a bindle's remote isn't on its domain's host; warn when a project's private files are committed to a team repo.
 - **Freshness stamps for derived docs:** record the commit a doc was built from, and use `git diff` to say whether it's stale.
-- **Promoting rules:** `collect` carries memories, skills and commands; rules move between bindles by hand for now.
+- **Promoting rules:** promotion carries memories, skills and commands; rules move between bindles by hand for now.
 - **Cross-domain notes (a `note` promotion kind):** a todo or reminder for another domain, written while working in this one ("remind me in globex to send the invoice"). It would cross through the source's outbox like any promotion, so the source's private terms check it, and `collect` would append it, dated and labelled with where it came from, to the target's `notes/inbox.md`; the target's next session start would mention the inbox. Until then, such reminders go in a task app or a plain file outside every bindle.
 - **`bindle rename`:** documented as manual steps instead, since a rename touches every folder a bindle is attached to.

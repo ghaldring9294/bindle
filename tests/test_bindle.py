@@ -518,7 +518,7 @@ class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text()
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
@@ -689,15 +689,17 @@ class PromotionTest(BindleTest):
         self.assertEqual(code, 0, out)
         self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text())
         self.assertIn("(small-prs.md) — keep PRs small", (self.personal / "memory/MEMORY.md").read_text())
-        item = json.loads((self.acme / "outbox/small-prs/item.json").read_text())
-        self.assertEqual((item["status"], item["collected_into"]), ("collected", ["personal"]))
+        self.assertFalse((self.acme / "outbox/small-prs").exists())  # delivered: the outbox holds only what's waiting
         self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
         self.assertEqual(bindle.git(self.acme, "status", "--porcelain"), "")
 
     # Collected items pile up otherwise; they're already in the target and in git history.
+    # Before 0.14, collect left delivered items in the outbox marked "collected"; clean removes those.
     def test_clean_removes_collected_items_and_keeps_waiting_ones(self):
         self.add()
-        self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        item = self.acme / "outbox/small-prs/item.json"
+        item.write_text(json.dumps({**json.loads(item.read_text()), "status": "collected", "collected_into": ["personal"]}))
+        bindle.git(self.acme, "commit", "-qam", "an item collected by an older bindle")
         self.draft.write_text("Name things for what they do.\n")
         self.run_cli("outbox", "add", self.acme, self.draft, "--name", "naming")
         self.assertIn("would remove small-prs", self.run_cli("outbox", "clean", self.acme, "--dry-run")[1])
@@ -723,6 +725,18 @@ class PromotionTest(BindleTest):
         self.assertIn("no item typo", out)
         self.assertTrue((self.acme / "outbox/small-prs").exists())
 
+    # With several domains, what's waiting to be promoted is spread over many outboxes; one view finds it.
+    def test_list_all_shows_every_outbox_with_items(self):
+        globex = self.tmp / "globex" / ".bindle"
+        self.run_cli("new", "globex", "--at", globex)  # registered
+        self.run_cli("outbox", "add", globex, self.draft, "--name", "small-prs")
+        self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft")  # empty outbox: not shown
+        code, out = self.run_cli("outbox", "list", "--all")
+        self.assertEqual(code, 0, out)
+        self.assertIn("globex (", out)
+        self.assertIn("small-prs: memory, approved", out)
+        self.assertNotIn("craft", out)
+
     # Naming an item that hasn't reached its target yet must not delete the only reviewed copy.
     def test_clean_refuses_a_named_item_not_yet_collected(self):
         self.add()
@@ -730,6 +744,37 @@ class PromotionTest(BindleTest):
         self.assertEqual(code, 1)
         self.assertIn("hasn't been collected", out)
         self.assertTrue((self.acme / "outbox/small-prs").exists())
+
+    # Promotion is one step when the target is here: approve, and it's in the other bindle.
+    def test_promote_places_the_draft_in_the_target_in_one_step(self):
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal,
+                                 "--name", "small-prs", "--description", "keep PRs small")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text())
+        self.assertIn("(small-prs.md) — keep PRs small", (self.personal / "memory/MEMORY.md").read_text())
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")  # committed in the target
+        self.assertFalse((self.acme / "outbox/small-prs").exists())  # nothing left waiting
+        self.assertEqual(bindle.git(self.acme, "status", "--porcelain"), "")  # source untouched
+
+    # The same guard as the outbox: a draft that still names the source domain never reaches another bindle.
+    def test_promote_refuses_a_draft_naming_the_domain_and_writes_nothing(self):
+        self.draft.write_text("Keep PRs small, like we do on widgetd.\n")
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
+        self.assertEqual(code, 1)
+        self.assertIn("widgetd", out)
+        self.assertFalse((self.personal / "memory/small-prs.md").exists())
+
+    def test_promote_never_overwrites_something_in_the_target(self):
+        (self.personal / "memory/small-prs.md").write_text("mine\n")
+        code, _ = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
+        self.assertEqual(code, 1)
+        self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
+
+    def test_promote_finds_the_target_by_name(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft", "--writes", "explicit")
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", "craft", "--name", "small-prs")
+        self.assertEqual(code, 0, out)
+        self.assertTrue((self.tmp / "bindles/craft/memory/small-prs.md").exists())
 
     # The leak check is the structural guard: a draft that still names the domain never enters the outbox.
     def test_a_draft_naming_the_domain_is_refused(self):
@@ -774,8 +819,9 @@ class PromotionTest(BindleTest):
     def test_collecting_twice_moves_nothing_the_second_time(self):
         self.add()
         self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
-        _, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
-        self.assertIn("already in personal", out)
+        code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.assertEqual(code, 1)  # delivered items leave the outbox, so there's nothing to deliver twice
+        self.assertIn("Not in acme's outbox", out)
         lines = [l for l in (self.personal / "memory/MEMORY.md").read_text().splitlines() if "small-prs" in l]
         self.assertEqual(len(lines), 1)
 
