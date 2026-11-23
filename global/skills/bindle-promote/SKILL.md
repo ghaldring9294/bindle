@@ -1,6 +1,6 @@
 ---
 name: bindle-promote
-description: Promote a general lesson, skill or command from the current domain's bindle to another bindle (usually personal, or a shared craft bindle) through the source bindle's outbox. Use when the user says something is a general lesson worth keeping elsewhere, asks to promote, or asks what could be promoted.
+description: Promote a general lesson, skill or command from the current domain's bindle to another bindle (such as a craft bindle, or personal) through the source bindle's outbox. Use when the user says something is a general lesson worth keeping elsewhere, asks to promote, or asks what could be promoted.
 ---
 
 # Promote through the outbox
@@ -33,6 +33,8 @@ bindle outbox add <source bindle> <draft> --kind memory|skill|command --name <sl
 It refuses a draft that names a term from the source's `private-terms.txt` or looks like it holds a secret; fix the draft, show the change, and retry. If `private-terms.txt` is empty, run `bindle terms <source bindle>` and have the person choose terms to add first.
 
 ## 5. Collect, if the person wants it now
+
+Ask which bindle each item goes to; never choose for them. Offer the other bindles on in this folder (`bindle doctor`) and those in `~/bindles/` (or `$BINDLE_HOME`). Outbox items aren't addressed to a target, so an item can be collected into more than one bindle, now or later.
 
 ```
 bindle collect <source bindle> --into <target bindle> --items <slug>[,<slug>]
