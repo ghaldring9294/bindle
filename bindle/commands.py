@@ -467,13 +467,13 @@ def cmd_sync(args):
         return 0
     h = hooks()
     for b in bindles:
-        # The same steps as the hooks, by hand and whether or not sync is on: pull every bindle that's on;
-        # commit and push the writable one.
+        # The same steps as the hooks, by hand and whether or not sync is on: commit and push the writable
+        # one, then pull every bindle that's on.
         print(f"{b['name']}:")
         log = h.Log(b["root"], echo=False)
-        h.sync_pull(b["root"], log)
         if is_writable(settings, b):
             h.sync_push(b["root"], log)
+        h.sync_pull(b["root"], log)
         for line in log.lines:
             print(f"  {line}")
     return 0
@@ -491,9 +491,9 @@ def sync_all():
     for b in sorted(found.values(), key=lambda b: b["name"]):
         print(f"{b['name']}:")
         log = h.Log(b["root"], echo=False)
-        h.sync_pull(b["root"], log)
         if b["writes"] == "implicit":
             h.sync_push(b["root"], log)
+        h.sync_pull(b["root"], log)
         for line in log.lines or ["up to date"]:
             print(f"  {line}")
     return 0
@@ -560,6 +560,11 @@ def cmd_doctor(args):
         for line in lines:
             print(f"    {line}")
         problems += git_problems
+        if b["writes"] == "explicit" or b["name"] not in domains().values():
+            ahead = git(b["root"], "rev-list", "--count", "@{upstream}..HEAD")
+            if ahead and ahead != "0":  # a promotion or collect into it, say: no session will push it
+                warnings.append(f"{b['name']} has {ahead} commit(s) not pushed, and it isn't writable in any folder, so "
+                                f"no session pushes it: git -C {quote(str(b['root']))} push")
         for hit in secret_hits(b):
             if hit.startswith("notes/"):
                 problems.append(f"{b['name']}: {hit} may hold a secret; move it to secure storage (e.g. a password manager) and leave a pointer in the note")

@@ -118,6 +118,7 @@ def build_parser():
     s.add_argument("--all", action="store_true", help="every item not yet in the target")
     s.add_argument("--allow", action="append", default=[], metavar="TERM",
                    help="a private term you've decided is fine to share (repeatable); an item's own record of allowed terms isn't trusted")
+    s.add_argument("--dry-run", action="store_true", help="show each item's content and move nothing")
     s.set_defaults(fn=cmd_collect)
     return p
 

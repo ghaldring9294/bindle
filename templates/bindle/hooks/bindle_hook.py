@@ -10,6 +10,7 @@ import datetime
 import json
 import os
 import re
+import signal
 import socket
 import subprocess
 import sys
@@ -34,7 +35,7 @@ SECRET_PATTERNS = [re.compile(p) for p in [
 ]]
 
 SYNCED = ("memory", "projects", "outbox")  # what sync commits by itself; everything else is committed by hand
-NETWORK_TIMEOUT = 6  # seconds per pull or push; three of them must fit in the 20s session-start hook
+NETWORK_TIMEOUT = 6  # seconds per network call; a session start makes at most three, within its 20s hook
 # Parts of a plugin that run code on the person's machine (hooks, servers, executables).
 CODE_PATHS = ("hooks", ".claude-plugin/plugin.json", ".mcp.json", ".lsp.json", "bin")
 
@@ -71,16 +72,39 @@ def git(root, *args, network=False):
     transfer, SSH on a slow connect (unless the repo or person set their own SSH command), and either is cut
     off after NETWORK_TIMEOUT seconds."""
     env, cmd = {**os.environ, "GIT_TERMINAL_PROMPT": "0"}, ["git", "-C", str(root), "-c", "core.quotePath=false"]
-    if network:
-        cmd += ["-c", "http.lowSpeedLimit=1000", "-c", "http.lowSpeedTime=5"]
-        own_ssh = subprocess.run(["git", "-C", str(root), "config", "core.sshCommand"], capture_output=True, text=True)
-        if "GIT_SSH_COMMAND" not in env and not own_ssh.stdout.strip():
-            env["GIT_SSH_COMMAND"] = "ssh -o ConnectTimeout=5 -o BatchMode=yes"
+    text = {"text": True, "encoding": "utf-8", "errors": "replace"}
+    if not network:
+        return subprocess.run(cmd + list(args), capture_output=True, env=env, **text)
+    cmd += ["-c", "http.lowSpeedLimit=1000", "-c", "http.lowSpeedTime=5"]
+    own_ssh = subprocess.run(["git", "-C", str(root), "config", "core.sshCommand"], capture_output=True, text=True)
+    if not {"GIT_SSH_COMMAND", "GIT_SSH"} & env.keys() and not own_ssh.stdout.strip():
+        env["GIT_SSH_COMMAND"] = "ssh -o ConnectTimeout=5 -o BatchMode=yes"
+    # Its own process group, so a timeout ends git's helpers (ssh, git-remote-https) too, not just git.
+    group = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
+    proc = subprocess.Popen(cmd + list(args), stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                            env=env, **text, **group)
     try:
-        return subprocess.run(cmd + list(args), capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              env=env, timeout=NETWORK_TIMEOUT if network else None)
+        out, err = proc.communicate(timeout=NETWORK_TIMEOUT)
+        return subprocess.CompletedProcess(cmd, proc.returncode, out, err)
     except subprocess.TimeoutExpired:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True)
+        else:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except OSError:
+                pass
+        try:
+            proc.communicate(timeout=2)
+        except subprocess.TimeoutExpired:
+            pass
         return subprocess.CompletedProcess(cmd, 124, "", "timed out")
+
+
+def unreachable(r):
+    """A failed network call that means offline or the remote is down, not a problem with this copy."""
+    return r.returncode == 124 or any(m in r.stderr for m in (
+        "unable to access", "Could not resolve", "Could not read from remote", "Connection", "timed out"))
 
 
 def git_out(root, *args):
@@ -111,8 +135,10 @@ def operation_in_progress(root):
 
 
 def changed_paths(root, *pathspec):
-    """Paths with uncommitted changes (modified, staged or untracked, not ignored), NUL-safe."""
-    out = git_out(root, "status", "--porcelain", "-z", "--untracked-files=all", "--", *pathspec) or ""
+    """Paths with uncommitted changes (modified, staged or untracked, not ignored), NUL-safe. The output isn't
+    stripped: each entry starts with a two-letter status, and an unstaged change's first letter is a space."""
+    r = git(root, "status", "--porcelain", "-z", "--untracked-files=all", "--", *pathspec)
+    out = r.stdout if r.returncode == 0 else ""
     paths, entries = [], out.split("\0")
     i = 0
     while i < len(entries):
@@ -159,27 +185,33 @@ def secret_hits(root, rel_paths):
 
 
 def outgoing_secret_hits(root):
-    """Files in commits about to be pushed whose committed content looks like a credential, whoever made the
-    commits: sync pushes them, so sync checks them."""
-    out = git_out(root, "diff", "--name-only", "-z", "@{upstream}..HEAD") or ""
-    hits = []
-    for rel in (p for p in out.split("\0") if p):
-        r = subprocess.run(["git", "-C", str(root), "show", f"HEAD:{rel}"], capture_output=True)
-        if r.returncode == 0 and looks_secret(r.stdout.decode("utf-8", errors="ignore")):
-            hits.append(rel)
+    """Files given a line that looks like a credential by any commit about to be pushed, whoever made it. Every
+    commit counts, not just the latest state: a secret added and then removed is still in the pushed history."""
+    r = git(root, "log", "-p", "--no-ext-diff", "--no-color", "--unified=0", "--format=", "@{upstream}..HEAD")
+    hits, current = [], None
+    for line in (r.stdout if r.returncode == 0 else "").splitlines():
+        if line.startswith("+++ "):
+            current = line[6:] if line.startswith("+++ b/") else None
+        elif line.startswith("+") and current and current not in hits and looks_secret(line[1:]):
+            hits.append(current)
     return hits
 
 
 # ---------- sync ----------
 
 class Log:
+    RUN = "--- sync"  # starts each run's lines, so doctor can report every problem of the latest run
+
     def __init__(self, root, echo=False):
         self.path, self.echo, self.lines = git_path(root, "bindle-sync.log"), echo, []
+        self.up_to_date = False  # set once this run has fetched or pushed, so the pull can be skipped
 
     def say(self, msg, problem=False):
         """Record a sync step. Problems start with "problem:", which doctor and the session start look for."""
         msg = f"problem: {msg}" if problem else msg
         line = f"{datetime.datetime.now():%Y-%m-%d %H:%M:%S} {msg}"
+        if not self.lines:
+            line = f"{self.RUN}\n{line}"
         self.lines.append(msg)
         if self.echo:
             print(msg)
@@ -192,26 +224,23 @@ class Log:
 
 
 def sync_pull(root, log):
-    """Pull the bindle's latest, fast-forward only; never push (only sync_push does, in the writable bindle).
-    Returns the files that run code (hooks, servers, executables) the pull changed and the range that changed
-    them, so the session can be warned before they next run."""
+    """Pull the bindle's latest, fast-forward only; never push (only sync_push does, in the writable bindle)."""
     if operation_in_progress(root):
-        log.say("pull: a merge or rebase is in progress; skipped", problem=True)
-        return [], None
+        return log.say("pull: a merge or rebase is in progress; skipped", problem=True)
     if not has_upstream(root):
-        log.say(no_upstream_message(root, "pull"))
-        return [], None
-    before = git_out(root, "rev-parse", "HEAD")
+        return log.say(no_upstream_message(root, "pull"))
+    if log.up_to_date:  # this run already fetched or pushed
+        return
     r = git(root, "pull", "-q", "--ff-only", network=True)
-    if r.returncode != 0:
-        log.say("pull failed (offline, or this copy has commits the remote doesn't); left as is", problem=True)
-    else:
-        log.say("pulled")
-    after = git_out(root, "rev-parse", "HEAD")
-    if not before or before == after:
-        return [], None
-    changed = git_out(root, "diff", "--name-only", f"{before}..{after}", "--", *CODE_PATHS) or ""
-    return [p for p in changed.splitlines() if p], f"{before[:12]}..{after[:12]}"
+    if r.returncode == 0:
+        return log.say("pulled")
+    if unreachable(r):
+        return log.say("offline or the remote is unreachable; not pulled")
+    ahead = git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0"
+    if ahead != "0":
+        return log.say(f"not pulled: this copy has {ahead} commit(s) the remote doesn't; push them "
+                       f"(git -C {root} push, or bindle sync where it's writable)", problem=True)
+    log.say("pull failed; left as is: " + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
 
 
 def sync_push(root, log):
@@ -240,26 +269,38 @@ def no_upstream_message(root, step):
 
 
 def push_leftovers(root, log):
-    """Push local commits. Only when the remote moved does it rebase onto it, and never over uncommitted
-    changes to tracked files (a rebase would stash them and could leave conflict markers in them)."""
+    """Push local commits after checking everything they add for secrets. Only when the remote moved does it
+    rebase onto it, and then only if no uncommitted file here is one the remote changed (stashing such a file
+    could leave conflict markers in it)."""
     if not has_upstream(root):
         return log.say(no_upstream_message(root, "push"))
     if (git_out(root, "rev-list", "--count", "@{upstream}..HEAD") or "0") == "0":
         return
     hits = outgoing_secret_hits(root)
     if hits:
-        return log.say("not pushing: committed files may hold a secret: " + ", ".join(hits), problem=True)
-    if git(root, "push", "-q", network=True).returncode == 0:
+        return log.say(f"not pushing: unpushed commits add what looks like a secret to {', '.join(hits)}. Take it out "
+                       f"of those commits (git -C {root} reset --soft @{{upstream}}, remove it, commit again), then "
+                       f"run bindle sync", problem=True)
+    r = git(root, "push", "-q", network=True)
+    if r.returncode == 0:
+        log.up_to_date = True
         return log.say("pushed")
-    dirty = git_out(root, "status", "--porcelain", "--untracked-files=no")
-    if dirty:
-        return log.say("push failed, and the remote can't be merged in over uncommitted changes; commit or "
-                       "discard them, then run bindle sync", problem=True)
-    if git(root, "pull", "-q", "--rebase", network=True).returncode != 0:
+    if unreachable(r):
+        return log.say("offline or the remote is unreachable; commits kept local until next time")
+    if git(root, "fetch", "-q", network=True).returncode != 0:
+        return log.say("push rejected and the remote couldn't be fetched; commits kept local", problem=True)
+    log.up_to_date = True
+    incoming = set((git_out(root, "diff", "--name-only", "HEAD...@{upstream}") or "").splitlines())
+    clash = sorted(incoming & set(changed_paths(root)))
+    if clash:
+        return log.say(f"the remote changed {', '.join(clash)}, which have uncommitted changes here; commit or "
+                       f"discard them, then run bindle sync", problem=True)
+    r = git(root, "rebase", "-q", "--autostash", "@{upstream}")
+    if r.returncode != 0:
         if operation_in_progress(root):
             git(root, "rebase", "--abort")
-            return log.say("rebase conflict with the remote; commits kept local", problem=True)
-        return log.say("push and pull failed (offline?); commits kept local", problem=True)
+        return log.say("couldn't rebase onto the remote; commits kept local: "
+                       + (r.stderr.strip().splitlines() or ["no detail"])[0], problem=True)
     if git(root, "push", "-q", network=True).returncode == 0:
         return log.say("pushed")
     log.say("push failed; commits kept local", problem=True)
@@ -288,7 +329,9 @@ def session_start_text(root, project_dir):
         out.append(f"Bindle {name} is on and writable in this folder: new memories are saved to {memory}. "
                    f"A memory about only one project goes in {root}/projects/<project>/ instead, listed in that "
                    f"folder's index.md, with one pointer line per project in MEMORY.md; a memory that spans "
-                   f"projects stays in {memory}.")
+                   f"projects stays in {memory}. To put something into another bindle (\"add this to my personal "
+                   f"bindle too\", \"move this skill to my craft\"), use the /bindle-promote skill; never write into "
+                   f"another bindle's folder directly.")
         pending = changed_paths(root)
         if sync_enabled(root):
             pending = [p for p in pending if p.split("/")[0] not in SYNCED]
@@ -334,14 +377,18 @@ def main(argv):
     command = argv[1] if len(argv) > 1 else ""
     try:
         if command == "session-start":
-            changed_code, changed_range, log = [], None, Log(root)
+            changed_code, log, before = [], Log(root), git_out(root, "rev-parse", "HEAD")
             if sync_enabled(root):
                 if writable_here(root, project_dir):
                     # A session that ended without SessionEnd (a closed app, a killed terminal) leaves memories
                     # uncommitted; commit and push them before anything else.
                     sync_push(root, log)
-                changed_code, changed_range = sync_pull(root, log)
-            review = f"git -C {root} diff {changed_range} -- {' '.join(CODE_PATHS)}"
+                sync_pull(root, log)
+            after = git_out(root, "rev-parse", "HEAD")
+            if before and after and before != after:  # code the remote brought in, by a pull or a rebase
+                changed = git_out(root, "diff", "--name-only", f"{before}..{after}", "--", *CODE_PATHS) or ""
+                changed_code = [c for c in changed.splitlines() if c]
+            review = f"git -C {root} diff {(before or '')[:12]}..{(after or '')[:12]} -- {' '.join(CODE_PATHS)}"
             out = []
             if changed_code:
                 out.append(f"Warning: bindle {bindle_name(root)} just pulled changes to files that run code on this machine "

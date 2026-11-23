@@ -244,9 +244,15 @@ def cmd_promote(args):
     moved, committed = place(source, target, [(args.name, args.kind, src, args.description)], replace=args.replace)
     print(f"{'Replaced' if args.replace else 'Promoted'} {args.kind} {args.name} from {source['name']} into {target['name']}: {', '.join(moved)} "
           f"(leak check and secret check passed)." + ("" if committed else f" Not committed in {target['name']}; commit by hand."))
-    if args.kind != "memory" or target["writes"] == "explicit":
-        print(f"Push {target['name']} when ready (sync pushes only memory/, projects/ and outbox/ of a writable bindle).")
+    print(push_hint(target))
     return 0
+
+
+def push_hint(target):
+    """Sync pushes a bindle only from a session where it's writable; a promotion into one that's read-only
+    everywhere (craft, say) waits until someone pushes it."""
+    return (f"Push {target['name']} when ready so other machines get it: git -C {quote(str(target['root']))} push "
+            f"(sync pushes it only from a session where it's writable).")
 
 
 def show_change(target, slug, kind, src):
@@ -446,12 +452,16 @@ def cmd_collect(args):
             if src.is_dir():
                 print(f"[{f.relative_to(src).as_posix()}]")
             print(f.read_bytes().decode("utf-8", errors="replace").rstrip("\n"))
+    if args.dry_run:
+        print("Dry run: nothing moved. Run it again without --dry-run to collect.")
+        return 0
     moved, target_ok = place(source, target, ready)
     for it in todo:
         shutil.rmtree(it["dir"])
     names = ", ".join(it["slug"] for it in todo)
     source_ok = commit(source["root"], f"Outbox: delivered to {target['name']}: {names}", "outbox")
     print(f"Collected into {target['name']}: " + ", ".join(moved) + f"; removed from {source['name']}'s outbox.")
+    print(push_hint(target))
     if not (target_ok and source_ok):
         failed = [n for n, ok in ((target["name"], target_ok), (source["name"], source_ok)) if not ok]
         print(f"Not committed in {', '.join(failed)} (no git identity, or a commit hook failed). Commit by hand.")

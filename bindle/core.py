@@ -419,16 +419,34 @@ def git_health(root):
     if "autostash" in (git(root, "stash", "list") or ""):
         problems.append(f"{root}: a leftover autostash holds uncommitted changes from an old sync; "
                         f"see `git -C {root} stash list` and apply or drop it")
-    last = last_sync(root)
-    if last and " problem: " in last:
-        problems.append(f"{root}: the last sync didn't finish: {last.split(' problem: ', 1)[1]}")
+    for problem in last_run_problems(root):
+        if not problem.startswith("not pushing:"):  # the live check below says it, and stays current
+            problems.append(f"{root}: the last sync didn't finish: {problem}")
+    if hooks().has_upstream(root):
+        hits = hooks().outgoing_secret_hits(root)
+        if hits:
+            problems.append(f"{root}: unpushed commits add what looks like a secret to {', '.join(hits)}, so sync won't "
+                            f"push; take it out of those commits (git -C {root} reset --soft @{{upstream}}, remove it, "
+                            f"commit again)")
     return lines, problems
 
 
-def last_sync(root):
+def sync_log(root):
     log = hooks().git_path(root, "bindle-sync.log")
-    lines = log.read_text(encoding="utf-8", errors="ignore").splitlines() if log and log.exists() else []
+    return log.read_text(encoding="utf-8", errors="ignore").splitlines() if log and log.exists() else []
+
+
+def last_sync(root):
+    lines = [l for l in sync_log(root) if l != hooks().Log.RUN]
     return lines[-1] if lines else None
+
+
+def last_run_problems(root):
+    """Every problem the latest sync run logged; a run can fail early and still end with a line like "pulled"."""
+    lines = sync_log(root)
+    marks = [i for i, l in enumerate(lines) if l == hooks().Log.RUN]
+    run = lines[marks[-1] + 1:] if marks else lines[-1:]
+    return [l.split(" problem: ", 1)[1] for l in run if " problem: " in l]
 
 
 def extra_code(b):

@@ -1,6 +1,6 @@
 ---
 name: bindle-promote
-description: Promote a memory, skill or command from the current domain's bindle into another bindle (a craft bindle, personal, another client), as a general rewrite the user approves; or send another domain a note (a reminder or todo). Use when the user asks to promote something ("promote the doc-style skill to my craft"), says a lesson is worth keeping elsewhere, asks what could be promoted, or wants a reminder in another domain ("remind me in globex to send the invoice").
+description: Promote a memory, skill or command from the current domain's bindle into another bindle (a craft bindle, personal, another client), as a general rewrite the user approves; or send another domain a note (a reminder or todo). Use when the user asks to put something from here into another bindle, in any words: "promote the doc-style skill to my craft", "add this to my personal bindle too", "move this skill to my craft", "copy that memory to globex", "keep this lesson in craft", "save this for my personal setup as well"; when they say a lesson is worth keeping elsewhere, asks what could be promoted, or wants a reminder in another domain ("remind me in globex to send the invoice").
 ---
 
 # Promote into another bindle
@@ -42,7 +42,7 @@ If the target lives on another machine, the draft waits in the source's outbox i
 ```
 bindle outbox add <source path> <draft> --kind … --name <slug> --description "…"
 ```
-Tell them to collect it there (or in a session there) with the command `outbox add` printed: `bindle collect <source> --into <target> --items <slug>`, plus `--allow <term>` for each term they allowed. Collect prints the item's content; show it to them.
+Tell them to collect it there (or in a session there) with the command `outbox add` printed: `bindle collect <source> --into <target> --items <slug>`, plus `--allow <term>` for each term they allowed. Run it with `--dry-run` first, show them the content it prints, and collect on their yes.
 
 ## 5. Finish
 

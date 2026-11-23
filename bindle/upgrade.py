@@ -24,6 +24,8 @@ def upgrade_plan(b):
     """What upgrade would change: managed files that differ or are missing, obsolete managed files to remove,
     template files the bindle has never had (never overwriting its own), and template lines to append."""
     root, plan = b["root"], []
+    # Whether a missing template file was deleted on purpose is read from history; without full history, assume so.
+    full_history = git(root, "rev-parse", "--is-shallow-repository") == "false"
     for rel in MANAGED:
         copy = root / rel
         if not copy.exists():
@@ -37,7 +39,7 @@ def upgrade_plan(b):
         rel = src.relative_to(TEMPLATE).as_posix()
         # A file the bindle's history already had was deleted on purpose; don't bring it back.
         if (src.is_file() and "__pycache__" not in rel and rel not in MANAGED and not (root / rel).exists()
-                and not git(root, "log", "-1", "--format=%H", "--", rel)):
+                and full_history and not git(root, "log", "-1", "--format=%H", "--", rel)):
             plan.append(("add", rel))
     for name in LINE_MERGED:
         if (root / name).exists() and missing_lines(root, name):
@@ -68,13 +70,19 @@ def cmd_upgrade(args):
         bindles = declared_bindles(read_json(settings_path(folder)))
         if not bindles:
             raise BindleError(f"No bindles are attached to {folder}; pass a bindle's path.")
+    skipped = []
     for b in bindles:
         layout = b["layout"] if isinstance(b["layout"], int) else 0
         if layout > LAYOUT:
             raise BindleError(f"{b['name']} has layout {layout}, newer than this bindle ({LAYOUT}). git pull bindle first.")
         if from_newer_bindle(b):
-            raise BindleError(f"{b['name']}'s files are from bindle {b['files_from']}, newer than this copy ({VERSION}); "
-                              f"upgrading would put old hooks back. git pull bindle first.")
+            message = (f"{b['name']}'s files are from bindle {b['files_from']}, newer than this copy ({VERSION}); "
+                       f"upgrading would put old hooks back. git pull bindle first.")
+            if not args.all:
+                raise BindleError(message)
+            print(f"{b['name']}: skipped; {message}")
+            skipped.append(b["name"])
+            continue
         plan = upgrade_plan(b)
         steps = list(range(layout, LAYOUT))
         if not plan and not steps:
@@ -117,4 +125,4 @@ def cmd_upgrade(args):
             print("  committed (push when ready; sync pushes only memory/, projects/ and outbox/)")
         else:
             print("  changed, not committed (no git identity here?)")
-    return 0
+    return 1 if skipped else 0

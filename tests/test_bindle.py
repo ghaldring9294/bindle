@@ -659,9 +659,13 @@ class NewerFilesTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertIn("newer than this copy", out)
         self.assertNotIn("bindle upgrade acme", out)
+        other = self.make_bindle("zeta")  # sorts after acme: a skip mustn't stop the rest
+        with open(other / "hooks/run", "a") as fh:
+            fh.write("# drifted\n")
         code, out = self.run_cli("upgrade", "--all")
-        self.assertNotEqual(code, 0)
+        self.assertNotEqual(code, 0)  # skipping is reported, not silent
         self.assertEqual((b / "hooks/run").read_text(), newer)
+        self.assertEqual((other / "hooks/run").read_bytes(), (bindle.TEMPLATE / "hooks/run").read_bytes())
         self.assertIn("were upgraded by a newer bindle elsewhere", self.run_cli("session-check", f)[1])
 
     def test_upgrade_records_the_version_that_wrote_the_files(self):
@@ -1486,6 +1490,17 @@ class ReviewRegressionTest(BindleTest):
         self.assertIn("single line", out)
         self.assertFalse((personal / "memory/billing.md").exists())
 
+    # The person sees exactly what would cross before anything moves.
+    def test_collect_dry_run_shows_the_content_and_moves_nothing(self):
+        acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
+        draft = self.tmp / "d.md"; draft.write_text("Small PRs review faster.\n")
+        self.run_cli("outbox", "add", acme, draft, "--name", "small-prs")
+        code, out = self.run_cli("collect", acme, "--into", personal, "--items", "small-prs", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Small PRs review faster.", out)
+        self.assertFalse((personal / "memory/small-prs.md").exists())
+        self.assertTrue((acme / "outbox/small-prs").exists())
+
     def test_collect_refuses_an_item_that_was_never_approved(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
         draft = self.tmp / "d.md"; draft.write_text("general\n")
@@ -1797,6 +1812,15 @@ class MemoryHookTest(BindleTest):
         (b / "notes/inbox.md").write_text("# Inbox\n")
         self.assertNotIn("sent from other domains", self.run_hook(b, f))
 
+    # Someone says "add this to my personal bindle too"; without a pointer to promotion, Claude may just write
+    # into that bindle's folder, skipping the private-terms and secret checks.
+    def test_writable_text_points_requests_for_other_bindles_at_promotion(self):
+        b, f = self.make_bindle("personal"), self.folder()
+        self.run_cli("attach", b, f, "--writable")
+        out = self.run_hook(b, f)
+        self.assertIn("/bindle-promote", out)
+        self.assertIn("never write into another bindle's folder directly", out)
+
     # Where it's writable, Claude Code loads the index itself; printing it again would duplicate it.
     def test_says_writable_without_repeating_the_index(self):
         b, f = self.make_bindle("personal"), self.folder()
@@ -1932,6 +1956,76 @@ class SyncTest(BindleTest):
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "by hand")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertNotIn("deploy.md", bindle.git(self.remote, "log", "--name-only", "--format="))
+
+    # Nearly every session edits MEMORY.md; an unstaged edit once parsed as "emory/MEMORY.md" and stopped all sync.
+    def test_an_edited_memory_index_syncs_with_new_memories(self):
+        with open(self.laptop / "memory/MEMORY.md", "a") as f:
+            f.write("- [Fact](fact.md) — a fact\n")
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        pushed = bindle.git(self.remote, "show", "HEAD:memory/MEMORY.md")
+        self.assertIn("a fact", pushed)
+        self.assertIn("memory/fact.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"))
+
+    # Removing a secret in a later commit doesn't take it out of history; pushing both commits would leak it.
+    def test_a_secret_committed_then_removed_is_never_pushed(self):
+        head = bindle.git(self.remote, "rev-parse", "HEAD")
+        (self.laptop / "skills/deploy.md").write_text("key AKIAABCDEFGHIJKLMNOP\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "oops")
+        (self.laptop / "skills/deploy.md").write_text("key in the vault\n")
+        bindle.git(self.laptop, "commit", "-qam", "fixed")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), head)
+        code, out = self.run_cli("doctor", self.laptop_folder)
+        self.assertEqual(code, 1)
+        self.assertIn("skills/deploy.md", out)
+        self.assertIn("reset --soft", out)  # the way out, since nothing else will unblock the push
+
+    # A run that fails early and then pulls ends its log with "pulled"; doctor must still see the failure.
+    def test_doctor_reports_a_problem_from_earlier_in_the_last_run(self):
+        (self.laptop / "memory/oops.md").write_text("api_key: abcdefghijklmnopqrstuvwx123456\n")
+        self.hook(self.laptop, self.laptop_folder, "session-start.sh")
+        code, out = self.run_cli("doctor", self.laptop_folder)
+        self.assertIn("held back, may hold a secret: memory/oops.md", out)
+
+    # An uncommitted note the remote didn't touch mustn't stop memories syncing between machines.
+    def test_an_unrelated_uncommitted_note_doesnt_stall_sync(self):
+        (self.desktop / "memory/from-desktop.md").write_text("d\n")
+        self.hook(self.desktop, self.desktop_folder, "session-end.sh")
+        (self.laptop / "notes/draft.md").write_text("v1\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "draft")
+        (self.laptop / "notes/draft.md").write_text("still editing\n")  # tracked, uncommitted
+        (self.laptop / "memory/from-laptop.md").write_text("l\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        tree = bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD")
+        self.assertIn("memory/from-laptop.md", tree)
+        self.assertIn("memory/from-desktop.md", tree)
+        self.assertEqual((self.laptop / "notes/draft.md").read_text(), "still editing\n")
+        self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
+
+    # Being offline is normal; flagging it at every session start would teach people to ignore the real ones.
+    def test_offline_is_not_reported_as_a_problem(self):
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "http://127.0.0.1:9/remote.git"], check=True)
+        out = self.hook(self.laptop, self.laptop_folder, "session-start.sh").stdout
+        self.assertNotIn("problem", out)
+
+    # A timed-out pull once left git and its ssh child running, able to finish later and hold ref locks.
+    def test_a_timed_out_network_call_leaves_nothing_running(self):
+        if os.name == "nt":
+            self.skipTest("POSIX process groups")
+        pidfile, script = self.tmp / "ssh.pid", self.tmp / "slow-ssh.sh"
+        script.write_text(f"#!/bin/sh\necho $$ > '{pidfile.as_posix()}'\nsleep 30\n")
+        script.chmod(0o755)
+        subprocess.run(["git", "-C", str(self.laptop), "config", "core.sshCommand", f"sh '{script.as_posix()}'"], check=True)
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "ssh://nobody@127.0.0.1/remote.git"], check=True)
+        hook = bindle.core.hooks()
+        r = hook.git(self.laptop, "pull", "-q", "--ff-only", network=True)
+        self.assertEqual(r.returncode, 124)
+        pid = int(pidfile.read_text())
+        import time
+        time.sleep(0.5)
+        with self.assertRaises(OSError):
+            os.kill(pid, 0)
 
     # Autostash once left conflict markers in an uncommitted note and stalled sync for good, silently.
     def test_never_rebases_over_uncommitted_notes_and_says_why_it_stopped(self):
