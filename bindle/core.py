@@ -18,7 +18,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.8.1"
+VERSION = "0.9.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -100,6 +100,23 @@ def find_bindle(arg):
         return load_bindle(bindles_home() / arg)
     raise BindleError(f"No folder {arg} here or in {bindles_home()}. Pass the bindle's path, "
                       f"or set BINDLE_HOME to the folder your bindles live in.")
+
+
+def name_problems(b):
+    """A bindle's name appears in three files; renaming one by hand and not the others breaks attach and
+    detach in confusing ways."""
+    root, name = b["root"], b["name"]
+    plugin = read_json(root / ".claude-plugin" / "plugin.json").get("name")
+    market = read_json(root / ".claude-plugin" / "marketplace.json")
+    listed = [p.get("name") for p in market.get("plugins", []) if isinstance(p, dict)]
+    found = []
+    if plugin != name:
+        found.append(f".claude-plugin/plugin.json has name {plugin!r}")
+    if market.get("name") != f"bindle-{name}":
+        found.append(f".claude-plugin/marketplace.json has name {market.get('name')!r}, not 'bindle-{name}'")
+    if listed != [name]:
+        found.append(f".claude-plugin/marketplace.json lists plugins {listed}, not ['{name}']")
+    return [f"{name}: bindle.json says {name!r} but {f}; make the names agree (README: Renaming a bindle)" for f in found]
 
 
 def plugin_id(b):

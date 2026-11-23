@@ -196,6 +196,35 @@ def cmd_outbox_list(args):
         print(f"  {it['slug']}: {it.get('kind')}, {it.get('status')}{where}. {it.get('description') or ''}")
 
 
+def cmd_outbox_clean(args):
+    """Remove outbox items already collected; uncollected ones are waiting for review or a target, so stay."""
+    b = load_bindle(args.bindle)
+    items = outbox_items(b)
+    if args.items:
+        wanted = [s.strip() for s in args.items.split(",") if s.strip()]
+        by_slug = {it["slug"]: it for it in items}
+        for slug in wanted:
+            if slug not in by_slug:
+                raise BindleError(f"{b['name']}'s outbox has no item {slug}.")
+            if not by_slug[slug].get("collected_into"):
+                raise BindleError(f"{slug} hasn't been collected yet; clean removes only collected items.")
+        items = [by_slug[s] for s in dict.fromkeys(wanted)]
+    items = [it for it in items if it.get("collected_into") and not it["dir"].is_symlink()]
+    if not items:
+        print(f"Nothing to clean: no collected items in {b['name']}'s outbox.")
+        return 0
+    for it in items:
+        print(f"  {'would remove' if args.dry_run else 'removing'} {it['slug']} (collected into {', '.join(it['collected_into'])})")
+    if args.dry_run:
+        return 0
+    for it in items:
+        shutil.rmtree(it["dir"])
+    names = ", ".join(it["slug"] for it in items)
+    if not commit(b["root"], f"Outbox: removed collected items: {names}", "outbox"):
+        print("Removed, but not committed (no git identity here?). Commit by hand.")
+    return 0
+
+
 def validate_item(it):
     """An outbox item collect may trust: a known kind, approved, its file inside its own folder, unchanged since
     approval. The outbox syncs from other machines, so its item.json is treated as untrusted input."""

@@ -457,6 +457,17 @@ class DoctorTest(BindleTest):
         self.run_cli("attach", b, f)
         self.assertNotIn("private-terms.txt", self.run_cli("doctor", f)[1])
 
+    # A half-done hand rename leaves the three names disagreeing; attach and detach then fail confusingly.
+    def test_flags_names_that_disagree(self):
+        b, f = self.make_bindle("acme"), self.folder()
+        self.run_cli("attach", b, f)
+        self.assertNotIn("make the names agree", self.run_cli("doctor", f)[1])
+        plugin = b / ".claude-plugin/plugin.json"
+        plugin.write_text(plugin.read_text().replace('"acme"', '"acme2"'))
+        code, out = self.run_cli("doctor", f)
+        self.assertEqual(code, 1)
+        self.assertIn("plugin.json has name 'acme2'", out)
+
     def test_an_empty_folder_has_nothing_attached(self):
         _, out = self.run_cli("doctor", self.folder())
         self.assertIn("No bindles attached", out)
@@ -507,7 +518,7 @@ class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text()
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
@@ -634,6 +645,28 @@ class PromotionTest(BindleTest):
         self.assertEqual((item["status"], item["collected_into"]), ("collected", ["personal"]))
         self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
         self.assertEqual(bindle.git(self.acme, "status", "--porcelain"), "")
+
+    # Collected items pile up otherwise; they're already in the target and in git history.
+    def test_clean_removes_collected_items_and_keeps_waiting_ones(self):
+        self.add()
+        self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
+        self.draft.write_text("Name things for what they do.\n")
+        self.run_cli("outbox", "add", self.acme, self.draft, "--name", "naming")
+        self.assertIn("would remove small-prs", self.run_cli("outbox", "clean", self.acme, "--dry-run")[1])
+        self.assertTrue((self.acme / "outbox/small-prs").exists())
+        code, out = self.run_cli("outbox", "clean", self.acme)
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.acme / "outbox/small-prs").exists())
+        self.assertTrue((self.acme / "outbox/naming").exists())  # not collected yet: still waiting
+        self.assertNotIn("outbox/small-prs", bindle.git(self.acme, "status", "--porcelain"))  # removal committed
+
+    # Naming an item that hasn't reached its target yet must not delete the only reviewed copy.
+    def test_clean_refuses_a_named_item_not_yet_collected(self):
+        self.add()
+        code, out = self.run_cli("outbox", "clean", self.acme, "--items", "small-prs")
+        self.assertEqual(code, 1)
+        self.assertIn("hasn't been collected", out)
+        self.assertTrue((self.acme / "outbox/small-prs").exists())
 
     # The leak check is the structural guard: a draft that still names the domain never enters the outbox.
     def test_a_draft_naming_the_domain_is_refused(self):

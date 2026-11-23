@@ -2,7 +2,7 @@
 
 bindle keeps one git repo per domain (you, an employer, each client), shaped as a Claude Code plugin, and lets each folder you start Claude Code from turn on the domains it needs, with exactly one of them receiving new memories. This document explains why it works that way. For how to use it, see the [README](../README.md); for what changed in each version, the [CHANGELOG](../CHANGELOG.md).
 
-Contents: [Problem](#the-problem) · [Principles](#principles) · [Model](#the-model) · [How each part loads](#how-each-part-loads) · [Memory and sync](#memory-and-sync) · [Promotion](#promotion) · [Safety and its limits](#safety-and-its-limits) · [Implementation](#implementation-decisions) · [Claude Code constraints](#claude-code-constraints) · [Rejected](#considered-and-rejected) · [Prior art](#prior-art) · [Open questions](#open-questions)
+Contents: [Problem](#the-problem) · [Principles](#principles) · [Model](#the-model) · [How each part loads](#how-each-part-loads) · [Memory and sync](#memory-and-sync) · [Promotion](#promotion) · [Safety and its limits](#safety-and-its-limits) · [Implementation](#implementation-decisions) · [Claude Code constraints](#claude-code-constraints) · [Rejected](#considered-and-rejected) · [Prior art](#prior-art) · [Later ideas](#later-ideas)
 
 ## The problem
 
@@ -153,10 +153,13 @@ The problem is common; the domain boundary is rarely the focus. These are survey
 
 What bindle adds: the structure decides where things go (one repo per domain, one writable bindle per folder) and checks what leaves (a reviewed, hash-verified outbox), while what goes into a bindle is up to the person and the rules. Craft versus context is decided per memory as it's written (`boundary:` tags), so methods travel and each domain's knowledge stays put.
 
-## Open questions
+## Later ideas
 
-- **Windows lock rule.** Windows is verified on a real PC (hooks, memory path, sync); the `//c/` lock rule hasn't been seen there yet, since it needs a read-only bindle.
+Not needed for 1.0; recorded so they aren't lost.
+
 - **Per-repo notes loading automatically** (a repo's `CLAUDE.local.md` importing its `projects/<repo>/` index), with projects identified by their git remote rather than their path, so the same repo at a different path finds the same notes.
 - **Skill addendums:** how a domain's short addendum tailors a general skill from craft (a skill that references the base one, or a file the base skill looks for).
 - **More guardrails in the same spirit:** warn when a bindle's remote isn't on its domain's host; warn when a project's private files are committed to a team repo.
 - **Freshness stamps for derived docs:** record the commit a doc was built from, and use `git diff` to say whether it's stale.
+- **Promoting rules:** `collect` carries memories, skills and commands; rules move between bindles by hand for now.
+- **`bindle rename`:** documented as manual steps instead, since a rename touches every folder a bindle is attached to.

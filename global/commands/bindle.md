@@ -22,7 +22,7 @@ Help the user with bindle: $ARGUMENTS
 - `bindle terms <bindle> [<folder>]`: suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
 - `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
 - `bindle upgrade [<bindle>] [--dry-run]`: bring a bindle's managed files up to this version of bindle.
-- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`: the source's reviewed items, leak-checked. Draft with the `/bindle-promote` skill.
+- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`, `bindle outbox clean <bindle> [--items …] [--dry-run]`: the source's reviewed items, leak-checked; `clean` removes ones already collected. Draft with the `/bindle-promote` skill.
 - `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle.
 - `bindle install`: put `bindle` on PATH and link `/bindle` and `/bindle-promote` into `~/.claude`.
 
@@ -33,6 +33,7 @@ Help the user with bindle: $ARGUMENTS
 - **"Make X writable here":** if another bindle is writable, say which; with their go-ahead, detach it (and attach it again without `--writable` if they want it kept on read-only), then `bindle attach X <folder> --writable`. Attaching the current writable one again without `--writable` doesn't demote it.
 - **"What's on?":** `bindle doctor`, summarized.
 - **Setting up on another machine:** don't use `bindle new`; clone the existing repo into place: `git clone <url> ~/bindles/<name>` for one used in many folders, `git clone <url> <domain folder>/.bindle` for a domain bindle. Then attach it per folder. Plain `git clone <url>` lands in the current folder under the repo's name, which `attach <name>` won't find.
+- **"Rename this bindle":** there's no rename command; follow README's "Renaming a bindle" (detach everywhere, change the three names, attach again, `bindle doctor`). Show the plan first.
 - **A new domain:** `bindle new <name> --at <domain folder>/.bindle`, then `bindle terms`, have them pick terms and write the chosen ones to its `private-terms.txt`, then attach it writable. Ask before setting `--sync`; it needs a remote they add themselves.
 
 ## Rules

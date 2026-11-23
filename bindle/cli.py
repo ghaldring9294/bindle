@@ -4,7 +4,7 @@ import sys
 
 from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_new, cmd_sync
 from .core import VERSION, BindleError
-from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_list, cmd_terms
+from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_terms
 from .upgrade import cmd_upgrade
 
 FOLDER_HELP = "the folder you launch Claude from (default: here)"
@@ -65,6 +65,11 @@ def build_parser():
     o = osub.add_parser("list", help="show the outbox")
     o.add_argument("bindle")
     o.set_defaults(fn=cmd_outbox_list)
+    o = osub.add_parser("clean", help="remove items already collected (they're in the target and in git history)")
+    o.add_argument("bindle")
+    o.add_argument("--items", help="comma-separated item names (default: every collected item)")
+    o.add_argument("--dry-run", action="store_true", help="show what would be removed")
+    o.set_defaults(fn=cmd_outbox_clean)
 
     s = sub.add_parser("terms", help="suggest private terms for a bindle from the repos in its domain folder")
     s.add_argument("bindle", help="the bindle's path, or its name in $BINDLE_HOME")

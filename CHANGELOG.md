@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.9.0 (2026-11-22)
+
+No upgrade needed.
+
+- `doctor` flags a bindle whose three names (bindle.json, plugin.json, marketplace.json) disagree, as after a half-done rename.
+- `bindle outbox clean <bindle>` removes outbox items already collected, and commits the removal; items not yet collected stay.
+- README: "Renaming a bindle" (manual steps; there's no rename command).
+
 ## 0.8.1 (2026-11-22)
 
 No upgrade needed.

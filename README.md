@@ -149,6 +149,7 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 | `bindle upgrade [<bindle>] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
 | `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …]` | Store an approved draft for promotion, after the leak and secret checks |
 | `bindle outbox list <bindle>` | Show a bindle's outbox |
+| `bindle outbox clean <bindle> [--items …] [--dry-run]` | Remove items already collected (they're in the target and in git history) |
 | `bindle collect <source> --into <target> --items <slugs>` | Move approved outbox items into another bindle |
 
 `<folder>` always means the folder you start Claude Code from; it defaults to the current one. Run `bindle <command> --help` for every option.
@@ -247,6 +248,17 @@ bindle doctor <folder>           # says which bindles need upgrading, with the c
 ```
 
 `doctor` prints a ready-to-run `bindle upgrade` for each bindle that's behind. A bindle that's read-only in the folder is locked to Claude, so run that upgrade yourself (in Claude Code, prefix it with `!`). [CHANGELOG.md](CHANGELOG.md) lists what changed in each version, and says when an upgrade is needed.
+
+## Renaming a bindle
+
+A bindle's name appears in three files, and Claude Code knows it by those names in every folder it's attached to, so rename in this order:
+
+1. `bindle detach <old name> <folder>` in every folder it's attached to.
+2. Change the name in all three files: `bindle.json` (`"name"`), `.claude-plugin/plugin.json` (`"name"`) and `.claude-plugin/marketplace.json` (`"name": "bindle-<new>"`, and the plugin entry's `"name"`). Commit.
+3. Optionally rename its folder (and its GitHub repo).
+4. `bindle attach` it again in each folder, then `bindle doctor`, which flags names that still disagree.
+
+Its skills are then `/<new name>:<skill>`; update anything that refers to the old names.
 
 ## Troubleshooting
 
