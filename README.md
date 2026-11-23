@@ -106,9 +106,9 @@ bindle attach ~/acme/.bindle ~/acme --writable
 bindle attach craft ~/acme           # craft = ~/bindles/craft
 ```
 
-**Launching from a repo inside the domain folder.** Claude Code treats each git repo as its own starting point: a session started in `~/acme/web` reads `~/acme/web/.claude/settings.local.json`, not `~/acme`'s, and keeps its own memory folder. Either start Claude from `~/acme` (it sees every repo, and the bindle is on), or also attach the bindle to each repo you start from for narrow work:
+**Launching from a repo inside the domain folder.** Claude Code treats each git repo as its own starting point: a session started in `~/acme/web` reads `~/acme/web/.claude/settings.local.json`, not `~/acme`'s, and keeps its own memory folder. Either start Claude from `~/acme` (it sees every repo, and the bindle is on), or also attach the bindle to each repo you start from for narrow work. `--repos` does the folder and every git repo directly inside it in one go (run it again after cloning a new repo):
 ```
-bindle attach acme ~/acme/web --writable
+bindle attach acme ~/acme --writable --repos
 ```
 If you used Claude Code in those repos before bindle, each has its own old memory folder under `~/.claude/projects/`; migrate those too (MIGRATION.md).
 
@@ -156,8 +156,8 @@ What you write in craft isn't checked against acme's private terms (only promoti
 |---|---|
 | `bindle install` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude` |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
-| `bindle attach <bindle> [<folder>] [--writable]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to. `<bindle>` is a path, or a name (a folder in `~/bindles`, or a bindle in its registry) |
-| `bindle detach <name-or-path> [<folder>]` | Turn a bindle off for a folder |
+| `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder. `<bindle>` is a path, or a name (a folder in `~/bindles`, or a bindle in its registry) |
+| `bindle detach <name-or-path> [<folder>] [--repos]` | Turn a bindle off for a folder; `--repos` also each git repo directly inside it that has it |
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
 | `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |

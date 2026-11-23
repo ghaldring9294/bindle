@@ -390,6 +390,91 @@ class RulesTest(BindleTest):
         self.assertIn("rules.md is over", out)
 
 
+class ReposTest(BindleTest):
+    """A session started in a repo reads only that repo's settings, so a domain attach alone leaves it without
+    the bindle and writing memories to Claude Code's default folder instead of the domain's."""
+
+    def domain(self):
+        d = self.folder("acme-work")
+        for name in ("web", "api"):
+            (d / name).mkdir()
+            subprocess.run(["git", "init", "-q", str(d / name)], check=True)
+        (d / "docs").mkdir()  # not a repo
+        return d
+
+    def test_attach_repos_makes_the_bindle_writable_in_every_repo(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        self.assertEqual(self.run_cli("attach", b, d, "--writable", "--repos")[0], 0)
+        for f in (d, d / "web", d / "api"):
+            self.assertEqual(self.settings(f)["autoMemoryDirectory"], str(b / "memory"), f)
+        self.assertFalse((d / "docs" / ".claude").exists())
+
+    # A half-applied attach would leave some repos writing to one bindle and some to another.
+    def test_a_writable_conflict_in_one_repo_changes_nothing(self):
+        acme, personal, d = self.make_bindle("acme"), self.make_bindle("personal"), self.domain()
+        self.run_cli("attach", personal, d / "web", "--writable")
+        code, out = self.run_cli("attach", acme, d, "--writable", "--repos")
+        self.assertEqual(code, 1)
+        self.assertIn("one writable bindle", out)
+        self.assertFalse((d / ".claude").exists())
+        self.assertFalse((d / "api" / ".claude").exists())
+
+    # The trust warning is about the bindle, not the folder; repeated once per repo it gets skimmed.
+    def test_the_trust_warning_shows_once_across_repos(self):
+        b, d = self.make_bindle("craft"), self.domain()
+        (b / ".mcp.json").write_text("{}\n")
+        code, out = self.run_cli("attach", b, d, "--repos")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out.count("runs code on this machine"), 1, out)
+
+    # A bindle repo in the domain folder holds its own memory; making acme writable there would mix domains.
+    def test_attach_repos_skips_bindles_inside_the_folder(self):
+        d = self.domain()
+        craft = self.make_bindle("craft")
+        shutil.move(str(craft), str(d / "craft"))
+        acme = self.make_bindle("acme")
+        self.run_cli("attach", acme, d, "--writable", "--repos")
+        self.assertFalse((d / "craft" / ".claude" / "settings.local.json").exists())
+
+    # A malformed settings file found partway through would otherwise leave some folders attached and some not.
+    def test_bad_settings_in_one_repo_changes_nothing(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        (d / "web" / ".claude").mkdir()
+        (d / "web" / ".claude" / "settings.local.json").write_text("{not json")
+        code, out = self.run_cli("attach", b, d, "--repos")
+        self.assertEqual(code, 1)
+        self.assertIn("isn't valid JSON", out)
+        self.assertFalse((d / ".claude").exists())
+        self.assertFalse((d / "api" / ".claude").exists())
+
+    # Given a path, detach must still leave alone the repos that never had the bindle (no stray settings file).
+    def test_detach_repos_by_path_leaves_other_repos_untouched(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        self.run_cli("attach", b, d / "web", "--writable")
+        self.assertEqual(self.run_cli("detach", b, d, "--repos")[0], 0)
+        self.assertNotIn("autoMemoryDirectory", self.settings(d / "web"))
+        self.assertFalse((d / "api" / ".claude").exists())
+
+    # A bindle that moved leaves dead settings in every repo; detach must clear them all, not only the domain folder.
+    def test_detach_repos_clears_a_moved_bindle_from_every_repo(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        self.run_cli("attach", b, d, "--writable", "--repos")
+        shutil.move(str(b), str(self.tmp / "elsewhere"))
+        self.assertEqual(self.run_cli("detach", "acme", d, "--repos")[0], 0)
+        for f in (d, d / "web", d / "api"):
+            self.assertNotIn("bindle-acme", self.settings(f).get("extraKnownMarketplaces", {}), f)
+            self.assertNotIn("autoMemoryDirectory", self.settings(f), f)
+
+    def test_detach_repos_turns_it_off_everywhere_and_skips_repos_without_it(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        self.run_cli("attach", b, d, "--writable")
+        self.run_cli("attach", b, d / "web", "--writable")
+        self.assertEqual(self.run_cli("detach", "acme", d, "--repos")[0], 0)
+        for f in (d, d / "web"):
+            self.assertNotIn("autoMemoryDirectory", self.settings(f), f)
+        self.assertFalse((d / "api" / ".claude").exists())
+
+
 class DetachTest(BindleTest):
     def test_detach_turns_it_off_and_returns_memory_to_the_default(self):
         b, f = self.make_bindle("acme"), self.folder()

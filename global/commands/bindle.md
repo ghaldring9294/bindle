@@ -17,8 +17,8 @@ Help the user with bindle: $ARGUMENTS
 
 - `bindle list [<folder>]`: every bindle bindle can find (in `~/bindles`, in its registry, and attached to the folder), each with whether it's writable or read-only there, and registered ones that are gone. A bindle created or last attached before the registry existed appears once it's attached again; until then, ask the user for its path.
 - `bindle doctor [<folder>]`: what's on, which is writable, unsaved memories, warnings and problems, each problem with its fix. **Run this first** when unsure of the current state.
-- `bindle attach <bindle> [<folder>] [--writable]`: turn a bindle on for a folder (read-only unless `--writable`). A folder has one writable bindle; detach the current one first to switch.
-- `bindle detach <name-or-path> [<folder>]`: turn it off. Takes the bindle's name.
+- `bindle attach <bindle> [<folder>] [--writable] [--repos]`: turn a bindle on for a folder (read-only unless `--writable`). A folder has one writable bindle; detach the current one first to switch. `--repos` also attaches it to each git repo directly inside the folder (a session started in a repo reads only that repo's settings); if any of them already has another writable bindle, nothing changes.
+- `bindle detach <name-or-path> [<folder>] [--repos]`: turn it off. Takes the bindle's name. `--repos` also turns it off in each repo directly inside the folder that has it.
 - `bindle new <name> [--at <dir>] [--sync] [--audience private|shared|public] [--writes implicit|explicit]`: create a bindle repo (default `./.bindle`).
 - `bindle terms <bindle> [<folder>]`: suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
 - `bindle sync [<folder> | --all]`: pull the bindles that are on; commit and push the writable one's memories. `--all` does every bindle `bindle list` finds (commit and push only in those that can be writable). Sessions already sync on their own when a bindle has `"sync": true`; this is for catching up by hand.

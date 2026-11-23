@@ -140,23 +140,64 @@ def cmd_new(args):
     print(f"Turn it on for a folder: bindle attach {name if not warning else quote(str(dest))} <folder> [--writable]")
 
 
+def repos_in(folder):
+    """The git repos directly inside a folder (a `.git` folder, or a file for a worktree). Skips bindles, which
+    hold their own domain's memory, and folders it can't read."""
+    repos = []
+    for p in folder.iterdir():
+        try:
+            if p.is_dir() and not p.is_symlink() and not p.name.startswith(".") and (p / ".git").exists() \
+                    and not (p / "bindle.json").exists():
+                repos.append(p)
+        except OSError:
+            pass
+    return sorted(repos)
+
+
+def targets(args):
+    """The folder, plus with --repos each repo directly inside it: Claude Code doesn't read a parent folder's
+    settings, so a session started in a repo needs its own attach."""
+    folder = check_folder(args.folder or Path.cwd())
+    if not args.repos:
+        return [folder]
+    repos = repos_in(folder)
+    if not repos:
+        print(f"note: no git repos directly inside {folder}")
+    return [folder, *repos]
+
+
 def cmd_attach(args):
     b = find_bindle(args.bindle)
-    folder = check_folder(args.folder or Path.cwd())
-    sp = settings_path(folder)
-    settings = read_json(sp)
+    folders = targets(args)
 
     if args.writable and b["writes"] == "explicit":
         raise BindleError(
             f"{b['name']} takes explicit writes only (things arrive through `bindle collect`), so it can't be "
             f"a folder's writable bindle. Attach it without --writable.")
-    if args.writable:
-        current = settings.get("autoMemoryDirectory")
-        if current and real(current) != real(b["memory"]):
+    for folder in folders:  # check every folder first, so a refusal changes none of them
+        current = read_json(settings_path(folder)).get("autoMemoryDirectory")  # also fails on unreadable settings
+        if args.writable and current and real(current) != real(b["memory"]):
             raise BindleError(
                 f"{folder} already writes memories to {current}. A folder has one writable bindle: "
                 f"detach that one first, or attach {b['name']} without --writable.")
 
+    read_only = [folder for folder in folders if not attach_to(b, folder, args.writable)]
+    # Once, not per folder: these depend only on the bindle, and a repeated warning gets skimmed.
+    code = extra_code(b) if read_only else []
+    if code:
+        print(f"  warning: {b['name']} runs code on this machine beyond bindle's own hooks: {', '.join(code)}. "
+              f"Attach it only if you trust whoever can push to it.")
+    if read_only and not lock_is_exact(b["root"]):
+        print(f"  note: {b['root']} contains * ? [ or ], which permission rules read as patterns; the lock may not match exactly")
+    warning = register(b)
+    if warning:
+        print(f"  warning: {warning}")
+    print("Takes effect in the next session started from " + ("those folders." if len(folders) > 1 else "that folder."))
+
+
+def attach_to(b, folder, writable_flag):
+    sp = settings_path(folder)
+    settings = read_json(sp)
     # Add the marketplace, or add it again if it was declared at another path (the bindle moved after a
     # detach, which keeps the declaration); Claude Code then re-points it.
     declared = dict(directory_marketplaces(settings)).get(b["market"])
@@ -166,7 +207,7 @@ def cmd_attach(args):
         claude(folder, "plugin", "install", plugin_id(b), "--scope", "local")
 
     settings = read_json(sp)  # claude rewrote it
-    if args.writable:
+    if writable_flag:
         settings["autoMemoryDirectory"] = str(b["memory"])
         b["memory"].mkdir(exist_ok=True)
     writable = is_writable(settings, b)
@@ -175,16 +216,7 @@ def cmd_attach(args):
     write_json(sp, settings)
 
     print(f"{b['name']} is on in {folder}" + (", and writable" if writable else ", read-only (locked against Claude's file-editing tools)"))
-    code = extra_code(b) if not writable else []
-    if code:
-        print(f"  warning: {b['name']} runs code on this machine beyond bindle's own hooks: {', '.join(code)}. "
-              f"Attach it only if you trust whoever can push to it.")
-    if not writable and not lock_is_exact(b["root"]):
-        print(f"  note: {b['root']} contains * ? [ or ], which permission rules read as patterns; the lock may not match exactly")
-    warning = register(b)
-    if warning:
-        print(f"  warning: {warning}")
-    print("Takes effect in the next session started from that folder.")
+    return writable
 
 
 def find_attached(settings, ref):
@@ -221,12 +253,36 @@ def cmd_list(args):
 
 
 def cmd_detach(args):
-    folder = check_folder(args.folder or Path.cwd())
-    sp = settings_path(folder)
-    settings = read_json(sp)
+    folder, *repos = targets(args)
+    detached = 0
+    for repo in repos:
+        settings = read_json(settings_path(repo))
+        b = find_attached(settings, args.bindle)
+        # A path finds the bindle whether or not this repo has it; act only where it's declared.
+        if b is not None and str(b["root"]) in {str(d["root"]) for d in declared_bindles(settings)}:
+            detach_from(b, repo)
+            detached += 1
+        elif b is None:
+            try:
+                detach_missing(repo, settings, args.bindle)  # it moved or was deleted
+                detached += 1
+            except BindleError:
+                pass  # not attached to this repo
+    settings = read_json(settings_path(folder))
     b = find_attached(settings, args.bindle)
     if b is None:
-        return detach_missing(folder, settings, args.bindle)
+        try:
+            return detach_missing(folder, settings, args.bindle)
+        except BindleError:
+            if not detached:
+                raise
+            return 0
+    detach_from(b, folder)
+
+
+def detach_from(b, folder):
+    sp = settings_path(folder)
+    settings = read_json(sp)
 
     if settings.get("enabledPlugins", {}).get(plugin_id(b)):
         claude(folder, "plugin", "uninstall", plugin_id(b), "--scope", "local")

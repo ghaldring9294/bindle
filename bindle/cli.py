@@ -33,11 +33,13 @@ def build_parser():
     s.add_argument("bindle", help="path to the bindle repo, or the name of one in $BINDLE_HOME (default ~/bindles)")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.add_argument("--writable", action="store_true", help="new memories in this folder go to this bindle")
+    s.add_argument("--repos", action="store_true", help="also each git repo directly inside the folder (sessions started in a repo read only its own settings)")
     s.set_defaults(fn=cmd_attach)
 
     s = sub.add_parser("detach", help="turn a bindle off for a folder")
     s.add_argument("bindle", help="the bindle's name or path")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.add_argument("--repos", action="store_true", help="also each git repo directly inside the folder (sessions started in a repo read only its own settings)")
     s.set_defaults(fn=cmd_detach)
 
     s = sub.add_parser("list", help="list your bindles: those in $BINDLE_HOME (default ~/bindles) and those on in a folder")

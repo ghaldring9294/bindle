@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.18.0 (2026-11-22)
+
+No upgrade needed.
+
+- `bindle attach --repos` and `bindle detach --repos`: act on a domain folder and every git repo directly inside it, since a session started in a repo reads only that repo's settings. Other bindles inside the folder are skipped. A writable conflict or an unreadable settings file in any of them changes none; `detach --repos` also clears a bindle that moved from every repo.
+
 ## 0.17.1 (2026-11-22)
 
 **Run `bindle upgrade --all`** (adds a line to each bindle's `.gitignore`); for a bindle that's read-only where you are, run it yourself.
