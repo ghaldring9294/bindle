@@ -106,7 +106,7 @@ bindle attach ~/acme/.bindle ~/acme --writable
 bindle attach craft ~/acme           # craft = ~/bindles/craft
 ```
 
-**Launching from a repo inside the domain folder.** Claude Code treats each git repo as its own starting point: a session started in `~/acme/web` reads `~/acme/web/.claude/settings.local.json`, not `~/acme`'s, and keeps its own memory folder. Either start Claude from `~/acme` (it sees every repo, and the bindle is on), or also attach the bindle to each repo you start from for narrow work. `--repos` does the folder and every git repo directly inside it in one go (run it again after cloning a new repo):
+**Launching from a repo inside the domain folder.** Claude Code treats each git repo as its own starting point: a session started in `~/acme/web` reads `~/acme/web/.claude/settings.local.json`, not `~/acme`'s, and keeps its own memory folder. Either start Claude from `~/acme` (it sees every repo, and the bindle is on), or also attach the bindle to each repo you start from for narrow work. `--repos` does the folder and every git repo directly inside it in one go (run it again after cloning a new repo; `bindle doctor` in the domain folder lists repos still missing it):
 ```
 bindle attach acme ~/acme --writable --repos
 ```

@@ -2,15 +2,15 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-22, v0.18.0)
+## Where it stands (2026-11-22, v0.19.0)
 
-- **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 157 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
+- **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 160 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
 - **Docs:** README (usage), docs/design.md (design), `/bindle` (how Claude in any session operates bindle), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents, including the rule that docs ship with each change), CHANGELOG.md.
 
 ## Next steps
 
-**Order (2026-11-22):** the two remaining migration gaps below, then the demo repo and the contract test (road to 1.0, steps 1 and 2); that's enough to hand to a friend for the fresh-user test. The owner's own setup waits until after.
+**Order (2026-11-22):** the two remaining migration gaps below, then the demo repo and the contract test (road to 1.0, steps 1 and 2); then one thorough review of the whole repo (no per-change reviews until then); that's enough to hand to a friend for the fresh-user test. The owner's own setup waits until after.
 
 **Road to 1.0 (the tool):**
 1. **A public demo repo (`bindle-demo`).** Fixtures plus a cross-platform `setup` script that builds everything in `~/bindle-demo/` without touching real bindles: an `acme/` project with a `demo-acme` bindle (fake memories, private terms, a skill naming Acme specifics) and an empty `demo-craft`; names carry `demo-` because bindle names are unique per machine. README walkthrough, one session per domain: recall a memory and run `/demo-acme:release-notes`; save a memory; promote the skill to demo-craft (see the private-terms check catch "Acme"); remove it from demo-acme, attach demo-craft read-only, and see `/demo-craft:release-notes` still work and an edit to craft refused; a second domain (`globex/`) gets the skill but none of acme's memories; send globex a note from acme; improve the skill from globex with `--replace`. A `cleanup` script undoes it all. The contract test reuses the setup, so a change that breaks the walkthrough fails.
@@ -24,9 +24,8 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 4. **Go public** (or add collaborators): the owner's step on GitHub. Then tag 1.0.
 
 **Gaps found migrating a real setup (fix before 1.0):**
-- Claude Code keeps one memory folder per launch folder, and on macOS each git repo is its own launch root. A domain folder holding several repos therefore has several old memory folders, and the domain-level attach doesn't reach sessions launched inside a repo. Done (2026-11-22): MIGRATION.md inventories every memory folder under the domain, maps per-repo memories to `projects/<repo>/`, treats files CLAUDE.md points Claude at (a lessons folder) as memory, and attaches the bindle to each repo the person launches from; the README explains launching from a repo. v0.18.0: `attach --repos` and `detach --repos` cover the domain folder and every repo directly inside it. Still to do, two more sides of the same gap (Claude Code doesn't inherit settings from parent folders, so each repo needs its own attach):
-  - `doctor`: list repos inside an attached domain folder that have no bindle attached, with the command to fix them.
-  - An opt-in session check (`bindle install --session-check`, the one thing that edits `~/.claude/settings.json`, removable): a user-level SessionStart hook that warns only when a session starts in a folder inside a registered domain folder with no bindle attached ("memories from this session won't go to acme; attach it: …"). Folders outside any domain stay silent.
+- Claude Code keeps one memory folder per launch folder, and on macOS each git repo is its own launch root. A domain folder holding several repos therefore has several old memory folders, and the domain-level attach doesn't reach sessions launched inside a repo. Done (2026-11-22): MIGRATION.md inventories every memory folder under the domain, maps per-repo memories to `projects/<repo>/`, treats files CLAUDE.md points Claude at (a lessons folder) as memory, and attaches the bindle to each repo the person launches from; the README explains launching from a repo. v0.18.0: `attach --repos` and `detach --repos` cover the domain folder and every repo directly inside it. v0.19.0: `doctor` warns about repos whose sessions would miss the domain's writable bindle. Still to do, the last side of the same gap (Claude Code doesn't inherit settings from parent folders, so each repo needs its own attach):
+  - An opt-in session check (`bindle install --session-check`, the one thing that edits `~/.claude/settings.json`, removable): a user-level SessionStart hook that warns only when a session starts in a folder inside a registered domain folder with no bindle attached ("memories from this session won't go to acme; attach it: …"). Folders outside any domain stay silent. The README's setup steps recommend turning it on.
 
 **The owner's own setup (doesn't block 1.0):**
 - Write personal's `rules.md` from the live global instructions, minus anything domain-specific, under 9,000 characters, including the boundary rule (work appears in personal only at a high, public level).
@@ -55,3 +54,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** v0.17.0: private terms are a confirmation (`--allow`), secrets a hard stop; promotion skill covers moving, removing elsewhere, rules and craft-to-domain copies.
 - **2026-11-22:** v0.17.1: every bindle ignores `.claude/settings.local.json` (found attaching sp read-only to craft's folder); README covers writing craft with a work bindle read-only.
 - **2026-11-22:** v0.18.0: `attach --repos` and `detach --repos`.
+- **2026-11-22:** v0.19.0: `doctor` warns about repos inside a domain folder that would miss its bindle.

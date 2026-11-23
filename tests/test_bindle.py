@@ -465,6 +465,32 @@ class ReposTest(BindleTest):
             self.assertNotIn("bindle-acme", self.settings(f).get("extraKnownMarketplaces", {}), f)
             self.assertNotIn("autoMemoryDirectory", self.settings(f), f)
 
+    # Without the warning, memories from repo sessions silently go to Claude Code's default folder, not the domain.
+    def test_doctor_names_repos_that_would_miss_the_domain_and_the_fix_clears_it(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        self.run_cli("attach", b, d, "--writable")
+        code, out = self.run_cli("doctor", d)
+        self.assertEqual(code, 0, out)  # a warning: launching only from the domain folder is fine
+        self.assertIn("api, web won't load acme", out)
+        self.assertIn("--writable --repos", out)
+        self.run_cli("attach", b, d, "--writable", "--repos")
+        self.assertNotIn("won't load", self.run_cli("doctor", d)[1])
+
+    # --repos refuses when a repo writes to another bindle, so the suggested fix must not be one that fails.
+    def test_a_repo_writing_elsewhere_is_left_alone_and_the_fix_names_each_repo(self):
+        acme, personal, d = self.make_bindle("acme"), self.make_bindle("personal"), self.domain()
+        self.run_cli("attach", acme, d, "--writable")
+        self.run_cli("attach", personal, d / "web", "--writable")
+        out = self.run_cli("doctor", d)[1]
+        self.assertIn("api won't load acme", out)
+        self.assertNotIn("--repos", out)
+        self.assertIn(f"{d / 'api'} --writable", out)
+
+    def test_doctor_is_quiet_about_repos_when_the_folder_has_no_writable_bindle(self):
+        b, d = self.make_bindle("craft"), self.domain()
+        self.run_cli("attach", b, d)
+        self.assertNotIn("won't load", self.run_cli("doctor", d)[1])
+
     def test_detach_repos_turns_it_off_everywhere_and_skips_repos_without_it(self):
         b, d = self.make_bindle("acme"), self.domain()
         self.run_cli("attach", b, d, "--writable")

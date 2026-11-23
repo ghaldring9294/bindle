@@ -368,6 +368,21 @@ def sync_all():
     return 0
 
 
+def unattached_repos(folder, b):
+    """Repos inside a domain folder whose sessions would save memories to Claude Code's default folder,
+    since a session started in a repo reads only that repo's settings."""
+    memory = {r: read_json(settings_path(r)).get("autoMemoryDirectory") for r in repos_in(folder)}
+    repos = [r for r, m in memory.items() if not m]
+    if not repos:
+        return []
+    others = [r for r, m in memory.items() if m and real(m) != real(b["memory"])]
+    # --repos refuses when any repo writes to another bindle, so name each repo instead.
+    fixes = ([f"bindle attach {quote(str(b['root']))} {quote(str(r))} --writable" for r in repos] if others
+             else [f"bindle attach {quote(str(b['root']))} {quote(str(folder))} --writable --repos"])
+    return [f"sessions started in {', '.join(r.name for r in repos)} won't load {b['name']} or save memories to it "
+            f"(a repo reads only its own settings). If you start Claude there, run:\n      " + "\n      ".join(fixes)]
+
+
 def cmd_doctor(args):
     folder = real(args.folder or Path.cwd())
     problems, warnings, needs_upgrade = [], [], []
@@ -456,6 +471,9 @@ def cmd_doctor(args):
         elif b["layout"] != LAYOUT:
             problems.append(f"{b['name']}: bindle.json has no current layout number")
             needs_upgrade.append(b)
+
+    if writable:
+        warnings += unattached_repos(folder, writable)
 
     if memory_dir and not writable:
         print(f"  Memory: {memory_dir} (not a bindle attached here)")
