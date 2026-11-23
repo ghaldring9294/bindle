@@ -437,16 +437,12 @@ def sync_log(root):
 
 
 def last_sync(root):
-    lines = [l for l in sync_log(root) if l != hooks().Log.RUN]
+    lines = [l for l in sync_log(root) if not l.startswith(hooks().Log.RUN)]
     return lines[-1] if lines else None
 
 
 def last_run_problems(root):
-    """Every problem the latest sync run logged; a run can fail early and still end with a line like "pulled"."""
-    lines = sync_log(root)
-    marks = [i for i, l in enumerate(lines) if l == hooks().Log.RUN]
-    run = lines[marks[-1] + 1:] if marks else lines[-1:]
-    return [l.split(" problem: ", 1)[1] for l in run if " problem: " in l]
+    return hooks().last_run_problems(root)
 
 
 def extra_code(b):

@@ -6,10 +6,10 @@ One entry per release. "Run `bindle upgrade`" means the files bindle manages ins
 
 Run `bindle upgrade` (the hook changed), then push each bindle. On Windows, `bindle install` again (`/bindle` and the promotion skill changed). Fixes from a whole-repo adversarial review.
 
-- Sync commits and pushes `projects/` (project memories) too, and secret-checks it. Before every push it checks every line the outgoing commits add, so a secret committed by hand is never pushed, even if a later commit removed it; `doctor` says how to take it out.
+- Sync commits and pushes `projects/` (project memories) too, and secret-checks it. Before every push it checks every file each outgoing commit touches, as committed (binary files, odd names, merges and diff settings included), so a secret committed by hand is never pushed, even if a later commit removed it; `doctor` says how to take it out.
 - A file that looks like a secret is held back and the rest still sync; the session start says so in the terminal.
 - A bindle that's read-only in a folder is pulled (fast-forward only) and never pushed.
-- Sync pushes first and rebases only when the remote moved, stashing uncommitted work only when the remote didn't change the same files (no conflict markers in your notes). Sync problems show at the next session start and in `doctor` (every problem of the latest run), with unresolved conflicts and a leftover autostash. Being offline isn't flagged.
+- Sync pushes first and rebases only when the remote moved, stashing uncommitted work only when the remote didn't change the same files (no conflict markers in your notes). Sync problems show at the next session start and in `doctor` (every problem of the latest run), with unresolved conflicts and a leftover autostash. Being offline isn't flagged, but a rejected key or a missing remote is. Problems from a session's end, including code a rebase brought in, show at the next session start.
 - An edited `MEMORY.md` no longer stops sync (a status-parsing bug this release would otherwise have made worse).
 - Network calls give up after a few seconds on a stalled network and end git's helper processes too, and respect a repo's own `core.sshCommand` and `GIT_SSH`. `bindle sync` pushes before it pulls, like the hooks.
 - The code-change warning's review command covers every commit the pull brought.

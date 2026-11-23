@@ -2055,13 +2055,87 @@ class SyncTest(BindleTest):
         self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), head)
 
     # Offline is not a conflict; a wrong log sends people hunting for a conflict that isn't there.
-    def test_an_unreachable_remote_is_reported_as_offline_not_a_conflict(self):
+    # A moved or deleted remote isn't "offline": memories would stop leaving this machine with nothing said.
+    # Session end can't show anything, so the next session start does.
+    def test_a_missing_remote_is_a_problem_shown_at_the_next_start_not_a_conflict(self):
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", str(self.tmp / "gone.git")], check=True)
         (self.laptop / "memory/fact.md").write_text("x\n")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         last = bindle.core.last_sync(self.laptop)
-        self.assertIn("offline", last)
+        self.assertIn("problem:", last)
         self.assertNotIn("conflict", last)
+        start = json.loads(self.hook(self.laptop, self.laptop_folder, "session-start.sh").stdout)
+        self.assertIn("at the last session's end", start["systemMessage"])
+
+    # A revoked key says "Could not read from remote" too; filing it as offline hid it for good.
+    def test_a_rejected_key_is_a_problem_not_offline(self):
+        script = self.tmp / "denied-ssh.sh"
+        script.write_text("#!/bin/sh\necho 'git@host: Permission denied (publickey).' >&2\nexit 255\n")
+        script.chmod(0o755)
+        subprocess.run(["git", "-C", str(self.laptop), "config", "core.sshCommand", f"sh '{script.as_posix()}'"], check=True)
+        subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "ssh://git@127.0.0.1/remote.git"], check=True)
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertIn("problem:", bindle.core.last_sync(self.laptop))
+
+    # The secret check once parsed diff headers, so a common diff setting, a binary file, an odd file name or a
+    # merge commit each let a secret through. It must read what's committed, however git is configured.
+    def test_the_outgoing_secret_check_doesnt_depend_on_diff_settings_or_file_shapes(self):
+        hook = bindle.core.hooks()
+        secret = "api_key = abcdefghijklmnop1234\n"
+        cases = {"memory/plain.md": secret.encode(), "memory/bin.md": b"\0" + secret.encode(),
+                 'memory/we"ird name.md': secret.encode()}
+        subprocess.run(["git", "-C", str(self.laptop), "config", "diff.noprefix", "true"], check=True)
+        for rel, data in cases.items():
+            head = bindle.git(self.laptop, "rev-parse", "HEAD")
+            (self.laptop / rel).write_bytes(data)
+            bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "add")
+            self.assertEqual(hook.outgoing_secret_hits(self.laptop), [rel], rel)
+            bindle.git(self.laptop, "reset", "-q", "--hard", head)
+        bindle.git(self.laptop, "checkout", "-qb", "side")
+        (self.laptop / "memory/side.md").write_text("fine\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "side")
+        bindle.git(self.laptop, "checkout", "-q", "-")
+        bindle.git(self.laptop, "merge", "-q", "--no-commit", "--no-ff", "side")
+        (self.laptop / "memory/merged.md").write_text(secret)
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "merge")
+        self.assertIn("memory/merged.md", hook.outgoing_secret_hits(self.laptop))
+
+    # A rename by the remote once hid an overlap, so autostash left conflict markers in a note.
+    def test_an_uncommitted_edit_to_a_file_the_remote_renamed_stops_sync_cleanly(self):
+        (self.laptop / "notes/a.md").write_text("one\ntwo\nthree\nfour\n")
+        bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "a"); bindle.git(self.laptop, "push", "-q")
+        self.hook(self.desktop, self.desktop_folder, "session-start.sh")
+        bindle.git(self.desktop, "mv", "notes/a.md", "notes/b.md")
+        (self.desktop / "notes/b.md").write_text("one\nTWO desktop\nthree\nfour\n")
+        bindle.git(self.desktop, "commit", "-qam", "rename"); bindle.git(self.desktop, "push", "-q")
+        (self.laptop / "notes/a.md").write_text("one\nTWO laptop\nthree\nfour\n")  # uncommitted
+        (self.laptop / "memory/fact.md").write_text("x\n")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
+        self.assertFalse((self.laptop / "notes/b.md").exists() and "<<<<<<<" in (self.laptop / "notes/b.md").read_text())
+        self.assertEqual((self.laptop / "notes/a.md").read_text(), "one\nTWO laptop\nthree\nfour\n")
+        self.assertIn("problem:", bindle.core.last_sync(self.laptop))
+
+    # A hook error once started a fresh log run, hiding that run's earlier problems from doctor.
+    def test_a_hook_error_is_reported_in_its_own_run(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("hook_under_test", self.laptop / "hooks/bindle_hook.py")
+        hook = importlib.util.module_from_spec(spec); spec.loader.exec_module(hook)
+        def broken(root, log):
+            log.say("first step failed", problem=True)
+            raise RuntimeError("boom")
+        hook.sync_push = broken
+        saved = {k: os.environ.get(k) for k in ("CLAUDE_PLUGIN_ROOT", "CLAUDE_PROJECT_DIR")}
+        os.environ.update({"CLAUDE_PLUGIN_ROOT": str(self.laptop), "CLAUDE_PROJECT_DIR": str(self.laptop_folder)})
+        try:
+            self.assertEqual(hook.main(["hook", "session-end"]), 0)
+        finally:
+            for k, v in saved.items():
+                os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)
+        problems = bindle.core.last_run_problems(self.laptop)
+        self.assertIn("first step failed", problems)
+        self.assertTrue(any("boom" in p for p in problems))
 
     # A stalled network (captive portal, half-up VPN) must not eat the session start's context.
     def test_a_stalled_remote_cant_hold_up_the_session_start(self):
