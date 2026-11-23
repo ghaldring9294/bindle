@@ -5,7 +5,7 @@ import sys
 from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_session_check, cmd_sync
 from .core import VERSION, BindleError
 from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms
-from .upgrade import cmd_upgrade
+from .upgrade import cmd_update, cmd_upgrade
 
 FOLDER_HELP = "the folder you launch Claude from (default: here)"
 
@@ -62,6 +62,11 @@ def build_parser():
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.add_argument("--all", action="store_true", help="every bindle `bindle list` finds: pull each, and commit and push memories in those that can be writable")
     s.set_defaults(fn=cmd_sync)
+
+    s = sub.add_parser("update", help="update bindle itself (git pull), refresh its install, and upgrade every bindle")
+    s.add_argument("--push", action="store_true", help="also push each bindle the upgrade committed to, if it has a remote")
+    s.add_argument("--after-pull", action="store_true", help=argparse.SUPPRESS)
+    s.set_defaults(fn=cmd_update)
 
     s = sub.add_parser("upgrade", help="bring a bindle's managed files and layout up to this bindle version")
     s.add_argument("bindle", nargs="?", help="the bindle's name or path (default: every bindle attached to this folder)")

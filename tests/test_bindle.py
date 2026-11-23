@@ -722,6 +722,58 @@ class ReleaseCheckTest(BindleTest):
         self.assertIsNone(commands.refresh_tags(clone))  # fetched today: no second fetch
 
 
+class UpdateTest(InstallTest):
+    """`bindle update` is the one step people remember; it must pull bindle safely and leave every bindle current."""
+
+    def clone_pair(self):
+        origin, clone = self.tmp / "origin", self.tmp / "clone"
+        subprocess.run(["git", "init", "-q", str(origin)], check=True)
+        (origin / "f.txt").write_text("1\n")
+        subprocess.run(["git", "-C", str(origin), "add", "-A"], check=True)
+        subprocess.run(["git", "-C", str(origin), "commit", "-qm", "one"], check=True)
+        subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True)
+        return origin, clone
+
+    # Pulling bindle must never merge over someone's own edits to it.
+    def test_pull_fast_forwards_a_clean_clone_and_refuses_a_dirty_one(self):
+        from bindle import upgrade
+        origin, clone = self.clone_pair()
+        (origin / "f.txt").write_text("2\n")
+        subprocess.run(["git", "-C", str(origin), "commit", "-qam", "two"], check=True)
+        self.assertTrue(upgrade.pull_bindle(clone))
+        self.assertEqual((clone / "f.txt").read_text(), "2\n")
+        self.assertFalse(upgrade.pull_bindle(clone))  # nothing new
+        (clone / "f.txt").write_text("mine\n")
+        with self.assertRaises(bindle.core.BindleError):
+            upgrade.pull_bindle(clone)
+        self.assertEqual((clone / "f.txt").read_text(), "mine\n")
+
+    # After the pull: the install is refreshed, every bindle is upgraded, and pushing stays the person's call
+    # unless they pass --push.
+    def test_after_the_pull_it_upgrades_every_bindle_and_pushes_only_when_asked(self):
+        b = self.make_bindle("acme")
+        remote = self.tmp / "acme.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(b), str(remote)], check=True)
+        bindle.git(b, "remote", "add", "origin", str(remote))
+        bindle.git(b, "push", "-q", "-u", "origin", "HEAD")
+        with open(b / "hooks/run", "a") as f:
+            f.write("# older\n")
+        bindle.git(b, "commit", "-qam", "older hook"); bindle.git(b, "push", "-q")
+        head = bindle.git(remote, "rev-parse", "HEAD")
+        code, out = self.run_cli("update", "--after-pull")
+        self.assertEqual(code, 0, out)
+        self.assertEqual((b / "hooks/run").read_bytes(), (bindle.TEMPLATE / "hooks/run").read_bytes())
+        self.assertTrue((self.home / ".claude" / "commands" / "bindle.md").exists())
+        self.assertIn(f"git -C {b} push", out)
+        self.assertEqual(bindle.git(remote, "rev-parse", "HEAD"), head)  # not pushed without --push
+        with open(b / "hooks/run", "a") as f:
+            f.write("# older again\n")
+        bindle.git(b, "commit", "-qam", "older again")
+        code, out = self.run_cli("update", "--after-pull", "--push")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(bindle.git(remote, "rev-parse", "HEAD"), bindle.git(b, "rev-parse", "HEAD"))
+
+
 class SessionCheckTest(InstallTest):
     """A session started in a repo inside a domain folder reads only that repo's settings; without a warning, its
     memories silently go to Claude Code's default folder instead of the domain's bindle."""
@@ -815,7 +867,7 @@ def all_options(parser, prefix=""):
         if isinstance(action, argparse._SubParsersAction):
             for name, sub in action.choices.items():
                 yield from all_options(sub, f"{prefix} {name}".strip())
-        elif prefix:
+        elif prefix and action.help != argparse.SUPPRESS:  # hidden options are internal, not for docs
             for option in action.option_strings:
                 if option.startswith("--") and option != "--help":
                     yield prefix, option
@@ -836,7 +888,7 @@ class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text()
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "update", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
@@ -967,7 +1019,7 @@ class UpgradeTest(BindleTest):
         (b / "bindle.json").write_text(json.dumps(meta))
         code, out = self.run_cli("upgrade", b)
         self.assertEqual(code, 1)
-        self.assertIn("git pull bindle", out)
+        self.assertIn("Run bindle update", out)
 
     # The fix for a bindle with a remote includes the push, so the other machines get it too.
     def test_doctor_offers_a_copy_paste_fix_that_pushes(self):

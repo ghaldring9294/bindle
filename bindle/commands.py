@@ -160,12 +160,12 @@ def update_notes():
         refresh_tags(BASE)
         release = newer_release(BASE)
         if release:  # pull first: upgrading from an old copy would put old hooks back
-            return [f"bindle: {release} is available (this is {VERSION}); git -C {quote(str(BASE))} pull && bindle upgrade --all"]
+            return [f"bindle: {release} is available (this is {VERSION}); bindle update"]
     found = known_bindles()[0].values()
     newer = sorted(f"{b['name']} ({b['files_from']})" for b in found if from_newer_bindle(b))
     if newer:
         return [f"bindle: {', '.join(newer)} were upgraded by a newer bindle elsewhere; this is {VERSION}: "
-                f"git -C {quote(str(BASE))} pull"]
+                f"bindle update"]
     due = sorted(b["name"] for b in found if upgrade_due(b))
     return [f"bindle: {', '.join(due)} {'needs' if len(due) == 1 else 'need'} an upgrade; bindle upgrade --all"] if due else []
 
@@ -577,7 +577,7 @@ def cmd_doctor(args):
                 problems.append(f"{b['name']}: {hit} may hold a secret; sync won't commit it until it's removed")
         if from_newer_bindle(b):
             problems.append(f"{b['name']}: its files are from bindle {b['files_from']}, newer than this copy ({VERSION}); "
-                            f"git -C {quote(str(BASE))} pull (upgrading from here would put old hooks back)")
+                            f"bindle update (upgrading from this copy would put old hooks back)")
         else:
             for rel, how in managed_drift(b):
                 problems.append(f"{b['name']}: {rel} {how}")

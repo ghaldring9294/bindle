@@ -1,9 +1,12 @@
 """bindle upgrade: bring a bindle's managed files and layout up to this version of bindle."""
+import argparse
 import filecmp
 import shutil
+import subprocess
+import sys
 from pathlib import Path
 
-from .core import (from_newer_bindle, LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, find_bindle, git, known_bindles, load_bindle,
+from .core import (BASE, from_newer_bindle, hooks, LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, find_bindle, git, known_bindles, load_bindle,
                    read_json, real, settings_path, write_json, write_text)
 
 # A bindle's .gitignore and .gitattributes are its own, so upgrade only appends template lines they lack.
@@ -74,10 +77,10 @@ def cmd_upgrade(args):
     for b in bindles:
         layout = b["layout"] if isinstance(b["layout"], int) else 0
         if layout > LAYOUT:
-            raise BindleError(f"{b['name']} has layout {layout}, newer than this bindle ({LAYOUT}). git pull bindle first.")
+            raise BindleError(f"{b['name']} has layout {layout}, newer than this bindle ({LAYOUT}). Run bindle update.")
         if from_newer_bindle(b):
             message = (f"{b['name']}'s files are from bindle {b['files_from']}, newer than this copy ({VERSION}); "
-                       f"upgrading would put old hooks back. git pull bindle first.")
+                       f"upgrading would put old hooks back. Run bindle update.")
             if not args.all:
                 raise BindleError(message)
             print(f"{b['name']}: skipped; {message}")
@@ -127,3 +130,43 @@ def cmd_upgrade(args):
         else:
             print("  changed, not committed (no git identity here?)")
     return 1 if skipped else 0
+
+
+def pull_bindle(repo):
+    """Fast-forward bindle's own clone. Refuses rather than merge: a clone with local changes is someone's work."""
+    if git(repo, "rev-parse", "--git-dir") is None:
+        raise BindleError(f"{repo} isn't a git clone; update bindle the way you installed it.")
+    if git(repo, "status", "--porcelain", "--untracked-files=no"):
+        raise BindleError(f"{repo} has uncommitted changes; commit or discard them, then run bindle update again.")
+    before = git(repo, "rev-parse", "HEAD")
+    if subprocess.run(["git", "-C", str(repo), "pull", "-q", "--ff-only"]).returncode != 0:
+        raise BindleError(f"Couldn't fast-forward {repo} (see above); nothing was changed.")
+    return before != git(repo, "rev-parse", "HEAD")
+
+
+def cmd_update(args):
+    """Update bindle and every bindle. It pulls bindle's own repo, then hands over to the pulled copy, so
+    refreshing the install and upgrading each bindle run the new code and templates, not the copy already loaded."""
+    if not args.after_pull:
+        changed = pull_bindle(BASE)
+        print(f"bindle: {'updated' if changed else 'already up to date'} ({BASE})")
+        return subprocess.call([sys.executable, str(BASE / "bin" / "bindle"), "update", "--after-pull"]
+                               + (["--push"] if args.push else []))
+    from .commands import cmd_install  # commands imports this module
+    print(f"bindle {VERSION}: refreshing the install")
+    cmd_install(argparse.Namespace(session_check=None))
+    found = known_bindles()[0]
+    heads = {root: git(b["root"], "rev-parse", "HEAD") for root, b in found.items()}
+    code = cmd_upgrade(argparse.Namespace(all=True, bindle=None, dry_run=False))
+    h = hooks()
+    for root, b in sorted(found.items(), key=lambda kv: kv[1]["name"]):
+        if git(b["root"], "rev-parse", "HEAD") == heads[root] or not h.has_upstream(b["root"]):
+            continue
+        if not args.push:
+            print(f"Push {b['name']} so other machines get the upgrade: git -C {b['root']} push")
+        elif subprocess.run(["git", "-C", str(b["root"]), "push", "-q"]).returncode == 0:
+            print(f"{b['name']}: pushed")
+        else:
+            print(f"{b['name']}: push failed (see above); push it by hand: git -C {b['root']} push")
+            code = 1
+    return code
