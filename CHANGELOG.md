@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.21.2 (2026-11-22)
+
+No upgrade needed. On Windows, `bindle install` again (`/bindle` changed).
+
+- `/bindle`: setting up a new domain attaches with `--repos`, suggests the session check, and offers to migrate old memories.
+
 ## 0.21.1 (2026-11-22)
 
 No upgrade needed. On Windows, `bindle install` again (`/bindle` changed).
