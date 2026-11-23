@@ -30,7 +30,7 @@ flowchart LR
 
 Your personal bindle isn't attached at `~/acme` at all, so nothing personal loads there. At home, `~/projects` attaches your personal bindle as writable instead.
 
-bindle uses Claude Code's own mechanisms rather than replacing them: plugins for skills and hooks, the `autoMemoryDirectory` setting for memory, and permission rules for the read-only lock. The `bindle` command stores nothing itself; it writes a folder's `.claude/settings.local.json` and reads it back.
+bindle uses Claude Code's own mechanisms rather than replacing them: plugins for skills and hooks, the `autoMemoryDirectory` setting for memory, and permission rules for the read-only lock. The `bindle` command writes a folder's `.claude/settings.local.json` and reads it back; the only thing it keeps is `~/bindles/registry.json`, a plain list of where your bindles live, so you can name them from any folder.
 
 ## Install
 
@@ -47,7 +47,7 @@ bindle/bin/bindle install
 
 ## Quick start
 
-Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works, but `bindle attach` finds bindles there by name (set `BINDLE_HOME` to use another folder).
+Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works. Commands find a bindle in `~/bindles/` by its folder name, and one elsewhere (like a domain bindle in its project folder) by the name it was created or attached with (set `BINDLE_HOME` to use another home folder). Run `bindle` alone to see every command.
 
 1. **Create the bindle.** It's a local git repo; bindle never sets a remote.
    ```
@@ -141,10 +141,10 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 |---|---|
 | `bindle install` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude` |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
-| `bindle attach <bindle> [<folder>] [--writable]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to. `<bindle>` is a path, or a name in `$BINDLE_HOME` (default `~/bindles`) |
+| `bindle attach <bindle> [<folder>] [--writable]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to. `<bindle>` is a path, or a name (a folder in `~/bindles`, or a bindle in its registry) |
 | `bindle detach <name-or-path> [<folder>]` | Turn a bindle off for a folder |
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
-| `bindle list [<folder>]` | List your bindles: those in `$BINDLE_HOME` (default `~/bindles`) and those on in the folder, with whether each is writable there |
+| `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder>]` | Pull the bindles that are on; commit and push the writable one's memories |
 | `bindle upgrade [<bindle>] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
@@ -182,6 +182,8 @@ AGENTS.md              orientation for AI agents working in the bindle
 | `sync` | `true` / `false` | Pull at session start; commit and push `memory/` and `outbox/` at session end |
 | `audience` | `private` / `shared` / `public` | Who the bindle is for. Visibility itself is your git host's setting. |
 | `writes` | `implicit` / `explicit` | `explicit` bindles take material only through `bindle collect` and can't be writable |
+
+**`~/bindles/registry.json`:** where bindles outside `~/bindles` live, by name (`{"bindles": {"acme": "/Users/you/acme/.bindle"}}`). `new` and `attach` keep it current; you can edit it. Names must be unique on a machine, because Claude Code's marketplace names are machine-wide; `new` and `attach` warn about a duplicate.
 
 **`private-terms.txt`:** one name per line (organization, products, repos, ticket prefixes, people). Matching ignores case and whole words only; a term ending in punctuation, like the ticket prefix `ACME-`, also matches what follows it. Anything promoted out of the bindle is checked against these. `bindle terms <bindle>` suggests candidates from the domain folder: its name, its repos' names and remotes, and ticket prefixes in their commits. You choose which to add; it never writes the file. `doctor` warns when the writable bindle has none.
 

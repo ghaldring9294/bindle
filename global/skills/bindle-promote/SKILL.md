@@ -34,7 +34,7 @@ It refuses a draft that names a term from the source's `private-terms.txt` or lo
 
 ## 5. Collect, if the person wants it now
 
-Ask which bindle each item goes to; never choose for them. Offer the choices `bindle list` shows (the bindles in `~/bindles/` or `$BINDLE_HOME`, plus those on in this folder), other than the source; for a bindle it doesn't show, ask for its path. Outbox items aren't addressed to a target, so an item can be collected into more than one bindle, now or later.
+Ask which bindle each item goes to; never choose for them. Offer the choices `bindle list` shows (the bindles in `~/bindles/`, in its registry, and on in this folder), other than the source; for a bindle it doesn't show, ask for its path. Outbox items aren't addressed to a target, so an item can be collected into more than one bindle, now or later.
 
 ```
 bindle collect <source bindle> --into <target bindle> --items <slug>[,<slug>]

@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-22, v0.10.0)
+## Where it stands (2026-11-22, v0.11.0)
 
 - **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 104 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -34,3 +34,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** read-only bindle and lock rule verified on Windows; README notes MCP commands on Windows. MIT license added. v0.7.0: `bindle attach <name>` looks in `~/bindles/` (or `$BINDLE_HOME`). v0.8.0: `bindle terms` and a doctor warning for empty private terms; `/bindle` rewritten so Claude handles attach/detach requests in any session; docs-with-every-change rule. v0.8.1: attach re-points a bindle that moved after a detach (found moving craft to `~/bindles/craft`).
 - **2026-11-22:** v0.9.0: `doctor` flags bindle names that disagree; `bindle outbox clean`; renaming documented; design doc's open questions became "Later ideas"; PLAN reorganized around 1.0.
 - **2026-11-22:** v0.10.0: `bindle list`, `bindle outbox remove`; `/bindle-promote` asks which bindle to collect into.
+- **2026-11-22:** v0.11.0: a registry (`~/bindles/registry.json`) so domain bindles are found by name anywhere; bare `bindle` prints help. Next: the `note` kind and `outbox list --all`.

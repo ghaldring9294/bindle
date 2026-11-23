@@ -9,7 +9,7 @@ from pathlib import Path
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, bindles_home, extra_code, find_bindle, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
+                   exclude_from_enclosing_repo, bindles_home, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json, write_text)
 
@@ -134,7 +134,10 @@ def cmd_new(args):
         print(f"  inside the repo {excluded[0]}: added {excluded[1]} to its .git/info/exclude (local, never committed)")
     print("  sync: " + ("on (memories pull at session start and push at session end, once a remote is set)"
                         if args.sync else "off (turn on with \"sync\": true in bindle.json)"))
-    print(f"Turn it on for a folder: bindle attach {quote(str(dest))} <folder> [--writable]")
+    warning = register(load_bindle(dest))
+    if warning:
+        print(f"  warning: {warning}")
+    print(f"Turn it on for a folder: bindle attach {name if not warning else quote(str(dest))} <folder> [--writable]")
 
 
 def cmd_attach(args):
@@ -178,6 +181,9 @@ def cmd_attach(args):
               f"Attach it only if you trust whoever can push to it.")
     if not writable and not lock_is_exact(b["root"]):
         print(f"  note: {b['root']} contains * ? [ or ], which permission rules read as patterns; the lock may not match exactly")
+    warning = register(b)
+    if warning:
+        print(f"  warning: {warning}")
     print("Takes effect in the next session started from that folder.")
 
 
@@ -193,29 +199,24 @@ def find_attached(settings, ref):
 
 
 def cmd_list(args):
-    """The bindles bindle can find: those in bindles_home() and those attached to a folder. There's no
-    registry, so a domain bindle elsewhere shows up only in folders it's attached to."""
+    """The bindles bindle can find: those in bindles_home(), those in its registry, and those attached to a
+    folder (a bindle attached before the registry existed is registered the next time it's attached)."""
     folder = real(args.folder or Path.cwd())
     settings = read_json(settings_path(folder))
     attached = {str(b["root"]): b for b in declared_bindles(settings)}
-    found, home = {}, bindles_home()
-    if home.is_dir():
-        for d in sorted(home.iterdir()):
-            if (d / "bindle.json").exists():
-                try:
-                    b = load_bindle(d)
-                except BindleError:
-                    continue
-                found[str(b["root"])] = b
+    found, missing = known_bindles()
+    home = bindles_home()
     found.update(attached)
-    if not found:
+    if not found and not missing:
         print(f"No bindles in {home} or attached to {folder}.")
         return 0
-    width = max(len(b["name"]) for b in found.values())
+    width = max((len(b["name"]) for b in found.values()), default=0)
     for key, b in sorted(found.items(), key=lambda kv: kv[1]["name"]):
         here = ("writable here" if is_writable(settings, b) else "read-only here") if key in attached else "not on here"
         print(f"  {b['name'].ljust(width)}  {b['audience']}, {b['writes']} writes; {here}  {b['root']}")
-    print(f"(bindles in {home}, plus those attached to {folder})")
+    for name, path in missing:
+        print(f"  {name}: registered at {path}, but nothing is there now (attach it from its new path)")
+    print(f"(bindles in {home} and its registry.json, plus those attached to {folder})")
     return 0
 
 

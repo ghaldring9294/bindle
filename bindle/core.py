@@ -2,7 +2,7 @@
 
 A bindle is one domain's layer in its own git repo, shaped as a Claude Code plugin. A folder turns
 bindles on in its .claude/settings.local.json: every attached bindle is on there, and at most one is
-writable (new memories land in its memory/ folder). bindle stores nothing itself; it reads and writes
+writable (new memories land in its memory/ folder). bindle keeps only an index of where bindles live (~/bindles/registry.json); it reads and writes
 those settings. Standard library only; Python 3.9+.
 """
 import importlib.util
@@ -18,7 +18,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.10.0"
+VERSION = "0.11.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -92,14 +92,74 @@ def bindles_home():
     return real(os.environ.get("BINDLE_HOME") or Path.home() / "bindles")
 
 
+def registry_path():
+    return bindles_home() / "registry.json"
+
+
+def registry():
+    """Bindles that live outside bindles_home() (domain bindles, usually), by name: {name: path}. A plain file
+    the person can read and edit; `new` and `attach` keep it current. Bindles in bindles_home() need no entry."""
+    entries = read_json(registry_path()).get("bindles", {})
+    return entries if isinstance(entries, dict) else {}
+
+
+def register(b):
+    """Record where a bindle lives, so it can be found by name from any folder. Returns a warning, or None.
+    Names must be unique on a machine: Claude Code's marketplace names (bindle-<name>) are machine-wide."""
+    name, root, home = b["name"], b["root"], bindles_home()
+    in_home = home / name
+    if in_home.exists() and real(in_home) != root:
+        return f"another bindle named {name} is at {in_home}; names must be unique on a machine, so rename one"
+    entries = registry()
+    if real(root.parent) == real(home) and root.name == name:
+        if name in entries:  # it moved into the home folder; its folder name finds it now
+            del entries[name]
+            write_json(registry_path(), {"bindles": entries})
+        return None
+    other = entries.get(name)
+    if other and real(other) != root and (Path(other) / "bindle.json").exists():
+        return (f"another bindle named {name} is registered at {other}; names must be unique on a machine, "
+                f"so rename one (README: Renaming a bindle)")
+    if other and real(other) == root:
+        return None
+    entries[name] = str(root)
+    write_json(registry_path(), {"bindles": dict(sorted(entries.items()))})
+    return None
+
+
+def known_bindles():
+    """Every bindle bindle can find without a folder: those in bindles_home() and those registered.
+    Returns ({root: bindle}, [(name, path) of registered bindles that are gone])."""
+    found, missing, home = {}, [], bindles_home()
+    candidates = [d for d in sorted(home.iterdir()) if d.is_dir()] if home.is_dir() else []
+    for name, path in registry().items():
+        if (Path(path) / "bindle.json").exists():
+            candidates.append(Path(path))
+        else:
+            missing.append((name, path))
+    for d in candidates:
+        if (d / "bindle.json").exists():
+            try:
+                b = load_bindle(d)
+            except BindleError:
+                continue
+            found[str(b["root"])] = b
+    return found, missing
+
+
 def find_bindle(arg):
-    """A bindle given as a path, or as a bare name in bindles_home(), so `bindle attach craft` works."""
+    """A bindle given as a path, or by name: a folder in bindles_home(), or a registered bindle."""
     if Path(os.path.expanduser(arg)).exists() or not NAME_RE.match(arg):
         return load_bindle(arg)
     if (bindles_home() / arg).exists():
         return load_bindle(bindles_home() / arg)
-    raise BindleError(f"No folder {arg} here or in {bindles_home()}. Pass the bindle's path, "
-                      f"or set BINDLE_HOME to the folder your bindles live in.")
+    path = registry().get(arg)
+    if path and Path(path).exists():
+        return load_bindle(path)
+    if path:
+        raise BindleError(f"{arg} is registered at {path}, but nothing is there now. Pass its new path.")
+    raise BindleError(f"No bindle named {arg} in {bindles_home()} or its registry. Pass the bindle's path "
+                      f"(attaching it once registers it), or set BINDLE_HOME to the folder your bindles live in.")
 
 
 def name_problems(b):

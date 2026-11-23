@@ -276,7 +276,7 @@ class AttachTest(BindleTest):
         self.run_cli("attach", b, f)
         self.run_cli("detach", "craft", f)
         moved = self.tmp / "bindles" / "craft"
-        moved.parent.mkdir()
+        moved.parent.mkdir(exist_ok=True)
         b.rename(moved)
         code, out = self.run_cli("attach", "craft", f)
         self.assertEqual(code, 0, out)
@@ -525,6 +525,14 @@ class DocsTest(unittest.TestCase):
         for c in parser_cmds:
             self.assertIn(f"`bindle {c}", readme, c)
 
+    # Typing `bindle` alone is how people discover the commands; an error there is a dead end.
+    def test_bare_bindle_prints_every_command(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(bindle.main([]), 0)
+        for c in ("attach", "detach", "list", "doctor", "outbox", "collect", "terms"):
+            self.assertIn(c, out.getvalue())
+
     # /bindle is what Claude reads to operate bindle for someone; a command missing there is one Claude
     # guesses at or doesn't know to offer.
     def test_the_bindle_command_tells_claude_every_command(self):
@@ -747,6 +755,11 @@ class PromotionTest(BindleTest):
         self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
 
 
+def registry_entries(tmp):
+    path = tmp / "bindles" / "registry.json"
+    return json.loads(path.read_text())["bindles"] if path.exists() else {}
+
+
 class ListTest(BindleTest):
     # There's no registry; promotion asks "which bindle?", so this is how Claude and the person see the choices.
     def test_lists_home_bindles_and_ones_attached_here_with_their_state(self):
@@ -760,6 +773,39 @@ class ListTest(BindleTest):
         self.assertEqual(set(lines), {"craft", "acme"})
         self.assertIn("explicit writes; not on here", lines["craft"])
         self.assertIn("writable here", lines["acme"])
+
+    # A freelancer's client bindles live in each client's folder; the registry is how they're found by name.
+    def test_a_domain_bindle_is_registered_and_found_by_name_anywhere(self):
+        globex = self.tmp / "clients" / "globex" / ".bindle"
+        self.run_cli("new", "globex", "--at", globex)
+        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text())["bindles"], {"globex": str(globex)})
+        f = self.folder()
+        self.assertEqual(self.run_cli("attach", "globex", f)[0], 0)
+        self.assertIn("globex", self.run_cli("list", self.folder("elsewhere"))[1])
+
+    # Marketplace names are machine-wide in Claude Code, so a second bindle with the same name would collide.
+    def test_a_second_bindle_with_the_same_name_is_warned_about_not_registered(self):
+        first, second = self.tmp / "a" / ".bindle", self.tmp / "b" / ".bindle"
+        self.run_cli("new", "acme", "--at", first)
+        code, out = self.run_cli("new", "acme", "--at", second)
+        self.assertIn("names must be unique", out)
+        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text())["bindles"]["acme"], str(first))
+
+    # A registered bindle that moved must be findable again, not stuck on its old path.
+    def test_a_moved_bindle_is_shown_as_missing_then_re_registered_on_attach(self):
+        old = self.tmp / "acme" / ".bindle"
+        self.run_cli("new", "acme", "--at", old)
+        new = self.tmp / "work" / "acme" / ".bindle"
+        new.parent.mkdir(parents=True)
+        old.rename(new)
+        self.assertIn("nothing is there now", self.run_cli("list", self.folder())[1])
+        self.run_cli("attach", new, self.folder())
+        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text())["bindles"]["acme"], str(new))
+
+    # Bindles in the home folder are found by their folder; registering them too would leave two sources of truth.
+    def test_bindles_in_the_home_folder_need_no_entry(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft")
+        self.assertEqual(registry_entries(self.tmp), {})
 
     def test_says_so_when_there_are_none(self):
         self.assertIn("No bindles", self.run_cli("list", self.folder())[1])

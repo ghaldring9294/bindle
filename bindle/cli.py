@@ -95,7 +95,11 @@ def build_parser():
 
 
 def main(argv=None):
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    if not (sys.argv[1:] if argv is None else argv):
+        parser.print_help()  # bare `bindle` shows every command rather than an error
+        return 0
+    args = parser.parse_args(argv)
     try:
         return args.fn(args) or 0
     except BindleError as e:

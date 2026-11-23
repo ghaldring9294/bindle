@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.11.0 (2026-11-22)
+
+No upgrade needed. Bindles attached before this version join the registry the next time you attach them (`bindle attach <path> <folder>` again is safe).
+
+- A registry, `~/bindles/registry.json`: where bindles outside `~/bindles` live, by name. `new` and `attach` keep it current, so a domain bindle can be named from any folder (`bindle attach acme`, `bindle list`). Duplicate names are warned about, since Claude Code's marketplace names are machine-wide.
+- `bindle list` includes registered bindles, and registered ones whose folder is gone.
+- `bindle` with no arguments prints every command.
+
 ## 0.10.0 (2026-11-22)
 
 No upgrade needed.

@@ -8,14 +8,14 @@ Help the user with bindle: $ARGUMENTS
 
 - A **bindle** is a git repo holding one domain's layer (personal, an employer, a client, shared craft): `memory/`, `projects/`, `notes/`, `rules.md`, skills, `private-terms.txt`. It's a Claude Code plugin, so its skills are `/<bindle>:<skill>`.
 - A **folder** turns bindles on in its `.claude/settings.local.json`. Every attached bindle is **on** there; **at most one is writable** (new memories go to it). The rest are **read-only**: Claude Code is denied edits inside them.
-- Where bindles live: a domain bindle is usually `<domain folder>/.bindle`; bindles used in many folders (personal, craft) are usually in `~/bindles/`, and `attach` and `terms` accept a bare name for those (`craft` means `~/bindles/craft`, or `$BINDLE_HOME/craft`). Other commands take a path; `detach` also takes the name.
-- bindle stores no state. `bindle doctor` reads the folder's settings and reports what's on.
+- Where bindles live: a domain bindle is usually `<domain folder>/.bindle`; bindles used in many folders (personal, craft) are usually in `~/bindles/`, `~/bindles/registry.json` records where the others live. `attach` and `terms` accept a bare name for any of them (`craft` means `~/bindles/craft`; `acme` means wherever the registry says). Other commands take a path; `detach` also takes the name. Run `bindle` alone for the full command list.
+- bindle keeps only that registry. `bindle doctor` reads the folder's settings and reports what's on.
 
 ## Commands
 
 `bindle` is on PATH. `<folder>` defaults to the current folder. Any folder works, in a git repo or not; but if it's inside a repo, on macOS and Linux use the repo root, because that's where Claude Code reads settings (`attach` refuses a subfolder and names the root).
 
-- `bindle list [<folder>]`: the bindles bindle can find (in `$BINDLE_HOME`, default `~/bindles`, plus those attached to the folder), each with whether it's writable or read-only there. There's no registry: a domain bindle elsewhere appears only in folders it's attached to; ask the user for its path.
+- `bindle list [<folder>]`: every bindle bindle can find (in `~/bindles`, in its registry, and attached to the folder), each with whether it's writable or read-only there, and registered ones that are gone. A bindle created or last attached before the registry existed appears once it's attached again; until then, ask the user for its path.
 - `bindle doctor [<folder>]`: what's on, which is writable, unsaved memories, warnings and problems, each problem with its fix. **Run this first** when unsure of the current state.
 - `bindle attach <bindle> [<folder>] [--writable]`: turn a bindle on for a folder (read-only unless `--writable`). A folder has one writable bindle; detach the current one first to switch.
 - `bindle detach <name-or-path> [<folder>]`: turn it off. Takes the bindle's name.
