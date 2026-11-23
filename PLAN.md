@@ -22,7 +22,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 4. **Go public** (or add collaborators): the owner's step on GitHub. Then tag 1.0.
 
 **Gaps found migrating a real setup (fix before 1.0):**
-- Claude Code keeps one memory folder per launch folder, and on macOS each git repo is its own launch root. A domain folder holding several repos therefore has several old memory folders, and the domain-level attach doesn't reach sessions launched inside a repo. MIGRATION.md must inventory every memory folder under the domain (`~/.claude/projects/<encoded path>*/memory/`) and attach the bindle to each repo the person launches from; `doctor` should warn when repos inside an attached folder have no bindle attached.
+- Claude Code keeps one memory folder per launch folder, and on macOS each git repo is its own launch root. A domain folder holding several repos therefore has several old memory folders, and the domain-level attach doesn't reach sessions launched inside a repo. Done (2026-11-22): MIGRATION.md inventories every memory folder under the domain, maps per-repo memories to `projects/<repo>/`, treats files CLAUDE.md points Claude at (a lessons folder) as memory, and attaches the bindle to each repo the person launches from; the README explains launching from a repo. Still to do: `doctor` should warn when repos inside an attached folder have no bindle attached.
 
 **The owner's own setup (doesn't block 1.0):**
 - Write personal's `rules.md` from the live global instructions, minus anything domain-specific, under 9,000 characters, including the boundary rule (work appears in personal only at a high, public level).
