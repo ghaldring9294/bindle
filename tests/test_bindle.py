@@ -518,7 +518,7 @@ class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text()
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
@@ -660,6 +660,21 @@ class PromotionTest(BindleTest):
         self.assertTrue((self.acme / "outbox/naming").exists())  # not collected yet: still waiting
         self.assertNotIn("outbox/small-prs", bindle.git(self.acme, "status", "--porcelain"))  # removal committed
 
+    # Approving isn't final: a person who changes their mind needs a way to drop an item before it's collected.
+    def test_remove_drops_a_named_item_even_if_not_collected(self):
+        self.add()
+        code, out = self.run_cli("outbox", "remove", self.acme, "--items", "small-prs")
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.acme / "outbox/small-prs").exists())
+        self.assertNotIn("outbox/", bindle.git(self.acme, "status", "--porcelain"))
+
+    def test_remove_refuses_an_unknown_item_and_removes_nothing(self):
+        self.add()
+        code, out = self.run_cli("outbox", "remove", self.acme, "--items", "small-prs,typo")
+        self.assertEqual(code, 1)
+        self.assertIn("no item typo", out)
+        self.assertTrue((self.acme / "outbox/small-prs").exists())
+
     # Naming an item that hasn't reached its target yet must not delete the only reviewed copy.
     def test_clean_refuses_a_named_item_not_yet_collected(self):
         self.add()
@@ -730,6 +745,24 @@ class PromotionTest(BindleTest):
         code, _ = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
         self.assertEqual(code, 1)
         self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
+
+
+class ListTest(BindleTest):
+    # There's no registry; promotion asks "which bindle?", so this is how Claude and the person see the choices.
+    def test_lists_home_bindles_and_ones_attached_here_with_their_state(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft", "--writes", "explicit")
+        (self.tmp / "bindles" / "notes").mkdir()  # not a bindle: ignored
+        acme, f = self.make_bindle("acme"), self.folder()  # outside the home folder, attached here
+        self.run_cli("attach", acme, f, "--writable")
+        code, out = self.run_cli("list", f)
+        self.assertEqual(code, 0, out)
+        lines = {l.split()[0]: l for l in out.splitlines() if l.startswith("  ")}
+        self.assertEqual(set(lines), {"craft", "acme"})
+        self.assertIn("explicit writes; not on here", lines["craft"])
+        self.assertIn("writable here", lines["acme"])
+
+    def test_says_so_when_there_are_none(self):
+        self.assertIn("No bindles", self.run_cli("list", self.folder())[1])
 
 
 class TermsTest(BindleTest):

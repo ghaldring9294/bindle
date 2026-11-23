@@ -9,7 +9,7 @@ from pathlib import Path
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, extra_code, find_bindle, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
+                   exclude_from_enclosing_repo, bindles_home, extra_code, find_bindle, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json, write_text)
 
@@ -190,6 +190,33 @@ def find_attached(settings, ref):
     if looks_like_path and Path(os.path.expanduser(ref)).exists():
         return load_bindle(ref)
     return None
+
+
+def cmd_list(args):
+    """The bindles bindle can find: those in bindles_home() and those attached to a folder. There's no
+    registry, so a domain bindle elsewhere shows up only in folders it's attached to."""
+    folder = real(args.folder or Path.cwd())
+    settings = read_json(settings_path(folder))
+    attached = {str(b["root"]): b for b in declared_bindles(settings)}
+    found, home = {}, bindles_home()
+    if home.is_dir():
+        for d in sorted(home.iterdir()):
+            if (d / "bindle.json").exists():
+                try:
+                    b = load_bindle(d)
+                except BindleError:
+                    continue
+                found[str(b["root"])] = b
+    found.update(attached)
+    if not found:
+        print(f"No bindles in {home} or attached to {folder}.")
+        return 0
+    width = max(len(b["name"]) for b in found.values())
+    for key, b in sorted(found.items(), key=lambda kv: kv[1]["name"]):
+        here = ("writable here" if is_writable(settings, b) else "read-only here") if key in attached else "not on here"
+        print(f"  {b['name'].ljust(width)}  {b['audience']}, {b['writes']} writes; {here}  {b['root']}")
+    print(f"(bindles in {home}, plus those attached to {folder})")
+    return 0
 
 
 def cmd_detach(args):

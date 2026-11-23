@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-22, v0.9.0)
+## Where it stands (2026-11-22, v0.10.0)
 
 - **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 104 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -20,7 +20,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - Promotion pass at work: general lessons and `craft`/`both` memories from the work bindle move to craft, rewritten, through the outbox; the general global instructions go into craft's `rules.md` by hand. Craft is private for now (2026-11-22) while the workflow settles; once parts of it are ready to hand to others, make `craft-shared` (`--audience shared --writes explicit`) and promote those over.
 - Later: a remote for the work bindle on storage the employer allows; delete the work machine's pre-bindle memory folder once the new setup has run for a while.
 
-**Done:** Windows support (v0.6.0; verified on a real PC, including the read-only lock, 2026-11-22). The smaller gaps (v0.9.0): `doctor` checks the three names agree, `bindle outbox clean`, renaming documented, attach by name. Ideas beyond 1.0 are in docs/design.md, "Later ideas".
+**Done:** Windows support (v0.6.0; verified on a real PC, including the read-only lock, 2026-11-22). The smaller gaps (v0.9.0–0.10.0): `doctor` checks the three names agree, `bindle outbox clean` and `remove`, `bindle list`, renaming documented, attach by name; promotion asks for the target. Ideas beyond 1.0 are in docs/design.md, "Later ideas".
 
 ## Log
 
@@ -33,3 +33,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-21:** Windows verified on a real PC (memory written there reached GitHub). v0.6.1: session start commits memories a skipped SessionEnd left (closing the app skipped it); README covers two GitHub accounts on one machine.
 - **2026-11-22:** read-only bindle and lock rule verified on Windows; README notes MCP commands on Windows. MIT license added. v0.7.0: `bindle attach <name>` looks in `~/bindles/` (or `$BINDLE_HOME`). v0.8.0: `bindle terms` and a doctor warning for empty private terms; `/bindle` rewritten so Claude handles attach/detach requests in any session; docs-with-every-change rule. v0.8.1: attach re-points a bindle that moved after a detach (found moving craft to `~/bindles/craft`).
 - **2026-11-22:** v0.9.0: `doctor` flags bindle names that disagree; `bindle outbox clean`; renaming documented; design doc's open questions became "Later ideas"; PLAN reorganized around 1.0.
+- **2026-11-22:** v0.10.0: `bindle list`, `bindle outbox remove`; `/bindle-promote` asks which bindle to collect into.

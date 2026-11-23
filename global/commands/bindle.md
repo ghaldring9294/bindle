@@ -15,6 +15,7 @@ Help the user with bindle: $ARGUMENTS
 
 `bindle` is on PATH. `<folder>` defaults to the current folder. Any folder works, in a git repo or not; but if it's inside a repo, on macOS and Linux use the repo root, because that's where Claude Code reads settings (`attach` refuses a subfolder and names the root).
 
+- `bindle list [<folder>]`: the bindles bindle can find (in `$BINDLE_HOME`, default `~/bindles`, plus those attached to the folder), each with whether it's writable or read-only there. There's no registry: a domain bindle elsewhere appears only in folders it's attached to; ask the user for its path.
 - `bindle doctor [<folder>]`: what's on, which is writable, unsaved memories, warnings and problems, each problem with its fix. **Run this first** when unsure of the current state.
 - `bindle attach <bindle> [<folder>] [--writable]`: turn a bindle on for a folder (read-only unless `--writable`). A folder has one writable bindle; detach the current one first to switch.
 - `bindle detach <name-or-path> [<folder>]`: turn it off. Takes the bindle's name.
@@ -22,7 +23,7 @@ Help the user with bindle: $ARGUMENTS
 - `bindle terms <bindle> [<folder>]`: suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
 - `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
 - `bindle upgrade [<bindle>] [--dry-run]`: bring a bindle's managed files up to this version of bindle.
-- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`, `bindle outbox clean <bindle> [--items …] [--dry-run]`: the source's reviewed items, leak-checked; `clean` removes ones already collected. Draft with the `/bindle-promote` skill.
+- `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`, `bindle outbox clean <bindle> [--items …] [--dry-run]`, `bindle outbox remove <bindle> --items …`: the source's reviewed items, leak-checked; `clean` removes ones already collected, `remove` drops named ones whatever their status. Draft with the `/bindle-promote` skill.
 - `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle.
 - `bindle install`: put `bindle` on PATH and link `/bindle` and `/bindle-promote` into `~/.claude`.
 
@@ -31,7 +32,7 @@ Help the user with bindle: $ARGUMENTS
 - **"Attach craft here" / "turn on personal":** `bindle attach <name> <folder>`, read-only unless they say writable. The folder is the one this session was started in (or its repo root, if it's inside a repo on macOS/Linux). Then run `bindle doctor` and tell them it takes effect in their **next** session, since Claude Code reads settings at session start.
 - **"Detach craft" / "turn it off here":** `bindle detach <name> <folder>`, then the same note.
 - **"Make X writable here":** if another bindle is writable, say which; with their go-ahead, detach it (and attach it again without `--writable` if they want it kept on read-only), then `bindle attach X <folder> --writable`. Attaching the current writable one again without `--writable` doesn't demote it.
-- **"What's on?":** `bindle doctor`, summarized.
+- **"What's on?":** `bindle doctor`, summarized. **"What bindles do I have?":** `bindle list`.
 - **Setting up on another machine:** don't use `bindle new`; clone the existing repo into place: `git clone <url> ~/bindles/<name>` for one used in many folders, `git clone <url> <domain folder>/.bindle` for a domain bindle. Then attach it per folder. Plain `git clone <url>` lands in the current folder under the repo's name, which `attach <name>` won't find.
 - **"Rename this bindle":** there's no rename command; follow README's "Renaming a bindle" (detach everywhere, change the three names, attach again, `bindle doctor`). Show the plan first.
 - **A new domain:** `bindle new <name> --at <domain folder>/.bindle`, then `bindle terms`, have them pick terms and write the chosen ones to its `private-terms.txt`, then attach it writable. Ask before setting `--sync`; it needs a remote they add themselves.

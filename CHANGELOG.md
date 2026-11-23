@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.10.0 (2026-11-22)
+
+No upgrade needed.
+
+- `bindle list [<folder>]` lists your bindles: those in `$BINDLE_HOME` (default `~/bindles`) plus those attached to the folder, each with its audience, writes and whether it's writable there.
+- `bindle outbox remove <bindle> --items …` drops named outbox items whatever their status, for an approval you changed your mind about.
+- `/bindle-promote` asks which bindle to collect into, offering what `bindle list` shows; it never chooses.
+
 ## 0.9.0 (2026-11-22)
 
 No upgrade needed.

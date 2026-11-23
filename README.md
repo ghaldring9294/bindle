@@ -144,12 +144,14 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 | `bindle attach <bindle> [<folder>] [--writable]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to. `<bindle>` is a path, or a name in `$BINDLE_HOME` (default `~/bindles`) |
 | `bindle detach <name-or-path> [<folder>]` | Turn a bindle off for a folder |
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
+| `bindle list [<folder>]` | List your bindles: those in `$BINDLE_HOME` (default `~/bindles`) and those on in the folder, with whether each is writable there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder>]` | Pull the bindles that are on; commit and push the writable one's memories |
 | `bindle upgrade [<bindle>] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
 | `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …]` | Store an approved draft for promotion, after the leak and secret checks |
 | `bindle outbox list <bindle>` | Show a bindle's outbox |
 | `bindle outbox clean <bindle> [--items …] [--dry-run]` | Remove items already collected (they're in the target and in git history) |
+| `bindle outbox remove <bindle> --items … [--dry-run]` | Drop named items, collected or not (an approval you changed your mind about) |
 | `bindle collect <source> --into <target> --items <slugs>` | Move approved outbox items into another bindle |
 
 `<folder>` always means the folder you start Claude Code from; it defaults to the current one. Run `bindle <command> --help` for every option.

@@ -22,7 +22,7 @@ Material leaves a bindle only as text the person reviewed and approved as genera
 
 ## 3. Show and get approval
 
-Show each draft beside the original, briefly say what you removed, and ask the person to approve, edit or drop each one. Nothing moves without a yes for that item.
+Show each draft beside the original, briefly say what you removed, and ask the person to approve, edit or drop each one. Nothing moves without a yes for that item. If they change their mind after an item is in the outbox, `bindle outbox remove <source> --items <slug>` drops it.
 
 ## 4. Add approved drafts to the outbox
 
@@ -34,7 +34,7 @@ It refuses a draft that names a term from the source's `private-terms.txt` or lo
 
 ## 5. Collect, if the person wants it now
 
-Ask which bindle each item goes to; never choose for them. Offer the other bindles on in this folder (`bindle doctor`) and those in `~/bindles/` (or `$BINDLE_HOME`). Outbox items aren't addressed to a target, so an item can be collected into more than one bindle, now or later.
+Ask which bindle each item goes to; never choose for them. Offer the choices `bindle list` shows (the bindles in `~/bindles/` or `$BINDLE_HOME`, plus those on in this folder), other than the source; for a bindle it doesn't show, ask for its path. Outbox items aren't addressed to a target, so an item can be collected into more than one bindle, now or later.
 
 ```
 bindle collect <source bindle> --into <target bindle> --items <slug>[,<slug>]

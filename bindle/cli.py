@@ -2,9 +2,9 @@
 import argparse
 import sys
 
-from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_new, cmd_sync
+from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_sync
 from .core import VERSION, BindleError
-from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_terms
+from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_terms
 from .upgrade import cmd_upgrade
 
 FOLDER_HELP = "the folder you launch Claude from (default: here)"
@@ -40,6 +40,10 @@ def build_parser():
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.set_defaults(fn=cmd_detach)
 
+    s = sub.add_parser("list", help="list your bindles: those in $BINDLE_HOME (default ~/bindles) and those on in a folder")
+    s.add_argument("folder", nargs="?", help=FOLDER_HELP)
+    s.set_defaults(fn=cmd_list)
+
     s = sub.add_parser("doctor", help="show what's on in a folder and any problems")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.set_defaults(fn=cmd_doctor)
@@ -70,6 +74,11 @@ def build_parser():
     o.add_argument("--items", help="comma-separated item names (default: every collected item)")
     o.add_argument("--dry-run", action="store_true", help="show what would be removed")
     o.set_defaults(fn=cmd_outbox_clean)
+    o = osub.add_parser("remove", help="drop named items, collected or not (e.g. an approval you changed your mind about)")
+    o.add_argument("bindle")
+    o.add_argument("--items", required=True, help="comma-separated item names")
+    o.add_argument("--dry-run", action="store_true", help="show what would be removed")
+    o.set_defaults(fn=cmd_outbox_remove)
 
     s = sub.add_parser("terms", help="suggest private terms for a bindle from the repos in its domain folder")
     s.add_argument("bindle", help="the bindle's path, or its name in $BINDLE_HOME")

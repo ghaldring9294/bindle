@@ -213,14 +213,32 @@ def cmd_outbox_clean(args):
     if not items:
         print(f"Nothing to clean: no collected items in {b['name']}'s outbox.")
         return 0
+    return remove_items(b, items, args.dry_run, "removed collected items")
+
+
+def cmd_outbox_remove(args):
+    """Drop named items whatever their status, e.g. an approved draft you changed your mind about."""
+    b = load_bindle(args.bindle)
+    by_slug = {it["slug"]: it for it in outbox_items(b)}
+    wanted = list(dict.fromkeys(s.strip() for s in args.items.split(",") if s.strip()))
+    missing = [s for s in wanted if s not in by_slug]
+    if missing:
+        raise BindleError(f"{b['name']}'s outbox has no item {', '.join(missing)}.")
+    return remove_items(b, [by_slug[s] for s in wanted], args.dry_run, "removed")
+
+
+def remove_items(b, items, dry_run, what):
     for it in items:
-        print(f"  {'would remove' if args.dry_run else 'removing'} {it['slug']} (collected into {', '.join(it['collected_into'])})")
-    if args.dry_run:
+        if it["dir"].is_symlink():
+            raise BindleError(f"{it['slug']} is a link, not a folder; remove it by hand.")
+        where = f"collected into {', '.join(it['collected_into'])}" if it.get("collected_into") else "not collected"
+        print(f"  {'would remove' if dry_run else 'removing'} {it['slug']} ({where})")
+    if dry_run:
         return 0
     for it in items:
         shutil.rmtree(it["dir"])
     names = ", ".join(it["slug"] for it in items)
-    if not commit(b["root"], f"Outbox: removed collected items: {names}", "outbox"):
+    if not commit(b["root"], f"Outbox: {what}: {names}", "outbox"):
         print("Removed, but not committed (no git identity here?). Commit by hand.")
     return 0
 
