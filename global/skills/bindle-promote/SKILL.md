@@ -32,7 +32,7 @@ Ask with the AskUserQuestion tool (a select they arrow through), one question pe
 
 ## 4. Move it
 
-If the target is on this machine (it's in `bindle list`):
+If the target is on this machine (it's in `bindle list`, even marked "not attached here", which only means it isn't on in this folder):
 ```
 bindle promote <source path> <draft> --into <target> --kind memory|skill|command|note --name <slug> --description "<one line>"
 ```

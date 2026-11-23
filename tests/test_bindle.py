@@ -1249,7 +1249,8 @@ class ListTest(BindleTest):
         self.assertEqual(code, 0, out)
         lines = {l.split()[0]: l for l in out.splitlines() if l.startswith("  ")}
         self.assertEqual(set(lines), {"craft", "acme"})
-        self.assertIn("explicit writes; not on here", lines["craft"])
+        # "not on here" read as "not on this machine", so promotion sent a local target to the outbox.
+        self.assertIn("explicit writes; not attached here", lines["craft"])
         self.assertIn("writable here", lines["acme"])
 
     # A freelancer's client bindles live in each client's folder; the registry is how they're found by name.

@@ -167,7 +167,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder |
 | `bindle detach <name-or-path> [<folder>] [--repos]` | Turn a bindle off for a folder; `--repos` also each git repo directly inside it that has it |
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
-| `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable there |
+| `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable, read-only or not attached there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder> \| --all]` | Pull the bindles that are on; commit and push the writable one's memories. `--all`: every bindle `bindle list` finds |
 | `bindle upgrade [<bindle> \| --all] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |

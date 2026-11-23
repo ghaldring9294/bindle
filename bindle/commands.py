@@ -316,7 +316,7 @@ def cmd_list(args):
         return 0
     width = max((len(b["name"]) for b in found.values()), default=0)
     for key, b in sorted(found.items(), key=lambda kv: kv[1]["name"]):
-        here = ("writable here" if is_writable(settings, b) else "read-only here") if key in attached else "not on here"
+        here = ("writable here" if is_writable(settings, b) else "read-only here") if key in attached else "not attached here"
         print(f"  {b['name'].ljust(width)}  {b['audience']}, {b['writes']} writes; {here}  {b['root']}")
     for name, path in missing:
         print(f"  {name}: registered at {path}, but nothing is there now (attach it from its new path)")
