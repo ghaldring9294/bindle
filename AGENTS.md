@@ -25,8 +25,7 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 4. **Use Claude Code's native mechanisms** (plugins, `autoMemoryDirectory`, hooks) rather than custom loading.
 5. **Tests encode why:** each test says what breaks for a person if it fails. Run the unit tests before committing.
 6. **Docs ship with the change, in the same commit.** A change to a command, a behaviour or a decision updates every place that describes it:
-   - `README.md` (people using bindle; its command table is checked by a test)
-   - `global/commands/bindle.md` (Claude operating bindle; also checked by a test)
+   - `README.md` (people using bindle) and `global/commands/bindle.md` (Claude operating bindle): tests check that both name every command and option, and that every `bindle …` line in a code block in either, in MIGRATION.md and in the promotion skill parses
    - `global/skills/bindle-promote/SKILL.md` and `MIGRATION.md`, when promotion or setup changes
    - `docs/design.md`, when a decision or its reason changes
    - `templates/bindle/AGENTS.md`, when the bindle layout changes

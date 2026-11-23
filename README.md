@@ -162,7 +162,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | Command | What it does |
 |---|---|
 | `bindle install [--session-check \| --no-session-check]` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude`; `--session-check` adds the hook that warns when a session starts inside a domain folder without its bindle (recommended) |
-| `bindle session-check [<folder>]` | Show what the session check would say for a session started in that folder |
+| `bindle session-check [<folder>]` | Show what the session check would say for a session started in that folder (the installed hook runs it with `--hook`) |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
 | `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder. `<bindle>` is a path, or a name (a folder in `~/bindles`, or a bindle in its registry) |
 | `bindle detach <name-or-path> [<folder>] [--repos]` | Turn a bindle off for a folder; `--repos` also each git repo directly inside it that has it |
@@ -172,7 +172,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | `bindle sync [<folder> \| --all]` | Pull the bindles that are on; commit and push the writable one's memories. `--all`: every bindle `bindle list` finds |
 | `bindle upgrade [<bindle> \| --all] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
 | `bindle promote <source> <draft> --into <target> --name <slug> [--kind …] [--description …] [--allow <term>] [--replace] [--dry-run]` | Copy an approved, general draft into another bindle on this machine, after the private-terms and secrets checks. `--replace` updates what's there; `--dry-run` shows the diff |
-| `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …]` | Store an approved draft for promotion, after the leak and secret checks |
+| `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …] [--allow <term>]` | Store an approved draft for promotion, after the leak and secret checks |
 | `bindle outbox list <bindle> \| --all` | Show a bindle's outbox, or every outbox that has items |
 | `bindle outbox clean <bindle> [--items …] [--dry-run]` | Remove items already collected (they're in the target and in git history) |
 | `bindle outbox remove <bindle> --items … [--dry-run]` | Drop named items, collected or not (an approval you changed your mind about) |

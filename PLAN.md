@@ -4,7 +4,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 
 ## Where it stands (2026-11-22, v0.20.0)
 
-- **The tool:** `install`, `new`, `attach`, `detach`, `doctor`, `sync`, `upgrade`, `outbox add|list`, `collect`; one Python implementation shared by the CLI and every bindle's hooks; 160 unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
+- **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
 - **Docs:** README (usage), docs/design.md (design), `/bindle` (how Claude in any session operates bindle), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents, including the rule that docs ship with each change), CHANGELOG.md.
 
@@ -55,3 +55,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-22:** v0.18.0: `attach --repos` and `detach --repos`.
 - **2026-11-22:** v0.19.0: `doctor` warns about repos inside a domain folder that would miss its bindle.
 - **2026-11-22:** v0.20.0: the opt-in session check; the registry records domain folders.
+- **2026-11-22:** drift tests: AGENTS.md's layout, the changelog's newest entry, every option in the README and `/bindle`, every example command parses.

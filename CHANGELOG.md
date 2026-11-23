@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.20.1 (2026-11-22)
+
+No upgrade needed. On Windows, `bindle install` again (`/bindle` changed).
+
+- `/bindle` now tells Claude about `--allow` (letting a private term through a promotion once you've approved it) and that `outbox add` takes notes too; the README lists `outbox add --allow` and the session check's `--hook`.
+- Tests catch documentation drift: every command option must appear in the README and `/bindle`, every `bindle …` example in a code block must parse, AGENTS.md must name every module and script (and only paths that exist), and the newest changelog entry must be the current version.
+
 ## 0.20.0 (2026-11-22)
 
 No upgrade needed. Recommended: `bindle install --session-check`, then `bindle attach <bindle> <folder> --writable` again in each folder with a writable bindle, so the check knows it (`bindle doctor` reminds you).

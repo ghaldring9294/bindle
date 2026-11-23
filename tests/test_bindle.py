@@ -712,6 +712,30 @@ class SessionCheckTest(InstallTest):
         self.assertNotIn("doesn't know", self.run_cli("doctor", self.domain)[1])
 
 
+def all_options(parser, prefix=""):
+    """(command, --option) for every subcommand, nested ones included (outbox add)."""
+    import argparse
+    for action in parser._actions:
+        if isinstance(action, argparse._SubParsersAction):
+            for name, sub in action.choices.items():
+                yield from all_options(sub, f"{prefix} {name}".strip())
+        elif prefix:
+            for option in action.option_strings:
+                if option.startswith("--") and option != "--help":
+                    yield prefix, option
+
+
+def example_commands(text):
+    """`bindle ...` commands inside fenced code blocks, split at && and ; (placeholders like <folder> are fine)."""
+    import re
+    for block in re.findall(r"```[^\n]*\n(.*?)```", text, re.S):
+        for line in block.splitlines():
+            for part in re.split(r"&&|;", line):
+                part = part.strip()
+                if part.startswith("bindle ") or part == "bindle":
+                    yield part
+
+
 class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
@@ -742,6 +766,33 @@ class DocsTest(unittest.TestCase):
                 self.assertTrue((bindle.BASE / term).exists(), f"AGENTS.md names {term}, which doesn't exist")
             elif term.endswith(".py") and "/" not in term:
                 self.assertTrue((bindle.BASE / "bindle" / term).exists(), f"AGENTS.md names {term}, which doesn't exist")
+
+    # An option that the README or /bindle doesn't mention is one people and agents never use.
+    def test_every_option_is_in_the_readme_and_the_bindle_command(self):
+        docs = {name: (bindle.BASE / path).read_text(encoding="utf-8")
+                for name, path in [("README.md", "README.md"), ("/bindle", "global/commands/bindle.md")]}
+        missing = [f"{name} doesn't mention `bindle {command} {option}`"
+                   for command, option in all_options(bindle.build_parser())
+                   for name, text in docs.items() if option not in text]
+        self.assertEqual(missing, [])
+
+    # Example commands are what people and agents copy; one the CLI no longer accepts fails at the worst moment.
+    def test_every_example_command_parses(self):
+        import shlex
+        files = ["README.md", "MIGRATION.md", "global/commands/bindle.md", "global/skills/bindle-promote/SKILL.md"]
+        for rel in files:
+            for line in example_commands((bindle.BASE / rel).read_text(encoding="utf-8")):
+                with self.subTest(file=rel, line=line):
+                    err = io.StringIO()
+                    try:
+                        with contextlib.redirect_stderr(err):
+                            bindle.build_parser().parse_args(shlex.split(line, comments=True)[1:])
+                    except SystemExit:
+                        error = err.getvalue().strip().splitlines()[-1]
+                        # A template like `--kind memory|skill|note` or `--kind …` names a real option with a placeholder value.
+                        if "invalid choice" in error and any(c in error.split("'")[1] for c in "|…<"):
+                            continue
+                        self.fail(f"{rel}: `{line}` doesn't parse: {error}")
 
     # People read the changelog to decide whether to run `bindle upgrade`; a release without its entry hides that.
     def test_the_newest_changelog_entry_is_this_version(self):
