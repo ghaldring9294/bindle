@@ -149,7 +149,7 @@ def cmd_update(args):
     refreshing the install and upgrading each bindle run the new code and templates, not the copy already loaded."""
     if not args.after_pull:
         changed = pull_bindle(BASE)
-        print(f"bindle: {'updated' if changed else 'already up to date'} ({BASE})")
+        print(f"bindle: {'updated' if changed else 'already up to date'} ({BASE})", flush=True)
         return subprocess.call([sys.executable, str(BASE / "bin" / "bindle"), "update", "--after-pull"]
                                + (["--push"] if args.push else []))
     from .commands import cmd_install  # commands imports this module

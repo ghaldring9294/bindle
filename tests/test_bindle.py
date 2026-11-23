@@ -748,6 +748,15 @@ class UpdateTest(InstallTest):
             upgrade.pull_bindle(clone)
         self.assertEqual((clone / "f.txt").read_text(), "mine\n")
 
+    # The first thing update says is whether bindle itself changed; buffered, it once came out after everything else.
+    def test_update_reports_its_own_pull_before_the_upgrade_output(self):
+        self.make_bindle("acme")
+        script = ("import sys; sys.path.insert(0, sys.argv[1]); from bindle import upgrade, cli; "
+                  "upgrade.pull_bindle = lambda repo: False; sys.exit(cli.main(['update']))")
+        out = subprocess.run([sys.executable, "-c", script, str(bindle.BASE)], capture_output=True, text=True,
+                             env=os.environ).stdout
+        self.assertTrue(out.startswith("bindle: already up to date"), out)
+
     # After the pull: the install is refreshed, every bindle is upgraded, and pushing stays the person's call
     # unless they pass --push.
     def test_after_the_pull_it_upgrades_every_bindle_and_pushes_only_when_asked(self):
