@@ -30,6 +30,7 @@ A CLI that carries one person's Claude Code setup between machines while keeping
    - `global/skills/bindle-promote/SKILL.md` and `MIGRATION.md`, when promotion or setup changes
    - `docs/design.md`, when a decision or its reason changes
    - `templates/bindle/AGENTS.md`, when the bindle layout changes
-   - `CHANGELOG.md` for each release, and `PLAN.md` (status, next steps, log)
+   - this file's Layout, when a module or script is added, renamed or removed (a test checks it names every one, and only paths that exist)
+   - `CHANGELOG.md` for each release (a test checks its newest entry is `VERSION`), and `PLAN.md` (status, next steps, log)
 
    Before committing, check that nothing in these contradicts the change (grep for the command or term). Docs are written for a general audience.

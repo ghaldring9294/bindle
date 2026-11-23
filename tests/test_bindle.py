@@ -723,6 +723,32 @@ class DocsTest(unittest.TestCase):
         for c in parser_cmds:
             self.assertIn(f"`bindle {c}", readme, c)
 
+    # AGENTS.md is how an agent finds its way around this repo; a module or script it doesn't name gets
+    # reimplemented or missed, and a path that no longer exists sends it looking in the wrong place.
+    def test_agents_md_names_every_module_and_script_and_only_real_paths(self):
+        import re
+        agents = (bindle.BASE / "AGENTS.md").read_text(encoding="utf-8")
+        named = set(re.findall(r"`([^`]+)`", agents))
+        for module in (bindle.BASE / "bindle").glob("*.py"):
+            if module.name != "__init__.py":
+                self.assertTrue({module.name, f"bindle/{module.name}"} & named, f"AGENTS.md doesn't name {module.name}")
+        for script in (bindle.BASE / "bin").iterdir():
+            if script.is_file():
+                self.assertIn(f"bin/{script.name}", named, f"AGENTS.md doesn't name bin/{script.name}")
+        for term in named:
+            # Paths in this repo: a top-level part that exists here (memory/ and notes/ describe a bindle, not this repo).
+            if "/" in term and " " not in term and not term.startswith(("~", ".", "/")) \
+                    and (bindle.BASE / term.split("/")[0]).exists():
+                self.assertTrue((bindle.BASE / term).exists(), f"AGENTS.md names {term}, which doesn't exist")
+            elif term.endswith(".py") and "/" not in term:
+                self.assertTrue((bindle.BASE / "bindle" / term).exists(), f"AGENTS.md names {term}, which doesn't exist")
+
+    # People read the changelog to decide whether to run `bindle upgrade`; a release without its entry hides that.
+    def test_the_newest_changelog_entry_is_this_version(self):
+        changelog = (bindle.BASE / "CHANGELOG.md").read_text(encoding="utf-8")
+        newest = next(line for line in changelog.splitlines() if line.startswith("## "))
+        self.assertTrue(newest.startswith(f"## {bindle.VERSION} "), f"{newest!r} isn't version {bindle.VERSION}")
+
     # Typing `bindle` alone is how people discover the commands; an error there is a dead end.
     def test_bare_bindle_prints_every_command(self):
         out = io.StringIO()
