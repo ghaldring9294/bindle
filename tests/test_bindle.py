@@ -203,8 +203,8 @@ class NotesTest(BindleTest):
         b = self.make_bindle("acme")
         (b / ".gitignore").write_text("*.out\n")
         (b / ".gitattributes").unlink()
-        (b / "notes/scratch/README.md").unlink()
-        bindle.git(b, "add", "-A"); bindle.git(b, "commit", "-qm", "an old bindle")
+        (b / "notes/scratch/README.md").unlink()  # made before these existed: never in its history
+        bindle.git(b, "add", "-A"); bindle.git(b, "commit", "-q", "--amend", "-m", "an old bindle")
         self.run_cli("upgrade", b)
         ignore = (b / ".gitignore").read_text()
         self.assertTrue(ignore.startswith("*.out\n"))
@@ -893,9 +893,10 @@ class UpgradeTest(BindleTest):
         self.run_cli("attach", b, f)
         (b / "hooks/bindle_hook.py").write_text("# old\n")
         (b / "hooks/lib.sh").write_text("# obsolete\n")
-        (b / "AGENTS.md").unlink()
+        (b / "AGENTS.md").unlink()  # made before AGENTS.md existed: never in its history
         bindle.git(b, "add", "-A")
-        bindle.git(b, "commit", "-qm", "an old bindle")
+        bindle.git(b, "commit", "-q", "--amend", "-m", "an old bindle")
+        self.assertEqual(bindle.git(b, "rev-list", "--count", "HEAD"), "1")
         self.assertEqual(self.run_cli("upgrade", b)[0], 0)
         self.assertEqual((b / "hooks/bindle_hook.py").read_bytes(), (bindle.TEMPLATE / "hooks/bindle_hook.py").read_bytes())
         self.assertFalse((b / "hooks/lib.sh").exists())
@@ -967,6 +968,18 @@ class UpgradeTest(BindleTest):
             os.chdir(cwd)
         for b in (acme, personal):
             self.assertEqual((b / "hooks/bindle_hook.py").read_bytes(), (bindle.TEMPLATE / "hooks/bindle_hook.py").read_bytes())
+
+
+class UpgradeKeepsDeletionsTest(BindleTest):
+    # Someone who deleted rules.md or a README they didn't want shouldn't find it back after every upgrade.
+    def test_a_template_file_deleted_on_purpose_stays_deleted(self):
+        b = self.make_bindle("acme")
+        (b / "rules.md").unlink()
+        bindle.git(b, "commit", "-qam", "no rules here")
+        with open(b / "hooks/run", "a") as fh:
+            fh.write("# drifted\n")
+        self.run_cli("upgrade", b)
+        self.assertFalse((b / "rules.md").exists())
 
 
 class UpgradeAllTest(BindleTest):

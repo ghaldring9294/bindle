@@ -22,7 +22,7 @@ def missing_lines(root, name):
 
 def upgrade_plan(b):
     """What upgrade would change: managed files that differ or are missing, obsolete managed files to remove,
-    template files the bindle doesn't have yet (never overwriting its own), and template lines to append."""
+    template files the bindle has never had (never overwriting its own), and template lines to append."""
     root, plan = b["root"], []
     for rel in MANAGED:
         copy = root / rel
@@ -35,7 +35,9 @@ def upgrade_plan(b):
             plan.append(("remove", rel))
     for src in sorted(TEMPLATE.rglob("*")):
         rel = src.relative_to(TEMPLATE).as_posix()
-        if src.is_file() and "__pycache__" not in rel and rel not in MANAGED and not (root / rel).exists():
+        # A file the bindle's history already had was deleted on purpose; don't bring it back.
+        if (src.is_file() and "__pycache__" not in rel and rel not in MANAGED and not (root / rel).exists()
+                and not git(root, "log", "-1", "--format=%H", "--", rel)):
             plan.append(("add", rel))
     for name in LINE_MERGED:
         if (root / name).exists() and missing_lines(root, name):
