@@ -628,6 +628,23 @@ class UpgradeTest(BindleTest):
             self.assertEqual((b / "hooks/bindle_hook.py").read_bytes(), (bindle.TEMPLATE / "hooks/bindle_hook.py").read_bytes())
 
 
+class UpgradeAllTest(BindleTest):
+    # With several bindles, upgrading each by path after every bindle release is the chore the registry removes.
+    def test_all_upgrades_home_and_registered_bindles(self):
+        self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft")
+        self.run_cli("new", "acme", "--at", self.tmp / "acme" / ".bindle")
+        for root in (self.tmp / "bindles" / "craft", self.tmp / "acme" / ".bindle"):
+            with open(root / "hooks/bindle_hook.py", "a") as h:
+                h.write("# stale\n")
+        code, out = self.run_cli("upgrade", "--all")
+        self.assertEqual(code, 0, out)
+        for root in (self.tmp / "bindles" / "craft", self.tmp / "acme" / ".bindle"):
+            self.assertNotIn("# stale", (root / "hooks/bindle_hook.py").read_text())
+
+    def test_all_and_a_path_together_is_refused(self):
+        self.assertEqual(self.run_cli("upgrade", "--all", self.tmp)[0], 1)
+
+
 class PromotionTest(BindleTest):
     """Material crosses between bindles only as reviewed, general text, through the source's outbox."""
 

@@ -22,7 +22,7 @@ Help the user with bindle: $ARGUMENTS
 - `bindle new <name> [--at <dir>] [--sync] [--audience private|shared|public] [--writes implicit|explicit]`: create a bindle repo (default `./.bindle`).
 - `bindle terms <bindle> [<folder>]`: suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
 - `bindle sync [<folder>]`: pull the bindles that are on; commit and push the writable one's memories.
-- `bindle upgrade [<bindle>] [--dry-run]`: bring a bindle's managed files up to this version of bindle.
+- `bindle upgrade [<bindle> | --all] [--dry-run]`: bring a bindle's managed files up to this version of bindle; `--all` does every bindle `bindle list` finds. A bindle read-only in this folder is locked to Claude: give the user the command with a `!` prefix instead of running it.
 - `bindle outbox add <bindle> <draft> --name <slug> [--kind memory|skill|command] [--description …]`, `bindle outbox list <bindle>`, `bindle outbox clean <bindle> [--items …] [--dry-run]`, `bindle outbox remove <bindle> --items …`: the source's reviewed items, leak-checked; `clean` removes ones already collected, `remove` drops named ones whatever their status. Draft with the `/bindle-promote` skill.
 - `bindle collect <source> --into <target> --items <slugs>`: move approved items into another bindle.
 - `bindle install`: put `bindle` on PATH and link `/bindle` and `/bindle-promote` into `~/.claude`.

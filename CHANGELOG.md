@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.12.0 (2026-11-22)
+
+No upgrade needed.
+
+- `bindle upgrade --all` upgrades every bindle `bindle list` finds (in `~/bindles` and its registry), so a bindle release is one command on each machine.
+
 ## 0.11.0 (2026-11-22)
 
 No upgrade needed. Bindles attached before this version join the registry the next time you attach them (`bindle attach <path> <folder>` again is safe).

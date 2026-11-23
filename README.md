@@ -147,7 +147,7 @@ bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 | `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder>]` | Pull the bindles that are on; commit and push the writable one's memories |
-| `bindle upgrade [<bindle>] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
+| `bindle upgrade [<bindle> \| --all] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
 | `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …]` | Store an approved draft for promotion, after the leak and secret checks |
 | `bindle outbox list <bindle>` | Show a bindle's outbox |
 | `bindle outbox clean <bindle> [--items …] [--dry-run]` | Remove items already collected (they're in the target and in git history) |
@@ -248,8 +248,10 @@ A server that only exists on one machine (a local path, a tool installed in one 
 
 ```
 git -C <path-to>/bindle pull     # the bindle command is a link into this repo
-bindle doctor <folder>           # says which bindles need upgrading, with the command
+bindle upgrade --all             # every bindle in ~/bindles and its registry; then push each
 ```
+
+On Windows, also run `bindle install` again after pulling (it copies files there).
 
 `doctor` prints a ready-to-run `bindle upgrade` for each bindle that's behind. A bindle that's read-only in the folder is locked to Claude, so run that upgrade yourself (in Claude Code, prefix it with `!`). [CHANGELOG.md](CHANGELOG.md) lists what changed in each version, and says when an upgrade is needed.
 

@@ -54,6 +54,7 @@ def build_parser():
 
     s = sub.add_parser("upgrade", help="bring a bindle's managed files and layout up to this bindle version")
     s.add_argument("bindle", nargs="?", help="path to the bindle (default: every bindle attached to this folder)")
+    s.add_argument("--all", action="store_true", help="every bindle `bindle list` finds (in ~/bindles and its registry)")
     s.add_argument("--dry-run", action="store_true", help="show what would change")
     s.set_defaults(fn=cmd_upgrade)
 

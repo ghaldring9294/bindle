@@ -3,7 +3,7 @@ import filecmp
 import shutil
 from pathlib import Path
 
-from .core import (LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, git, load_bindle,
+from .core import (LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, git, known_bindles, load_bindle,
                    read_json, real, settings_path, write_json, write_text)
 
 # A bindle's .gitignore and .gitattributes are its own, so upgrade only appends template lines they lack.
@@ -50,7 +50,16 @@ def describe(b, action, rel):
 
 
 def cmd_upgrade(args):
-    if args.bindle:
+    if args.all and args.bindle:
+        raise BindleError("Pass a bindle or --all, not both.")
+    if args.all:
+        found, missing = known_bindles()
+        for name, path in missing:
+            print(f"{name}: skipped, registered at {path} but nothing is there now")
+        bindles = sorted(found.values(), key=lambda b: b["name"])
+        if not bindles:
+            raise BindleError("No bindles found in ~/bindles or its registry.")
+    elif args.bindle:
         bindles = [load_bindle(args.bindle)]
     else:
         folder = real(Path.cwd())
