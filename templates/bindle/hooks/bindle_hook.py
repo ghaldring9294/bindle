@@ -301,10 +301,16 @@ def main(argv):
                            f"can review them (git -C {root} log -p -1 -- {' '.join(CODE_PATHS)}) before starting another session.")
             out.append(session_start_text(root, project_dir))
             text = "\n".join(t for t in out if t)
+            visible = []
+            if changed_code:
+                visible.append(f"bindle: {bindle_name(root)} pulled changes to code that runs on this machine "
+                               f"({', '.join(changed_code)}); review them before your next session: "
+                               f"git -C {root} log -p -1 -- {' '.join(CODE_PATHS)}")
             waiting = inbox_notes(root) if writable_here(root, project_dir) else 0
-            if waiting:  # plain output reaches only Claude, which can't speak first; systemMessage shows in the terminal
-                print(json.dumps({"systemMessage": f"bindle: {waiting} note(s) from other domains waiting in "
-                                                   f"{Path(root) / 'notes' / 'inbox.md'}",
+            if waiting:
+                visible.append(f"bindle: {waiting} note(s) from other domains waiting in {Path(root) / 'notes' / 'inbox.md'}")
+            if visible:  # plain output reaches only Claude, which can't speak first; systemMessage shows in the terminal
+                print(json.dumps({"systemMessage": "\n".join(visible),
                                   "hookSpecificOutput": {"hookEventName": "SessionStart", "additionalContext": text}}))
             elif text:
                 print(text)

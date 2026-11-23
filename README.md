@@ -266,7 +266,7 @@ A server that only exists on one machine (a local path, a tool installed in one 
 - **Secrets are never committed by sync.** A memory or outbox file that looks like it holds a credential stops the commit, and `doctor` reports it. `doctor` also checks notes and suggests moving a secret to a password manager, leaving a pointer in the note.
 - **A bindle inside a project repo is excluded there.** `bindle new` adds it to that repo's `.git/info/exclude`, so a `git add -A` in the project can't commit your bindle. `doctor` warns if a repo would commit or already tracks one.
 - **bindle never adds or pushes a remote.** Where each bindle lives is your decision. A work bindle belongs only on storage your employer allows.
-- **Trust what you attach.** A bindle's hooks and servers run with your permissions, and its skills and rules are instructions to Claude. Attach only bindles you control or trust. `attach` and `doctor` warn when a read-only bindle runs code beyond bindle's own hooks, and if a sync pulls changes to such code, the session says so before it next runs. These are warnings, not blocks: you decide.
+- **Trust what you attach.** A bindle's hooks and servers run with your permissions, and its skills and rules are instructions to Claude. Attach only bindles you control or trust. `attach` and `doctor` warn when a read-only bindle runs code beyond bindle's own hooks, and if a sync pulls changes to such code, the session start says so in the terminal before it next runs. These are warnings, not blocks: you decide.
 
 ## Updating
 

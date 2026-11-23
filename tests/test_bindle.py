@@ -1636,9 +1636,11 @@ class TrustTest(BindleTest):
         f = self.folder()
         self.run_cli("attach", b, f)
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(f)}
-        out = subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "session-start"], env=env, capture_output=True, text=True).stdout
-        self.assertIn("just pulled changes to files that run code", out)
-        self.assertIn("hooks/new.sh", out)
+        out = json.loads(subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "session-start"], env=env,
+                                        capture_output=True, text=True).stdout)
+        # The person must see it, not just Claude, which may never mention it.
+        self.assertIn("pulled changes to code that runs on this machine (hooks/new.sh)", out["systemMessage"])
+        self.assertIn("just pulled changes to files that run code", out["hookSpecificOutput"]["additionalContext"])
 
 
 class MemoryHookTest(BindleTest):
