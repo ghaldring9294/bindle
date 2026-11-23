@@ -12,8 +12,14 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 
 **Road to 1.0 (the tool):**
 1. **A public demo repo (`bindle-demo`).** A toy project laid out like a domain root, with its `.bindle/` folded in (`"demo": true`, sync off) and a README walkthrough: clone, attach, see a memory recalled and a skill run, watch a new memory land, try detach and a second read-only bindle. It doubles as the end-to-end test fixture, so a change that breaks the walkthrough fails the test.
-2. **A fresh-user test:** someone follows only the README on a clean machine or account; fix what they trip on.
-3. **Go public** (or add collaborators): the owner's step on GitHub. Then tag 1.0.
+2. **Guard against Claude Code changes.** bindle relies on Claude Code behaviour it doesn't control (settings at the repo root or launch folder, `autoMemoryDirectory`, directory marketplaces and `--scope local`, machine-wide marketplace names, hook events, environment and the 10k cap, `Edit(//path/**)` rules, plugin `.mcp.json`, per-folder memory keys).
+   - Turn `tests/e2e.sh` into a contract test: one named check per assumption, each failure naming the assumption that broke.
+   - `bindle selftest`: run those checks in a scratch folder against the installed Claude Code (a few short sessions), clean up, report pass or fail per assumption. Friends can run it too.
+   - `doctor` records the Claude Code version the last passing selftest ran on, and warns when `claude --version` differs.
+   - docs/design.md "Claude Code constraints": link each assumption to its check.
+   - Later, once public: a scheduled run (needs an API key as a repo secret; the owner's call).
+3. **A fresh-user test:** someone follows only the README on a clean machine or account; fix what they trip on.
+4. **Go public** (or add collaborators): the owner's step on GitHub. Then tag 1.0.
 
 **Gaps found migrating a real setup (fix before 1.0):**
 - Claude Code keeps one memory folder per launch folder, and on macOS each git repo is its own launch root. A domain folder holding several repos therefore has several old memory folders, and the domain-level attach doesn't reach sessions launched inside a repo. MIGRATION.md must inventory every memory folder under the domain (`~/.claude/projects/<encoded path>*/memory/`) and attach the bindle to each repo the person launches from; `doctor` should warn when repos inside an attached folder have no bindle attached.
