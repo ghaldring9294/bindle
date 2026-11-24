@@ -1,0 +1,5 @@
+{
+  "name": "bindle",
+  "version": "0.27.1",
+  "description": "Portable, domain-scoped Claude Code context."
+}

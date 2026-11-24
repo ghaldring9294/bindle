@@ -15,10 +15,11 @@ def build_parser():
     p.add_argument("--version", action="version", version=f"bindle {VERSION}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    s = sub.add_parser("install", help="link bindle onto PATH, and /bindle and /bindle-promote into ~/.claude")
+    s = sub.add_parser("install", help="put bindle on PATH (optional when installed as a plugin)")
     s.add_argument("--session-check", action=argparse.BooleanOptionalAction, default=None,
-                   help="add (or with --no-session-check remove) a hook in ~/.claude/settings.json that warns when a "
-                        "session starts inside a domain folder with no writable bindle")
+                   help="(legacy) add or remove the user-level session-check hook; the plugin provides this now")
+    s.add_argument("--cleanup", action="store_true",
+                   help="remove old-style command/skill links and user-level hook left by an earlier install")
     s.set_defaults(fn=cmd_install)
 
     s = sub.add_parser("session-check", help="what the session check would say for a folder")

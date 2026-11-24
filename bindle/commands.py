@@ -22,17 +22,18 @@ SESSION_CHECK = "session-check --hook"  # how the hook entry in ~/.claude/settin
 
 
 def cmd_install(args):
-    """Puts the bindle command on PATH and links /bindle and /bindle-promote into ~/.claude. Nothing else, unless
-    asked: --session-check adds one hook to ~/.claude/settings.json (--no-session-check removes it). Where symlinks aren't allowed (Windows without
-    developer mode) it copies instead, and on Windows it writes a bindle.cmd launcher."""
+    """Puts the bindle command on PATH. When bindle is installed as a Claude Code plugin, the command, skill and
+    session-check hook are provided by the plugin; install is optional (for terminal convenience). --cleanup removes
+    old-style links and the user-level hook left by an earlier install. --session-check/--no-session-check still
+    work for setups that haven't moved to the plugin yet."""
     home = Path.home()
     bindir = home / ".local" / "bin"
-    items = [(home / ".claude" / "commands" / "bindle.md", BASE / "global" / "commands" / "bindle.md"),
-             (home / ".claude" / "skills" / "bindle-promote", BASE / "global" / "skills" / "bindle-promote")]
+    if args.cleanup:
+        _cleanup_old_install(home)
     launchers = launcher_files(bindir)
-    for dest, _ in items + [(p, None) for p in launchers]:
-        if dest.exists() and not dest.is_symlink() and not installed_by_bindle(dest):
-            raise BindleError(f"{dest} exists and wasn't installed by bindle; move it aside first.")
+    for path in launchers:
+        if path.exists() and not path.is_symlink() and not installed_by_bindle(path):
+            raise BindleError(f"{path} exists and wasn't installed by bindle; move it aside first.")
     for path, content in launchers.items():
         path.parent.mkdir(parents=True, exist_ok=True)
         if path.is_symlink():
@@ -44,26 +45,38 @@ def cmd_install(args):
             write_text(path, content)
             path.chmod(0o755)
             print(f"Wrote {path}")
-    for dest, src in items:
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        remove(dest)
-        try:
-            dest.symlink_to(src, target_is_directory=src.is_dir())
-            print(f"Linked {dest} -> {src}")
-        except OSError:
-            if src.is_dir():
-                shutil.copytree(src, dest)
-                write_text(dest / ".bindle-installed", INSTALLED_MARK + "\n")
-            else:
-                write_text(dest, src.read_text(encoding="utf-8") + f"\n<!-- {INSTALLED_MARK} -->\n")
-            print(f"Copied {src} -> {dest} (symlinks aren't available; run bindle install again after updating bindle)")
     if args.session_check is not None:
         set_session_check(args.session_check)
+    old_items = _old_install_items(home)
+    if old_items:
+        print(f"Note: old-style install found ({', '.join(str(p) for p in old_items)}). "
+              "The plugin provides these now; run `bindle install --cleanup` to remove them.")
     if str(bindir) not in os.environ.get("PATH", "").split(os.pathsep):
         if WINDOWS:
             print(f"Add {bindir} to your PATH (System settings > Environment Variables), then open a new terminal.")
         else:
             print(f'Add {bindir} to PATH: export PATH="$HOME/.local/bin:$PATH"')
+
+
+def _old_install_items(home):
+    """Paths from the old-style install that the plugin now provides."""
+    candidates = [home / ".claude" / "commands" / "bindle.md",
+                  home / ".claude" / "skills" / "bindle-promote"]
+    found = [p for p in candidates if p.exists() and (p.is_symlink() or installed_by_bindle(p))]
+    if session_check_installed():
+        found.append(user_settings_path())
+    return found
+
+
+def _cleanup_old_install(home):
+    """Remove command/skill links and the user-level session-check hook from an earlier install."""
+    for path in [home / ".claude" / "commands" / "bindle.md",
+                 home / ".claude" / "skills" / "bindle-promote"]:
+        if path.exists() and (path.is_symlink() or installed_by_bindle(path)):
+            remove(path)
+            print(f"Removed {path}")
+    if session_check_installed():
+        set_session_check(False)
 
 
 def user_settings_path():

@@ -621,15 +621,14 @@ class InstallTest(BindleTest):
                 os.environ[k] = v
         super().tearDown()
 
-    def test_installs_the_cli_and_the_command_and_nothing_else(self):
+    def test_installs_the_cli_on_path(self):
         self.assertEqual(self.run_cli("install")[0], 0)
         if bindle.core.WINDOWS:
             self.assertIn(str(bindle.BASE / "bin" / "bindle"), (self.home / ".local/bin/bindle.cmd").read_text())
         else:
             self.assertEqual(os.readlink(self.home / ".local/bin/bindle"), str(bindle.BASE / "bin/bindle"))
-        self.assertIn("bindle", (self.home / ".claude/commands/bindle.md").read_text())
-        self.assertTrue((self.home / ".claude/skills/bindle-promote/SKILL.md").exists())
-        self.assertEqual(sorted(p.name for p in (self.home / ".claude").iterdir()), ["commands", "skills"])
+        self.assertFalse((self.home / ".claude/commands/bindle.md").exists(),
+                         "install no longer links commands; the plugin provides them")
 
     def test_installing_twice_is_fine(self):
         self.run_cli("install")
@@ -637,11 +636,10 @@ class InstallTest(BindleTest):
 
     # A real file there is the person's own; replacing it would lose their work.
     def test_refuses_to_replace_a_real_file(self):
-        (self.home / ".claude/commands").mkdir(parents=True)
-        (self.home / ".claude/commands/bindle.md").write_text("mine")
+        (self.home / ".local/bin").mkdir(parents=True)
+        (self.home / ".local/bin/bindle").write_text("mine")
         self.assertEqual(self.run_cli("install")[0], 1)
-        self.assertEqual((self.home / ".claude/commands/bindle.md").read_text(), "mine")
-        self.assertFalse((self.home / ".local/bin/bindle").exists())
+        self.assertEqual((self.home / ".local/bin/bindle").read_text(), "mine")
 
 
 class NewerFilesTest(BindleTest):
@@ -772,7 +770,6 @@ class UpdateTest(InstallTest):
         code, out = self.run_cli("update", "--after-pull")
         self.assertEqual(code, 0, out)
         self.assertEqual((b / "hooks/run").read_bytes(), (bindle.TEMPLATE / "hooks/run").read_bytes())
-        self.assertTrue((self.home / ".claude" / "commands" / "bindle.md").exists())
         self.assertIn(f"git -C {b} push", out)
         self.assertEqual(bindle.git(remote, "rev-parse", "HEAD"), head)  # not pushed without --push
         with open(b / "hooks/run", "a") as f:
@@ -924,19 +921,20 @@ class DocsTest(unittest.TestCase):
             elif term.endswith(".py") and "/" not in term:
                 self.assertTrue((bindle.BASE / "bindle" / term).exists(), f"AGENTS.md names {term}, which doesn't exist")
 
-    # An option that the README or /bindle doesn't mention is one people and agents never use.
-    def test_every_option_is_in_the_readme_and_the_bindle_command(self):
-        docs = {name: (bindle.BASE / path).read_text(encoding="utf-8")
-                for name, path in [("README.md", "README.md"), ("/bindle", "global/commands/bindle.md")]}
-        missing = [f"{name} doesn't mention `bindle {command} {option}`"
+    # An option that the README doesn't mention is one people never use. The /bindle command uses MCP tool
+    # args (not --option format), so it's checked separately above.
+    def test_every_option_is_in_the_readme(self):
+        readme = (bindle.BASE / "README.md").read_text(encoding="utf-8")
+        missing = [f"README.md doesn't mention `bindle {command} {option}`"
                    for command, option in all_options(bindle.build_parser())
-                   for name, text in docs.items() if option not in text]
+                   if option not in readme]
         self.assertEqual(missing, [])
 
     # Example commands are what people and agents copy; one the CLI no longer accepts fails at the worst moment.
+    # The /bindle command and promote skill use MCP tools now, not CLI syntax, so they aren't checked here.
     def test_every_example_command_parses(self):
         import shlex
-        files = ["README.md", "MIGRATION.md", "global/commands/bindle.md", "global/skills/bindle-promote/SKILL.md"]
+        files = ["README.md", "MIGRATION.md"]
         for rel in files:
             for line in example_commands((bindle.BASE / rel).read_text(encoding="utf-8")):
                 with self.subTest(file=rel, line=line):
@@ -965,14 +963,25 @@ class DocsTest(unittest.TestCase):
         for c in ("attach", "detach", "list", "doctor", "outbox", "collect", "terms"):
             self.assertIn(c, out.getvalue())
 
-    # /bindle is what Claude reads to operate bindle for someone; a command missing there is one Claude
-    # guesses at or doesn't know to offer.
-    def test_the_bindle_command_tells_claude_every_command(self):
-        guide = (bindle.BASE / "global" / "commands" / "bindle.md").read_text()
+    # /bindle is what Claude reads to operate bindle for someone; an operation missing there is one Claude
+    # guesses at or doesn't know to offer. MCP tools cover most commands; install and session-check are CLI-only.
+    def test_the_bindle_command_tells_claude_every_operation(self):
+        guide = (bindle.BASE / "commands" / "bindle.md").read_text()
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
+        mcp_tool_names = {"list", "doctor", "attach", "detach", "new", "sync", "update", "upgrade",
+                          "promote", "terms", "collect"}
+        cli_only = {"install", "session-check"}
         for c in sub.choices:
-            self.assertIn(f"`bindle {c}", guide, c)
+            if c == "outbox":
+                for sub_cmd in ("add", "list", "clean", "remove"):
+                    self.assertIn(f"outbox_{sub_cmd}", guide, f"outbox_{sub_cmd}")
+            elif c in mcp_tool_names:
+                self.assertIn(f"**{c}**", guide, c)
+            elif c in cli_only:
+                self.assertIn(f"`bindle {c}", guide, c)
+            else:
+                self.fail(f"command {c!r} not accounted for in MCP tools or CLI-only")
 
 
 class UpgradeTest(BindleTest):

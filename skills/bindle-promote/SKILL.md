@@ -5,17 +5,17 @@ description: Promote a memory, skill or command from the current domain's bindle
 
 # Promote into another bindle
 
-The user asks in plain words; you do the judgment (finding, drafting, asking), and the `bindle` CLI does every write and check. They should never need to type a bindle command.
+The user asks in plain words; you do the judgment (finding, drafting, asking), and the bindle MCP tools do every write and check. They should never need to type a bindle command.
 
 **Ask choices as a select.** When the person picks from a few options (yes or no, which bindle, which kind, approve or edit or drop), ask with the AskUserQuestion tool so they can arrow through them: recommended option first, and the question names the item, since the dialog can hide what you wrote before it. Answers they have to type (a path, a name, private terms) stay plain questions, as does everything when that tool isn't available.
 
 ## 1. Work out what and where
 
-- **Source:** usually the bindle that's writable in this folder (`bindle doctor`). To make a domain-specific version of a craft skill, the source can be craft and the target this folder's writable bindle; then customize the copy here.
+- **Source:** usually the bindle that's writable in this folder (call the `doctor` tool). To make a domain-specific version of a craft skill, the source can be craft and the target this folder's writable bindle; then customize the copy here.
 - **What:** the memory, skill or command they named, or a **note**: a reminder or todo for the other domain, which you write from what they said. Memories are in the source's `memory/` and `projects/*/`, skills in `skills/<name>/`, commands in `commands/`. If they ask what could be promoted, offer memories tagged `boundary: craft` or `both`; `context` memories are never promoted.
-- **Where:** run `bindle list` and match what they said ("my craft" → `craft`). If it's ambiguous or not listed, ask; never choose for them. A domain bindle that isn't listed: ask for its path.
+- **Where:** call the `list` tool and match what they said ("my craft" → `craft`). If it's ambiguous or not listed, ask; never choose for them. A domain bindle that isn't listed: ask for its path.
 - Read only the source's own files. Never read another domain's memories.
-- If the source's `private-terms.txt` is empty, run `bindle terms <source>` first and have them pick terms to add, so the check below means something.
+- If the source's `private-terms.txt` is empty, call the `terms` tool first and have them pick terms to add, so the check below means something.
 
 ## 2. Draft a general version
 
@@ -26,23 +26,23 @@ The user asks in plain words; you do the judgment (finding, drafting, asking), a
 
 ## 3. Check with them
 
-If the target already has it (an update, such as improving a craft skill you're using here), run the promote command below with `--dry-run` and show them that diff; on approval, run it with `--replace`. Otherwise show the draft beside the original, say briefly what you removed, and name the target. Nothing moves without a yes for that item.
+If the target already has it (an update, such as improving a craft skill you're using here), call the `promote` tool with dry_run=true and show them that diff; on approval, call it with replace=true. Otherwise show the draft beside the original, say briefly what you removed, and name the target. Nothing moves without a yes for that item.
 
 Ask with the AskUserQuestion tool (a select they arrow through), one question per item: "Send small-prs to craft as a memory?" with options **Approve**, **Edit** and **Drop**, and the draft (or the diff) as Approve's preview, since the dialog can hide what you wrote before it. On Edit, ask what to change, redraft, and ask again. Without that tool, ask in plain text: "Approve, edit, or drop?"
 
 ## 4. Move it
 
-If the target is on this machine (it's in `bindle list`, even marked "not attached here", which only means it isn't on in this folder):
-```
-bindle promote <source path> <draft> --into <target> --kind memory|skill|command|note --name <slug> --description "<one line>"
-```
-It checks the draft against the source's private terms and for secrets, refuses to overwrite anything, places it (a note is appended to the target's `notes/inbox.md`), adds a memory index line for a memory, and commits the target. If it refuses on a private term, that's a prompt to check, not a wall: show them the term in context and ask whether to reword or keep it. If they say it's fine (a public name, a target that's theirs alone), run the same command with `--allow <term>`. A possible secret can't be allowed: take it out of the draft, and suggest a password manager or vault for it.
+If the target is on this machine (it's in the `list` output, even marked "not attached here", which only means it isn't on in this folder):
+
+Call the `promote` tool with the source, draft path, target, kind, name, and description.
+
+It checks the draft against the source's private terms and for secrets, refuses to overwrite anything, places it (a note is appended to the target's `notes/inbox.md`), adds a memory index line for a memory, and commits the target. If it refuses on a private term, that's a prompt to check, not a wall: show them the term in context and ask whether to reword or keep it. If they say it's fine (a public name, a target that's theirs alone), call the tool again with the term in allow. A possible secret can't be allowed: take it out of the draft, and suggest a password manager or vault for it.
 
 If the target lives on another machine, the draft waits in the source's outbox instead:
-```
-bindle outbox add <source path> <draft> --kind … --name <slug> --description "…"
-```
-Tell them to collect it there (or in a session there) with the command `outbox add` printed: `bindle collect <source> --into <target> --items <slug>`, plus `--allow <term>` for each term they allowed. Run it with `--dry-run` first, show them the content it prints, and collect on their yes.
+
+Call the `outbox_add` tool with the source, draft path, kind, name, and description.
+
+Tell them to collect it there (or in a session there) with the `collect` tool (or `bindle collect` from the terminal): source, target, items, plus the terms they allowed. Run it with dry_run=true first, show them the content it prints, and collect on their yes.
 
 ## 5. Finish
 
@@ -50,4 +50,4 @@ Tell them to collect it there (or in a session there) with the command `outbox a
 - If the target has a remote, offer to push it (`git -C <target path> push`). Sync pushes a bindle only from a session where it's writable, so anything promoted into a bindle that's read-only everywhere (like craft) needs this push to reach other machines. Ask first.
 - If they're moving it rather than copying, offer to remove the original from the source (it's writable here). Removing something from another bindle can't happen from here, since that bindle is read-only: tell them to open a session in that bindle's own folder (for craft, `~/bindles/craft`) and remove it there.
 - Rules (`rules.md`, `~/.claude/CLAUDE.md`) aren't promoted. To move a rule, show them the text and where it goes; they add it in a session in the target bindle's folder. General instructions belong in a craft bindle's `rules.md`, which loads wherever craft is on.
-- Sending it to a second bindle is a second promotion. To drop a waiting outbox item: `bindle outbox remove <source> --items <slug>`.
+- Sending it to a second bindle is a second promotion. To drop a waiting outbox item: call the `outbox_remove` tool.

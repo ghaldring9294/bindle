@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [
+        { "type": "command",
+          "command": "bash \"${CLAUDE_PLUGIN_ROOT}/bin/py\" \"${CLAUDE_PLUGIN_ROOT}/bin/bindle\" session-check --hook",
+          "timeout": 10 }
+      ] }
+    ]
+  }
+}

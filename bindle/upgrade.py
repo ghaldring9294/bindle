@@ -145,16 +145,24 @@ def pull_bindle(repo):
 
 
 def cmd_update(args):
-    """Update bindle and every bindle. It pulls bindle's own repo, then hands over to the pulled copy, so
-    refreshing the install and upgrading each bindle run the new code and templates, not the copy already loaded."""
+    """Update bindle and every bindle. When running from a git clone, it pulls bindle's own repo, then hands over
+    to the pulled copy so upgrading each bindle runs the new code and templates. When running from a plugin cache
+    (no .git), it skips the pull and tells the user to update the plugin through Claude Code."""
+    is_git_clone = (BASE / ".git").exists()
     if not args.after_pull:
-        changed = pull_bindle(BASE)
-        print(f"bindle: {'updated' if changed else 'already up to date'} ({BASE})", flush=True)
-        return subprocess.call([sys.executable, str(BASE / "bin" / "bindle"), "update", "--after-pull"]
-                               + (["--push"] if args.push else []))
-    from .commands import cmd_install  # commands imports this module
-    print(f"bindle {VERSION}: refreshing the install")
-    cmd_install(argparse.Namespace(session_check=None))
+        if is_git_clone:
+            changed = pull_bindle(BASE)
+            print(f"bindle: {'updated' if changed else 'already up to date'} ({BASE})", flush=True)
+            return subprocess.call([sys.executable, str(BASE / "bin" / "bindle"), "update", "--after-pull"]
+                                   + (["--push"] if args.push else []))
+        else:
+            print(f"bindle {VERSION} (installed as a plugin). To update bindle itself, use Claude Code: "
+                  "/plugin → Installed → bindle → Update, or: claude plugin update bindle@bindle")
+            args.after_pull = True
+    if is_git_clone:
+        from .commands import cmd_install  # commands imports this module
+        print(f"bindle {VERSION}: refreshing the install")
+        cmd_install(argparse.Namespace(session_check=None, cleanup=False))
     found = known_bindles()[0]
     heads = {root: git(b["root"], "rev-parse", "HEAD") for root, b in found.items()}
     code = cmd_upgrade(argparse.Namespace(all=True, bindle=None, dry_run=False))

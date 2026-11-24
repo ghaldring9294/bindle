@@ -1,0 +1,411 @@
+#!/usr/bin/env python3
+"""MCP server for bindle — exposes bindle operations as tools over JSON-RPC 2.0 / stdio.
+
+Claude Code starts this when the bindle plugin is loaded (.mcp.json). Tools appear in every
+session where the plugin is on. Standard library only; Python 3.9+.
+"""
+import io
+import json
+import os
+import sys
+from types import SimpleNamespace
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+from bindle.core import VERSION, BindleError  # noqa: E402
+from bindle.commands import (cmd_attach, cmd_detach, cmd_doctor, cmd_list,  # noqa: E402
+                             cmd_new, cmd_sync)
+from bindle.promote import (cmd_collect, cmd_outbox_add, cmd_outbox_clean,  # noqa: E402
+                            cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms)
+from bindle.upgrade import cmd_update, cmd_upgrade  # noqa: E402
+
+PROTOCOL_VERSION = "2024-11-05"
+
+# --- Tool definitions --------------------------------------------------------
+
+TOOLS = [
+    {
+        "name": "list",
+        "description": (
+            "List all bindles on this machine and whether each is writable, read-only "
+            "or not attached in a folder. Shows bindles in ~/bindles, in its registry, "
+            "and those attached to the folder."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "Folder to check (default: cwd)"}
+            }
+        }
+    },
+    {
+        "name": "doctor",
+        "description": (
+            "Show what bindles are on in a folder, which is writable, unsaved memories, "
+            "warnings and problems, each problem with its fix command. Run this first when "
+            "unsure of the current state."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "Folder to check (default: cwd)"}
+            }
+        }
+    },
+    {
+        "name": "attach",
+        "description": (
+            "Turn a bindle on for a folder. Sessions started from that folder load it. "
+            "A folder has at most one writable bindle; detach the current one first to "
+            "switch. Takes effect in the next session."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Bindle name or path"},
+                "folder": {"type": "string", "description": "Folder to attach to (default: cwd)"},
+                "writable": {"type": "boolean", "description": "New memories in this folder go to this bindle", "default": False},
+                "repos": {"type": "boolean", "description": "Also attach to each git repo directly inside the folder", "default": False}
+            },
+            "required": ["bindle"]
+        }
+    },
+    {
+        "name": "detach",
+        "description": "Turn a bindle off for a folder. Takes effect in the next session.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Bindle name or path"},
+                "folder": {"type": "string", "description": "Folder to detach from (default: cwd)"},
+                "repos": {"type": "boolean", "description": "Also detach from each git repo directly inside the folder", "default": False}
+            },
+            "required": ["bindle"]
+        }
+    },
+    {
+        "name": "new",
+        "description": (
+            "Create a new bindle repo. A domain bindle goes in <domain folder>/.bindle; "
+            "one used in many folders goes in ~/bindles/<name>. Always pass 'at'."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Bindle name (lowercase, hyphens ok)"},
+                "at": {"type": "string", "description": "Where to create it (default: ./.bindle)"},
+                "sync": {"type": "boolean", "description": "Sync memories with the remote at session start/end", "default": False},
+                "audience": {"type": "string", "enum": ["private", "shared", "public"], "default": "private"},
+                "writes": {"type": "string", "enum": ["implicit", "explicit"], "default": "implicit",
+                           "description": "implicit: can be writable; explicit: only collect adds to it"}
+            },
+            "required": ["name"]
+        }
+    },
+    {
+        "name": "sync",
+        "description": (
+            "Commit and push the writable bindle's memories, then pull the bindles that "
+            "are on. With all=true, does every bindle on this machine."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "folder": {"type": "string", "description": "Folder whose bindles to sync (default: cwd)"},
+                "all": {"type": "boolean", "description": "Sync every bindle on this machine", "default": False}
+            }
+        }
+    },
+    {
+        "name": "update",
+        "description": (
+            "Update bindle itself and upgrade every bindle's managed files. When bindle "
+            "is a plugin, the plugin is updated through Claude Code; this upgrades the "
+            "bindles."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "push": {"type": "boolean", "description": "Push each upgraded bindle to its remote", "default": False}
+            }
+        }
+    },
+    {
+        "name": "upgrade",
+        "description": (
+            "Bring a bindle's managed files and layout up to this version of bindle. "
+            "A bindle read-only in this folder is locked to Claude: give the user the "
+            "command with a ! prefix instead of running it."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Bindle name or path (default: those attached here)"},
+                "all": {"type": "boolean", "description": "Every bindle on this machine", "default": False},
+                "dry_run": {"type": "boolean", "description": "Show what would change without changing it", "default": False}
+            }
+        }
+    },
+    {
+        "name": "promote",
+        "description": (
+            "Copy an approved, general draft from one bindle into another on this machine, "
+            "after checking for private terms and secrets. Use with the /bindle-promote skill."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "Source bindle (name or path)"},
+                "path": {"type": "string", "description": "Path to the draft file or skill folder"},
+                "into": {"type": "string", "description": "Target bindle (name or path)"},
+                "name": {"type": "string", "description": "Item slug (e.g. small-prs)"},
+                "kind": {"type": "string", "enum": ["memory", "skill", "command", "note"], "default": "memory"},
+                "description": {"type": "string", "description": "One line for the memory index", "default": ""},
+                "allow": {"type": "array", "items": {"type": "string"},
+                          "description": "Private terms the user decided are fine to share", "default": []},
+                "replace": {"type": "boolean", "description": "Update what's already in the target", "default": False},
+                "dry_run": {"type": "boolean", "description": "Show the diff without changing anything", "default": False}
+            },
+            "required": ["source", "path", "into", "name"]
+        }
+    },
+    {
+        "name": "terms",
+        "description": (
+            "Suggest private terms for a bindle from the domain folder's repos "
+            "(names, remotes, ticket prefixes). The user picks which to add."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Bindle name or path"},
+                "folder": {"type": "string", "description": "Domain folder to scan (default: inferred)"}
+            },
+            "required": ["bindle"]
+        }
+    },
+    {
+        "name": "collect",
+        "description": (
+            "Deliver outbox items into a target bindle on this machine and remove them "
+            "from the outbox. Run with dry_run=true first to show the content."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "source": {"type": "string", "description": "Source bindle (name or path)"},
+                "into": {"type": "string", "description": "Target bindle (name or path)"},
+                "items": {"type": "string", "description": "Comma-separated item slugs"},
+                "all": {"type": "boolean", "description": "Every uncollected item", "default": False},
+                "allow": {"type": "array", "items": {"type": "string"},
+                          "description": "Private terms the user decided are fine", "default": []},
+                "dry_run": {"type": "boolean", "description": "Show content without moving anything", "default": False}
+            },
+            "required": ["source", "into"]
+        }
+    },
+    {
+        "name": "outbox_add",
+        "description": (
+            "Add an approved draft to a bindle's outbox (for targets on another machine), "
+            "after a leak check and secret check."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Source bindle (name or path)"},
+                "path": {"type": "string", "description": "Path to the draft file or skill folder"},
+                "name": {"type": "string", "description": "Item slug"},
+                "kind": {"type": "string", "enum": ["memory", "skill", "command", "note"], "default": "memory"},
+                "description": {"type": "string", "description": "One line for the index", "default": ""},
+                "allow": {"type": "array", "items": {"type": "string"},
+                          "description": "Private terms the user decided are fine", "default": []}
+            },
+            "required": ["bindle", "path", "name"]
+        }
+    },
+    {
+        "name": "outbox_list",
+        "description": "Show a bindle's outbox, or every outbox with all=true.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Bindle name or path"},
+                "all": {"type": "boolean", "description": "Every bindle's outbox", "default": False}
+            }
+        }
+    },
+    {
+        "name": "outbox_clean",
+        "description": "Remove items already collected from a bindle's outbox.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Bindle name or path"},
+                "items": {"type": "string", "description": "Comma-separated item slugs (default: all collected)"},
+                "dry_run": {"type": "boolean", "description": "Show what would be removed", "default": False}
+            },
+            "required": ["bindle"]
+        }
+    },
+    {
+        "name": "outbox_remove",
+        "description": "Drop named items from a bindle's outbox, collected or not.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "Bindle name or path"},
+                "items": {"type": "string", "description": "Comma-separated item slugs"},
+                "dry_run": {"type": "boolean", "description": "Show what would be removed", "default": False}
+            },
+            "required": ["bindle", "items"]
+        }
+    },
+]
+
+# --- Dispatch ----------------------------------------------------------------
+
+DISPATCH = {
+    "list": cmd_list,
+    "doctor": cmd_doctor,
+    "attach": cmd_attach,
+    "detach": cmd_detach,
+    "new": cmd_new,
+    "sync": cmd_sync,
+    "update": cmd_update,
+    "upgrade": cmd_upgrade,
+    "promote": cmd_promote,
+    "terms": cmd_terms,
+    "collect": cmd_collect,
+    "outbox_add": cmd_outbox_add,
+    "outbox_list": cmd_outbox_list,
+    "outbox_clean": cmd_outbox_clean,
+    "outbox_remove": cmd_outbox_remove,
+}
+
+
+def build_args(name, a):
+    """Create the argparse-like namespace each command function expects."""
+    if name == "list":
+        return SimpleNamespace(folder=a.get("folder"))
+    if name == "doctor":
+        return SimpleNamespace(folder=a.get("folder"))
+    if name == "attach":
+        return SimpleNamespace(bindle=a["bindle"], folder=a.get("folder"),
+                               writable=a.get("writable", False), repos=a.get("repos", False))
+    if name == "detach":
+        return SimpleNamespace(bindle=a["bindle"], folder=a.get("folder"),
+                               repos=a.get("repos", False))
+    if name == "new":
+        return SimpleNamespace(name=a["name"], at=a.get("at"), sync=a.get("sync", False),
+                               audience=a.get("audience", "private"), writes=a.get("writes", "implicit"))
+    if name == "sync":
+        return SimpleNamespace(folder=a.get("folder"), all=a.get("all", False))
+    if name == "update":
+        return SimpleNamespace(push=a.get("push", False), after_pull=False)
+    if name == "upgrade":
+        return SimpleNamespace(bindle=a.get("bindle"), all=a.get("all", False),
+                               dry_run=a.get("dry_run", False))
+    if name == "promote":
+        return SimpleNamespace(source=a["source"], path=a["path"], into=a["into"], name=a["name"],
+                               kind=a.get("kind", "memory"), description=a.get("description", ""),
+                               allow=a.get("allow", []), replace=a.get("replace", False),
+                               dry_run=a.get("dry_run", False))
+    if name == "terms":
+        return SimpleNamespace(bindle=a["bindle"], folder=a.get("folder"))
+    if name == "collect":
+        return SimpleNamespace(source=a["source"], into=a["into"], items=a.get("items"),
+                               all=a.get("all", False), allow=a.get("allow", []),
+                               dry_run=a.get("dry_run", False))
+    if name == "outbox_add":
+        return SimpleNamespace(bindle=a["bindle"], path=a["path"], name=a["name"],
+                               kind=a.get("kind", "memory"), description=a.get("description", ""),
+                               allow=a.get("allow", []))
+    if name == "outbox_list":
+        return SimpleNamespace(bindle=a.get("bindle"), all=a.get("all", False))
+    if name == "outbox_clean":
+        return SimpleNamespace(bindle=a["bindle"], items=a.get("items"),
+                               dry_run=a.get("dry_run", False))
+    if name == "outbox_remove":
+        return SimpleNamespace(bindle=a["bindle"], items=a["items"],
+                               dry_run=a.get("dry_run", False))
+    raise BindleError(f"Unknown tool: {name}")
+
+
+def call_tool(name, arguments):
+    """Execute a bindle tool, capturing stdout as the result text."""
+    fn = DISPATCH.get(name)
+    if not fn:
+        return {"content": [{"type": "text", "text": f"Unknown tool: {name}"}], "isError": True}
+    old_stdout = sys.stdout
+    sys.stdout = buf = io.StringIO()
+    try:
+        args = build_args(name, arguments or {})
+        code = fn(args) or 0
+        output = buf.getvalue()
+        if code != 0 and not output:
+            output = f"Command returned exit code {code}"
+        return {"content": [{"type": "text", "text": output or "(no output)"}], "isError": code != 0}
+    except BindleError as e:
+        output = buf.getvalue()
+        error_text = f"{output}\nbindle: {e}" if output else f"bindle: {e}"
+        return {"content": [{"type": "text", "text": error_text}], "isError": True}
+    except Exception as e:
+        return {"content": [{"type": "text", "text": f"Internal error: {type(e).__name__}: {e}"}], "isError": True}
+    finally:
+        sys.stdout = old_stdout
+
+
+# --- JSON-RPC / MCP protocol ------------------------------------------------
+
+def respond(msg_id, result):
+    sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": msg_id, "result": result}) + "\n")
+    sys.stdout.flush()
+
+
+def respond_error(msg_id, code, message):
+    sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": msg_id,
+                                 "error": {"code": code, "message": message}}) + "\n")
+    sys.stdout.flush()
+
+
+def main():
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            msg = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+
+        method = msg.get("method")
+        msg_id = msg.get("id")
+
+        if method == "initialize":
+            respond(msg_id, {
+                "protocolVersion": PROTOCOL_VERSION,
+                "capabilities": {"tools": {}},
+                "serverInfo": {"name": "bindle", "version": VERSION},
+            })
+        elif method == "notifications/initialized":
+            pass
+        elif method == "notifications/cancelled":
+            pass
+        elif method == "ping":
+            respond(msg_id, {})
+        elif method == "tools/list":
+            respond(msg_id, {"tools": TOOLS})
+        elif method == "tools/call":
+            params = msg.get("params", {})
+            result = call_tool(params.get("name"), params.get("arguments", {}))
+            respond(msg_id, result)
+        elif msg_id is not None:
+            respond_error(msg_id, -32601, f"Method not found: {method}")
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except KeyboardInterrupt:
+        pass

@@ -36,20 +36,22 @@ bindle uses Claude Code's own mechanisms rather than replacing them: plugins for
 
 You need Claude Code 2.1.74 or later, git, and Python 3.9 or later. It runs on macOS, Linux and Windows.
 
+**As a plugin (recommended):**
+```
+/plugin marketplace add https://github.com/ghaldring9294/bindle.git
+```
+This gives you the `/bindle` command, the `/bindle-promote` skill, MCP tools that Claude calls directly (attach, detach, doctor, sync and so on — no shell commands needed), and the session-check hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating. Nothing else to do.
+
+**For terminal access** (optional — lets you run `bindle` commands outside Claude Code):
 ```
 git clone https://github.com/ghaldring9294/bindle.git
 bindle/bin/bindle install
 ```
+`install` puts the `bindle` command in `~/.local/bin`. If `~/.local/bin` isn't on your `PATH`, it tells you how to add it.
 
-`install` puts the `bindle` command in `~/.local/bin` and adds two things to `~/.claude`: the `/bindle` command and the `/bindle-promote` skill. It doesn't touch your settings or `CLAUDE.md` unless you ask for the session check below. If `~/.local/bin` isn't on your `PATH`, it tells you how to add it.
+The session check warns inside folders you've attached a bindle to as writable; everywhere else it stays silent. In any folder, it also says when bindle has a new release (it checks for new tags in the background, at most once a day; set `BINDLE_UPDATE_CHECK=off` to stop that) or when a bindle needs `bindle upgrade`.
 
-**Recommended: turn on the session check.**
-```
-bindle install --session-check
-```
-Claude Code reads settings only from the folder a session starts in (on macOS and Linux, that folder's git repo), never from the folders above it. So a session started in `~/acme/web` doesn't load the acme bindle attached to `~/acme` unless `~/acme/web` has it too, and its memories go to Claude Code's default folder instead. The session check is one hook in `~/.claude/settings.json` that warns at the start of such a session and gives the command that fixes it. It warns only inside folders you've attached a bindle to as writable; everywhere else it stays silent. In any folder, it also says when bindle has a new release to pull (it checks for new tags in the background, at most once a day; set `BINDLE_UPDATE_CHECK=off` to stop that) or when a bindle needs `bindle upgrade`. `bindle install --no-session-check` removes it, leaving the rest of the file as it was.
-
-**On Windows:** install [Git for Windows](https://git-scm.com/download/win) (Claude Code runs hooks in its Git Bash) and Python from [python.org](https://www.python.org/downloads/), then run the same two lines from a terminal, with `python bindle\bin\bindle install` for the second. Without developer mode, Windows doesn't allow symlinks, so `install` copies files instead and writes a `bindle.cmd` launcher; run `bindle install` again after updating bindle. Add `%USERPROFILE%\.local\bin` to your `PATH`.
+**On Windows:** install [Git for Windows](https://git-scm.com/download/win) (Claude Code runs hooks in its Git Bash) and Python from [python.org](https://www.python.org/downloads/). For the plugin, the same `/plugin marketplace add` works. For terminal access, run `python bindle\bin\bindle install` after cloning. Without developer mode, Windows doesn't allow symlinks, so `install` copies files instead and writes a `bindle.cmd` launcher; run `bindle install` again after updating bindle. Add `%USERPROFILE%\.local\bin` to your `PATH`.
 
 ## Quick start
 
@@ -75,10 +77,10 @@ Create a personal bindle and turn it on for the folder you keep side projects in
    bindle doctor ~/projects
    ```
    You should see `personal: on, writable, sync on` and `No problems found.`
-   If you haven't yet, turn on the session check (`bindle install --session-check`, see [Install](#install)).
+   If you installed from a git clone rather than the plugin, turn on the session check (`bindle install --session-check`, see [Install](#install)).
 5. **Start Claude Code from `~/projects`.** The first lines of the session name the bindle and say it's writable. Ask Claude to remember something; it lands in `~/bindles/personal/memory/`, and with sync on, it's committed and pushed when the session ends.
 
-On another machine: run `bindle install` once, clone the bindle to the same kind of place (`git clone <url> ~/bindles/personal`; plain `git clone <url>` would put it in the current folder as `bindle-personal`), and `bindle attach` once per folder.
+On another machine: install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone the bindle to the same kind of place (`git clone <url> ~/bindles/personal`; plain `git clone <url>` would put it in the current folder as `bindle-personal`), and `bindle attach` once per folder.
 
 ## Everyday use
 
@@ -129,7 +131,7 @@ bindle attach ~/bindles/craft ~/clients/globex
 
 **A client that allows no outside tooling.** Attach only that client's bindle to its folder.
 
-**A new machine.** Run `bindle install`, clone each bindle into place (a bindle used in many folders to `~/bindles/<name>`, a domain bindle to `<domain folder>/.bindle`), then `bindle attach` once per folder. Use `bindle new` only to create a bindle the first time. A folder's attach settings stay on that machine, so this is the only setup step.
+**A new machine.** Install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone each bindle into place (a bindle used in many folders to `~/bindles/<name>`, a domain bindle to `<domain folder>/.bindle`), then `bindle attach` once per folder. Use `bindle new` only to create a bindle the first time. A folder's attach settings stay on that machine, so this is the only setup step.
 
 **Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle-promote` skill). It drafts a general rewrite, asks where it should go, and once you approve, puts it there in one step, after a check against the source bindle's private terms:
 ```
@@ -161,7 +163,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 
 | Command | What it does |
 |---|---|
-| `bindle install [--session-check \| --no-session-check]` | Link `bindle` onto your `PATH`, and `/bindle` and `/bindle-promote` into `~/.claude`; `--session-check` adds the hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating (recommended) |
+| `bindle install [--cleanup] [--session-check \| --no-session-check]` | Put `bindle` on your `PATH` for terminal use (optional when installed as a plugin); `--cleanup` removes old-style command/skill links and user-level hook left by an earlier install; `--session-check` and `--no-session-check` add or remove a legacy user-level hook (the plugin provides this now) |
 | `bindle session-check [<folder>]` | Show what the session check would say for a session started in that folder (the installed hook runs it with `--hook`) |
 | `bindle new <name> [--at <dir>] [--sync] [--audience …] [--writes …]` | Create a bindle repo (default location `./.bindle`) |
 | `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder |
@@ -272,14 +274,19 @@ A server that only exists on one machine (a local path, a tool installed in one 
 
 ## Updating
 
+**When installed as a plugin:** update bindle through Claude Code (`/plugin` → Installed → bindle → Update, or `claude plugin update bindle@bindle` from the terminal). Then upgrade your bindles:
 ```
-bindle update            # pull bindle, refresh its install, upgrade every bindle
+bindle update --push     # upgrade every bindle; --push pushes each one it upgrades
+```
+
+**When installed from a git clone:**
+```
+bindle update            # pull bindle, upgrade every bindle
 bindle update --push     # the same, then push each bindle it upgraded
 ```
+`update` fast-forwards bindle's own clone (it stops if you've changed files there), then upgrades every bindle in `~/bindles` and its registry. It lists a push command for each bindle it upgraded that has a remote; `--push` runs them.
 
-`update` fast-forwards bindle's own clone (it stops if you've changed files there), then runs the new version to refresh `/bindle` and `/bindle-promote` and to upgrade every bindle in `~/bindles` and its registry. It lists a push command for each bindle it upgraded that has a remote; `--push` runs them. The session check tells you when an update is available.
-
-`doctor` prints a ready-to-run `bindle upgrade` for each bindle that's behind. A bindle that's read-only in the folder is locked to Claude, so run that upgrade yourself (in Claude Code, prefix it with `!`). [CHANGELOG.md](CHANGELOG.md) lists what changed in each version, and says when an upgrade is needed.
+The session check tells you when an update is available. `doctor` prints a ready-to-run `bindle upgrade` for each bindle that's behind. A bindle that's read-only in the folder is locked to Claude, so run that upgrade yourself (in Claude Code, prefix it with `!`). [CHANGELOG.md](CHANGELOG.md) lists what changed in each version, and says when an upgrade is needed.
 
 ## Renaming a bindle
 
