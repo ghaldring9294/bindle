@@ -27,6 +27,14 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - Cross-platform: block editing and the hook skip unit-tested on all three OSes; manual checks of how Claude Code resolves the import path on Windows (`C:/…`, `~`) and Linux. Contract-test assumption: "a user CLAUDE.md `@path` import reaches the main session and subagents".
 - Then: README, `/bindle`, docs/design.md (always-on rules and why), CHANGELOG, release, `bindle update` on each machine.
 
+**Planned (2026-11-24): onboarding (`/bindle-onboard`)**, to make setup easy; it becomes the basic demo, built from the person's real bindles. bindle-demo stays for the multi-domain walkthrough (promotion, private terms, notes between domains) and as the contract test's base.
+- Offered by the session check when no bindles exist (one line, gone once a bindle exists; no state kept).
+- First question: do you already have bindles? If yes: clone each into place (`~/bindles/<name>`, or `<domain>/.bindle`), attach, `global`, and skip creating.
+- Otherwise: create craft and make it global; create a demo domain and attach craft to it; then "see it work": a session in the demo folder loads craft's rules but not the default memory folder's context (the person launches it, or a short headless `claude -p` shows it).
+- Remotes: for each bindle, ask where it lives (a private personal repo, the employer's git, or local only) and give the commands; bindle never adds a remote itself. Outside onboarding: `doctor` warns when sync is on and there's no remote; the writable bindle's session text lets Claude offer help when backup or another machine comes up.
+- Offer migration (declinable). For many repos (a domain with 20+ repos, each with its own memories), migrate in batches, tracked in a checklist in the new bindle's `notes/` (pending, done or skipped per repo), so it can stop and resume across sessions.
+- Test: run it on a second macOS user account (a fresh `~/.claude` and `~/bindles`; a scratch `CLAUDE_CONFIG_DIR` starts logged out), which also covers most of the fresh-user test (road to 1.0, step 3). Comes before that test.
+
 **Order (2026-11-22):** the two remaining migration gaps below, then the demo repo and the contract test (road to 1.0, steps 1 and 2); then one thorough review of the whole repo (done 2026-11-23, an adversarial review; every finding fixed in v0.26.0); that's enough to hand to a friend for the fresh-user test. The owner's own setup waits until after.
 
 **Road to 1.0 (the tool):**
