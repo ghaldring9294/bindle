@@ -1,5 +1,5 @@
 ---
-description: Operate bindle, which carries Claude Code memory, rules and skills between machines in git repos ("bindles"). Use when the user asks to attach or detach a bindle, turn one on or off for a folder, make one writable or read-only, check which bindles are on, sync, upgrade, create a bindle, set up private terms, or migrate an existing setup.
+description: Operate bindle, which carries Claude Code memory, rules and skills between machines in git repos ("bindles"). Use when the user asks to attach or detach a bindle, turn one on or off for a folder, make one writable or read-only, make a bindle's rules load everywhere (global), check which bindles are on, sync, upgrade, create a bindle, set up private terms, or migrate an existing setup.
 ---
 
 Help the user with bindle: $ARGUMENTS
@@ -19,6 +19,7 @@ Bindle operations are MCP tools. Call them directly — no shell command needed.
 - **doctor**(folder?): what's on, which is writable, unsaved memories, warnings and problems, each problem with its fix. In a folder with a writable bindle, it also warns about repos directly inside whose sessions wouldn't load it, with the attach command. **Run this first** when unsure of the current state.
 - **attach**(bindle, folder?, writable?, repos?): turn a bindle on for a folder (read-only unless writable=true). A folder has one writable bindle; detach the current one first to switch. repos=true also attaches it to each git repo directly inside the folder (a session started in a repo reads only that repo's settings); if any of them already has another writable bindle, nothing changes.
 - **detach**(bindle, folder?, repos?): turn it off. Takes the bindle's name. repos=true also turns it off in each repo directly inside the folder that has it.
+- **global**(bindle, off?): load a bindle's `rules.md` in every session, every subagent and every folder, through an import in a marked block of the user `CLAUDE.md` (`~/.claude/CLAUDE.md`, or in `$CLAUDE_CONFIG_DIR`); nothing else in that file changes. off=true removes it; for a bindle that moved, pass the path `doctor` prints. Where the bindle is also attached, its hook stops showing `rules.md` so it doesn't load twice. The session check pulls each global bindle with sync on at every session start (pull only). Takes effect in the next session.
 - **new**(name, at?, sync?, audience?, writes?): create a bindle repo (default `./.bindle`).
 - **terms**(bindle, folder?): suggest private terms from the domain folder's repos (names, remotes, ticket prefixes). Suggestions only; the person picks.
 - **sync**(folder?, all?): commit and push the writable bindle's memories, then pull the bindles that are on. all=true does every bindle `list` finds (commit and push only in those that can be writable). Sessions already sync on their own when a bindle has `"sync": true`; this is for catching up by hand.
@@ -33,11 +34,12 @@ Bindle operations are MCP tools. Call them directly — no shell command needed.
 For terminal use, `bindle` is available on PATH when installed with `bindle install`. The CLI has the same operations as the tools above plus:
 
 - `bindle install [--cleanup] [--session-check | --no-session-check]`: put `bindle` on PATH for terminal use. Optional when bindle is installed as a plugin (the plugin provides the command, skill and session-check hook). `--cleanup` removes the old-style links and user-level hook left by an earlier install. `--session-check` and `--no-session-check` add or remove a legacy user-level hook (the plugin provides this now).
-- `bindle session-check [<folder>]`: what the session check would say for that folder (the installed hook runs it with `--hook`, reading the folder from Claude Code and answering in hook JSON). If a session opens with a "bindle: this session started in …" warning, offer to run the attach command it gives (it takes effect next session). For "bindle: … is available" or "… need(s) an upgrade", offer to run the `update` tool.
+- `bindle session-check [<folder>]`: what the session check would say for that folder (the installed hook runs it with `--hook`, reading the folder from Claude Code and answering in hook JSON). If a session opens with a "bindle: this session started in …" warning, offer to run the attach command it gives (it takes effect next session). For "bindle: … is available" or "… need(s) an upgrade", offer to run the `update` tool. For "bindle: <name> (global) …" (behind its remote, a sync problem, an import that isn't there), run `doctor` and offer its fix.
 
 ## Common requests
 
 - **"Attach craft here" / "turn on personal":** call `attach` with the bindle name, read-only unless they say writable. The folder is the one this session was started in (or its repo root, if it's inside a repo on macOS/Linux). Then call `doctor` and tell them it takes effect in their **next** session, since Claude Code reads settings at session start.
+- **"Make craft's rules apply everywhere" / "I want these rules in subagents too":** call `global`. Hook-shown rules reach only the main session in folders where the bindle is attached; a global bindle's rules reach every session and subagent. Tell them it takes effect next session, and that a large `rules.md` costs every session and subagent (`doctor` warns over 12,000 characters).
 - **"Detach craft" / "turn it off here":** call `detach`, then the same note.
 - **"Make X writable here":** if another bindle is writable, say which; with their go-ahead, detach it (and attach it again without writable if they want it kept on read-only), then call `attach` with writable=true. Attaching the current writable one again without writable doesn't demote it.
 - **"What's on?":** call `doctor`, summarized. **"What bindles do I have?":** call `list`.

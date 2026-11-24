@@ -104,6 +104,13 @@ Bindles not attached to the folder contribute nothing. Individual memory files l
 
 **Rules.** A bindle's `rules.md` is shown at every session start where it's attached, as standing instructions. Keep it short (it must stay under 9,000 characters) and put detail in memory or notes.
 
+**Rules everywhere (`bindle global`).** Rules shown by a hook reach the main session only, not subagents, and only in folders where the bindle is attached. For rules you want in every session, every subagent and every folder (how you work, say), make the bindle global:
+```
+bindle global craft        # craft's rules.md loads everywhere, from the next session
+bindle global craft --off  # back to loading only where it's attached
+```
+This adds an import of the bindle's `rules.md` to a marked block in your user `CLAUDE.md` (`~/.claude/CLAUDE.md`, or in `$CLAUDE_CONFIG_DIR` when that's set), which Claude Code reads in every session and passes to subagents. Everything else in that file stays exactly as it was, including its line endings; running it twice changes nothing. Where a global bindle is also attached, its hook stops showing `rules.md`, so it doesn't load twice. Changes apply from the next session. Since a global bindle's own hooks run only where it's attached, the session check pulls each global bindle with sync on at every session start (pull only, never a commit or push), and says in the terminal when one is behind its remote or the pull fails. `doctor` flags an import whose bindle moved or was renamed, and a global `rules.md` over 12,000 characters (every session and subagent pays for it). If you set `CLAUDE_CONFIG_DIR` in a settings file's `env` rather than your shell, set it in your shell too, so bindle finds the same file.
+
 ## Scenarios
 
 Each scenario uses made-up names. Replace the paths with your own.
@@ -170,6 +177,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder |
 | `bindle detach <name-or-path> [<folder>] [--repos]` | Turn a bindle off for a folder; `--repos` also each git repo directly inside it that has it |
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
+| `bindle global <bindle> [--off]` | Load a bindle's `rules.md` in every session and subagent, in every folder (an import in your user `CLAUDE.md`); `--off` removes it, by name or by the path `doctor` shows for one that moved |
 | `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable, read-only or not attached there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder> \| --all]` | Commit and push the writable bindle's memories, then pull the bindles that are on. `--all`: every bindle `bindle list` finds |
@@ -307,13 +315,14 @@ Start with `bindle doctor <folder>`; it explains most problems and prints the fi
 | Symptom | Cause and fix |
 |---|---|
 | `doctor` says nothing is at a bindle's path | The bindle moved. Attach it again from its new path. |
+| `doctor` says a global import isn't there | A global bindle moved or was renamed, so its rules load nowhere. Run the `bindle global --off <old path>` it prints, then `bindle global <name>`. |
 | A skill shows up twice | An old copy is still in `~/.claude/skills/`. Remove it; the bindle provides it now. |
 | Memories didn't reach the other machine | Closing the app or killing the terminal can skip the end-of-session sync; the next session start in that folder commits and pushes them. `bindle sync` does it now. `doctor` shows the last sync result. |
 | Sync says "push failed" | Usually credentials. With two GitHub accounts on one machine (say work and personal), the credential manager may offer the wrong one. Put the account in the remote URL so git asks for it once and remembers it per repo: `git -C <bindle> remote set-url origin https://<user>@github.com/<user>/<repo>.git`, then `git -C <bindle> push` by hand. Over SSH, use a host alias per account. |
 | Sync refused to commit | A memory looks like it holds a credential. `doctor` names the file; remove the secret. |
 | "attach refuses a folder inside a git repo" | Claude Code reads settings at the repo root. Attach the repo root, or a folder that isn't inside a repo. |
 | "read-only but not locked" | The bindle was attached before locks existed. Run the same `bindle attach` again. |
-| Rules seem ignored | `doctor` warns when `rules.md` is over 9,000 characters; the hook can show only 10,000. |
+| Rules seem ignored | `doctor` warns when `rules.md` is over 9,000 characters; the hook can show only 10,000. In a subagent, only global rules load (`bindle global`). |
 
 ## Limits
 

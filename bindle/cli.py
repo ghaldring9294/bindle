@@ -4,6 +4,7 @@ import sys
 
 from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_session_check, cmd_sync
 from .core import VERSION, BindleError
+from .global_rules import cmd_global
 from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms
 from .upgrade import cmd_update, cmd_upgrade
 
@@ -50,6 +51,14 @@ def build_parser():
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.add_argument("--repos", action="store_true", help="also each git repo directly inside the folder (sessions started in a repo read only its own settings)")
     s.set_defaults(fn=cmd_detach)
+
+    s = sub.add_parser("global", help="load a bindle's rules.md in every session and subagent, in every folder",
+                       description="Load a bindle's rules.md everywhere: writes an import of it in a marked block in "
+                                   "your user CLAUDE.md (~/.claude/CLAUDE.md, or in $CLAUDE_CONFIG_DIR), leaving the "
+                                   "rest of that file as it is. Takes effect in the next session.")
+    s.add_argument("bindle", help="the bindle's name or path (with --off, also the path doctor shows for one that moved)")
+    s.add_argument("--off", action="store_true", help="stop loading it everywhere (remove its import)")
+    s.set_defaults(fn=cmd_global)
 
     s = sub.add_parser("list", help="list your bindles: those in $BINDLE_HOME (default ~/bindles) and those on in a folder")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)

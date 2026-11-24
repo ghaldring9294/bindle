@@ -17,6 +17,7 @@ import sys
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import bindle  # noqa: E402
+import bindle.global_rules  # noqa: E402
 
 
 def git_bash():
@@ -46,6 +47,7 @@ class BindleTest(unittest.TestCase):
             "FAKE_CLAUDE_LOG": str(self.log),
             "BINDLE_HOME": str(self.tmp / "bindles"),  # never the real ~/bindles
             "BINDLE_UPDATE_CHECK": "off",  # never fetch from the network; ReleaseCheckTest covers it against a local remote
+            "CLAUDE_CONFIG_DIR": str(self.tmp / "claude-config"),  # never the real user CLAUDE.md
             "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@example.com",
             "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@example.com",
         }
@@ -928,7 +930,7 @@ class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text()
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "update", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "update", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check", "global"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
@@ -1004,7 +1006,7 @@ class DocsTest(unittest.TestCase):
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         mcp_tool_names = {"list", "doctor", "attach", "detach", "new", "sync", "update", "upgrade",
-                          "promote", "terms", "collect"}
+                          "promote", "terms", "collect", "global"}
         cli_only = {"install", "session-check"}
         for c in sub.choices:
             if c == "outbox":
@@ -2453,6 +2455,227 @@ class SyncTest(BindleTest):
         self.assertEqual(code, 0)
         self.assertIn("pushed", out)
         self.assertIn("memory/fact.md", bindle.git(self.remote, "log", "--name-only", "--format="))
+
+
+
+class GlobalRulesTest(BindleTest):
+    """`bindle global` puts a bindle's rules.md into the user CLAUDE.md, the one place every session and subagent
+    reads. That file is the person's own, so outside bindle's block it must never change."""
+
+    def setUp(self):
+        super().setUp()
+        self.craft = self.make_bindle("craft")
+        (self.craft / "rules.md").write_text("Prefer small PRs.\n")
+        self.md = self.tmp / "claude-config" / "CLAUDE.md"
+
+    def imports(self):
+        return bindle.core.hooks().global_imports(bindle.core.hooks().decode_text(self.md.read_bytes())[0])
+
+    def run_rules(self, b, folder):
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(folder)}
+        return subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "rules"], env=env,
+                              capture_output=True, text=True).stdout
+
+    # A first machine may have no user CLAUDE.md (or config folder) yet; global must still work there.
+    def test_creates_the_file_when_missing(self):
+        self.assertEqual(self.run_cli("global", "craft")[0], 0)
+        self.assertEqual([str(p) for p in self.imports()], [str(self.craft / "rules.md")])
+
+    # The person's own instructions live in this file; losing or reformatting a byte of them is silent damage.
+    def test_keeps_the_persons_text_byte_for_byte_and_off_restores_it(self):
+        for original in ("# Mine\n\nBe brief. Café ✓\n", "# Mine\n\n", "x\n"):
+            with self.subTest(original=original):
+                self.md.parent.mkdir(exist_ok=True)
+                self.md.write_bytes(original.encode("utf-8"))
+                self.run_cli("global", "craft")
+                self.assertTrue(self.md.read_bytes().startswith(original.encode("utf-8")))
+                self.run_cli("global", "craft", "--off")
+                self.assertEqual(self.md.read_bytes(), original.encode("utf-8"))
+
+    # People run setup steps again on each machine; a second run must not add a second import or touch the file.
+    def test_running_it_twice_changes_nothing(self):
+        self.md.parent.mkdir()
+        self.md.write_text("mine\n")
+        self.run_cli("global", "craft")
+        once = self.md.read_bytes()
+        code, out = self.run_cli("global", "craft")
+        self.assertEqual((code, self.md.read_bytes()), (0, once))
+        self.assertIn("already global", out)
+
+    # Turning one bindle off must leave the other's rules loading everywhere.
+    def test_two_bindles_share_one_block_and_off_removes_only_one(self):
+        personal = self.make_bindle("personal")
+        self.run_cli("global", "craft")
+        self.run_cli("global", personal)
+        self.assertEqual(len(self.imports()), 2)
+        self.assertEqual(self.md.read_text().count("bindle global: start"), 1)
+        self.run_cli("global", "craft", "--off")
+        self.assertEqual([p.parent for p in self.imports()], [personal])
+
+    # Windows editors write CRLF; mixing in LF lines makes the file look changed everywhere in a diff tool.
+    def test_a_crlf_file_stays_crlf(self):
+        self.md.parent.mkdir()
+        self.md.write_bytes(b"one\r\ntwo\r\n")
+        self.run_cli("global", "craft")
+        data = self.md.read_bytes()
+        self.assertEqual(data.count(b"\n"), data.count(b"\r\n"))
+        self.run_cli("global", "craft", "--off")
+        self.assertEqual(self.md.read_bytes(), b"one\r\ntwo\r\n")
+
+    # Some Windows editors save UTF-16 with a byte-order mark; rewriting it as UTF-8 would garble the person's text.
+    def test_the_files_encoding_is_kept(self):
+        self.md.parent.mkdir()
+        original = b"\xff\xfe" + "mine é\r\n".encode("utf-16-le")
+        self.md.write_bytes(original)
+        self.run_cli("global", "craft")
+        self.assertTrue(self.md.read_bytes().startswith(original))
+        self.assertEqual(len(self.imports()), 1)
+        self.run_cli("global", "craft", "--off")
+        self.assertEqual(self.md.read_bytes(), original)
+
+    # A file bindle can't read as text could be anything; rewriting it would destroy it.
+    def test_refuses_a_file_it_cant_read_or_a_broken_block(self):
+        self.md.parent.mkdir()
+        for content in (b"caf\xe9\n", b"<!-- bindle global: start -->\n<!-- bindle global: start -->\n<!-- bindle global: end -->\n"):
+            with self.subTest(content=content):
+                self.md.write_bytes(content)
+                code, out = self.run_cli("global", "craft")
+                self.assertEqual(code, 1, out)
+                self.assertEqual(self.md.read_bytes(), content)
+
+    # Many people keep ~/.claude/CLAUDE.md as a link into a dotfiles repo; replacing the link would cut it off.
+    def test_writes_through_a_linked_claude_md(self):
+        real_file = self.tmp / "dotfiles" / "CLAUDE.md"
+        real_file.parent.mkdir()
+        real_file.write_text("mine\n")
+        self.md.parent.mkdir()
+        try:
+            self.md.symlink_to(real_file)
+        except OSError:
+            self.skipTest("symlinks need extra rights here")
+        self.run_cli("global", "craft")
+        self.assertTrue(self.md.is_symlink())
+        self.assertIn("craft", real_file.read_text())
+
+    # A user name with a space (common on Windows) must still give an import Claude Code reads as one path.
+    def test_a_path_with_a_space_round_trips(self):
+        code, out = self.run_cli("new", "spaced", "--at", self.tmp / "my bindles" / "spaced")
+        self.assertEqual(code, 0, out)
+        self.run_cli("global", self.tmp / "my bindles" / "spaced")
+        self.assertIn("my\\ bindles", self.md.read_text())
+        self.assertTrue(bindle.core.hooks().imported_globally(self.tmp / "my bindles" / "spaced"))
+
+    # Claude Code reads the user CLAUDE.md from $CLAUDE_CONFIG_DIR when it's set, else ~/.claude; writing anywhere
+    # else would do nothing.
+    def test_finds_the_user_claude_md_where_claude_code_does(self):
+        self.assertEqual(bindle.core.hooks().user_claude_md(), self.md)
+        os.environ["CLAUDE_CONFIG_DIR"] = ""
+        try:
+            self.assertEqual(bindle.core.hooks().user_claude_md(), Path.home() / ".claude" / "CLAUDE.md")
+        finally:
+            os.environ["CLAUDE_CONFIG_DIR"] = self.env["CLAUDE_CONFIG_DIR"]
+
+    # Where a global bindle is also attached, its hook printing rules.md too would load every rule twice;
+    # turning global off must bring the hook's copy back, or the rules vanish there.
+    def test_the_hook_skips_rules_a_global_import_already_loads(self):
+        f = self.folder()
+        self.run_cli("attach", "craft", f)
+        self.run_cli("global", "craft")
+        self.assertEqual(self.run_rules(self.craft, f).strip(), "")
+        self.run_cli("global", "craft", "--off")
+        self.assertIn("Prefer small PRs.", self.run_rules(self.craft, f))
+
+    # A bindle that moved leaves an import of nothing: its rules silently stop loading in every session.
+    def test_doctor_flags_an_import_of_a_bindle_that_moved_and_off_by_path_clears_it(self):
+        self.run_cli("global", "craft")
+        moved = self.tmp / "bindles" / "craft"
+        shutil.move(str(self.craft), str(moved))
+        code, out = self.run_cli("doctor", self.folder())
+        self.assertEqual(code, 1)
+        self.assertIn(f"bindle global --off {bindle.core.quote(str(self.craft))}", out)
+        self.assertIn("aren't loading", self.run_cli("session-check", self.folder())[1])
+        self.run_cli("global", "--off", self.craft)
+        self.assertEqual(self.imports(), [])
+
+    # Global rules load into every session and subagent, so their size is paid many times over; but the hook's
+    # 10k cap no longer applies, so the attached-rules problem mustn't fire for them.
+    def test_doctor_warns_about_a_large_global_rules_md_instead_of_the_hook_cap(self):
+        f = self.folder()
+        self.run_cli("attach", "craft", f)
+        (self.craft / "rules.md").write_text("x" * (bindle.global_rules.GLOBAL_RULES_WARN + 1))
+        self.run_cli("global", "craft")
+        out = self.run_cli("doctor", f)[1]
+        self.assertIn("every session and subagent loads it", out)
+        self.assertNotIn("rules.md is over", out)
+
+
+class GlobalSyncTest(BindleTest):
+    """A global bindle's rules load in every folder, but its own hook (and so its pull) runs only where it's
+    attached. The session check, which runs in every session, keeps it current, and never writes to it."""
+
+    def setUp(self):
+        super().setUp()
+        code, out = self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft", "--sync", "--writes", "explicit")
+        self.assertEqual(code, 0, out)
+        self.craft = self.tmp / "bindles" / "craft"
+        self.remote = self.tmp / "craft.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(self.craft), str(self.remote)], check=True)
+        branch = bindle.git(self.craft, "rev-parse", "--abbrev-ref", "HEAD")
+        subprocess.run(["git", "-C", str(self.craft), "remote", "add", "origin", str(self.remote)], check=True)
+        subprocess.run(["git", "-C", str(self.craft), "fetch", "-q", "origin"], check=True)
+        subprocess.run(["git", "-C", str(self.craft), "branch", "-q", "-u", f"origin/{branch}"], check=True)
+        self.other = self.tmp / "other-machine"
+        subprocess.run(["git", "clone", "-q", str(self.remote), str(self.other)], check=True)
+        self.run_cli("global", "craft")
+        self.elsewhere = self.folder("elsewhere")
+
+    def push_rule_from_the_other_machine(self, text):
+        (self.other / "rules.md").write_text(text)
+        bindle.git(self.other, "commit", "-qam", "new rule")
+        bindle.git(self.other, "push", "-q")
+
+    # Without this, a rule added on one machine never reaches the others' sessions until someone pulls by hand.
+    def test_a_session_anywhere_pulls_a_global_bindle(self):
+        self.push_rule_from_the_other_machine("Write tests first.\n")
+        self.run_cli("session-check", self.elsewhere)
+        self.assertEqual((self.craft / "rules.md").read_text(), "Write tests first.\n")
+
+    # An explicit-writes bindle is never anyone's writable bindle: the session check must not commit or push to it.
+    def test_the_pull_never_commits_or_pushes(self):
+        head, remote_head = bindle.git(self.craft, "rev-parse", "HEAD"), bindle.git(self.remote, "rev-parse", "HEAD")
+        (self.craft / "memory" / "draft.md").write_text("half done\n")
+        self.run_cli("session-check", self.elsewhere)
+        self.assertEqual(bindle.git(self.craft, "rev-parse", "HEAD"), head)
+        self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), remote_head)
+
+    # A pull that fails leaves old rules in every session; the person must see it in the terminal.
+    def test_a_failed_pull_is_shown(self):
+        self.push_rule_from_the_other_machine("Remote rule.\n")
+        (self.craft / "rules.md").write_text("Local rule.\n")
+        bindle.git(self.craft, "commit", "-qam", "local")  # diverged: a fast-forward is impossible
+        out = self.run_cli("session-check", self.elsewhere)[1]
+        self.assertIn("craft (global) sync problem", out)
+
+    # With sync off nothing pulls it, so the person has to hear that the rules every session follows are stale.
+    def test_a_global_bindle_with_sync_off_that_is_behind_is_named(self):
+        meta = json.loads((self.craft / "bindle.json").read_text())
+        meta["sync"] = False
+        (self.craft / "bindle.json").write_text(json.dumps(meta))
+        bindle.git(self.craft, "commit", "-qam", "sync off")
+        bindle.git(self.craft, "push", "-q")
+        bindle.git(self.other, "pull", "-q")
+        self.push_rule_from_the_other_machine("Newer.\n")
+        bindle.git(self.craft, "fetch", "-q")
+        out = self.run_cli("session-check", self.elsewhere)[1]
+        self.assertIn("craft (global) is 1 commit(s) behind", out)
+        self.assertIn("behind its remote", self.run_cli("doctor", self.elsewhere)[1])
+
+    # Where it's attached, its own hook pulls it in the same session; two pulls at once would fight over git's lock.
+    def test_a_global_bindle_attached_here_is_left_to_its_own_hook(self):
+        self.run_cli("attach", "craft", self.elsewhere)
+        self.push_rule_from_the_other_machine("Not yet.\n")
+        self.run_cli("session-check", self.elsewhere)
+        self.assertNotEqual((self.craft / "rules.md").read_text(), "Not yet.\n")
 
 
 if __name__ == "__main__":

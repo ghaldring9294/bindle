@@ -2,6 +2,15 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.29.0 (2026-11-24)
+
+Run `bindle update` (the rules hook changed, so every bindle needs an upgrade).
+
+- `bindle global <name>` makes a bindle's `rules.md` load in every session, every subagent and every folder: it adds an import of it to a marked block in your user `CLAUDE.md` (`~/.claude/CLAUDE.md`, or in `$CLAUDE_CONFIG_DIR`). The rest of that file is untouched, in its own encoding and line endings; running it twice changes nothing. `--off` removes it. Also an MCP tool (`global`).
+- Where a global bindle is also attached, its hook no longer shows `rules.md`, so the rules don't load twice.
+- The session check pulls each global bindle that has sync on (pull only) and says in the terminal when a pull fails or a global bindle is behind its remote. Its hook timeout is now 30 seconds, to leave room for those pulls.
+- `doctor` lists global bindles and flags an import whose bindle moved or was renamed, a global `rules.md` over 12,000 characters, and a global bindle behind its remote. The 9,000-character limit for attached rules no longer applies to a global bindle.
+
 ## 0.28.0 (2026-11-24)
 
 Run `bindle upgrade` (the session hook's wording changed).

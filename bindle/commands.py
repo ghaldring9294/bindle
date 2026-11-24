@@ -9,6 +9,7 @@ import sys
 import time
 from pathlib import Path
 
+from . import global_rules
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, VERSION, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
@@ -114,7 +115,7 @@ def set_session_check(on):
     groups = [g for g in hooks_.get("SessionStart", []) if not is_session_check(g)]
     if on:
         command = f'bash "{(BASE / "bin" / "py").as_posix()}" "{(BASE / "bin" / "bindle").as_posix()}" {SESSION_CHECK}'
-        groups.append({"hooks": [{"type": "command", "command": command, "timeout": 10}]})
+        groups.append({"hooks": [{"type": "command", "command": command, "timeout": 30}]})
     if groups:
         settings.setdefault("hooks", {})["SessionStart"] = groups
     elif "SessionStart" in hooks_:
@@ -129,12 +130,17 @@ def set_session_check(on):
         "bindle or a bindle needs updating." if on else "no warnings at session start."))
 
 
+def settings_root(start):
+    """Where Claude Code reads settings.local.json for a session started in `start`: the repo root, except on Windows."""
+    start = real(start)
+    top = None if WINDOWS else git(start, "rev-parse", "--show-toplevel")
+    return real(top) if top else start
+
+
 def session_warning(start):
     """The warning for a session started in `start`, or None: only when it's inside a folder recorded as a
     domain (attached writable) and the folder Claude Code reads settings from has no writable bindle."""
-    start = real(start)
-    top = None if WINDOWS else git(start, "rev-parse", "--show-toplevel")
-    root = real(top) if top else start  # where Claude Code reads settings.local.json
+    root = settings_root(start)
     if read_json(settings_path(root)).get("autoMemoryDirectory"):
         return None
     inside = [(real(f), name) for f, name in domains().items() if real(f) == root or real(f) in root.parents]
@@ -206,7 +212,8 @@ def cmd_session_check(args):
         if args.hook and not start:
             start = (json.loads(sys.stdin.read() or "{}").get("cwd")
                      or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
-        lines = [w for w in [session_warning(start or Path.cwd())] if w] + update_notes()
+        start = start or Path.cwd()
+        lines = [w for w in [session_warning(start)] if w] + global_rules.session_lines(settings_root(start)) + update_notes()
     except Exception as e:  # noqa: BLE001 (a hook must never stop a session)
         if not args.hook:
             raise
@@ -627,7 +634,7 @@ def cmd_doctor(args):
             problems.append(f"{b['name']} is writable but locked, so memories can't be saved; "
                             f"run `bindle attach {ref(b)} {quote(str(folder))} --writable` again")
         rules = b["root"] / "rules.md"
-        if rules.exists() and len(rules.read_text(encoding="utf-8", errors="ignore")) > RULES_LIMIT:
+        if rules.exists() and not hooks().imported_globally(b["root"]) and len(rules.read_text(encoding="utf-8", errors="ignore")) > RULES_LIMIT:
             problems.append(f"{b['name']}: rules.md is over {RULES_LIMIT} characters; the session-start hook can show only {HOOK_OUTPUT_LIMIT:,}")
         index = b["memory"] / "MEMORY.md"
         if on and not writable_here and index.exists() and len(index.read_text(encoding="utf-8", errors="ignore")) > HOOK_OUTPUT_LIMIT - 500:
@@ -639,6 +646,10 @@ def cmd_doctor(args):
         elif b["layout"] != LAYOUT:
             problems.append(f"{b['name']}: bindle.json has no current layout number")
             needs_upgrade.append(b)
+
+    global_lines, global_warnings, global_problems = global_rules.doctor_report()
+    warnings += global_warnings
+    problems += global_problems
 
     if not bindle_plugin_enabled(folder):
         warnings.append("bindle's own plugin isn't installed, so Claude Code has no /bindle, bindle tools or session check "
@@ -658,6 +669,9 @@ def cmd_doctor(args):
         print(f"  Memory: {memory_dir} (not a bindle attached here)")
     elif not memory_dir:
         print("  Memory: Claude Code's default folder (no writable bindle)")
+    if global_lines:
+        print("Global rules (in every folder, from your user CLAUDE.md):")
+        print("\n".join(global_lines))
 
     fixes = []
     for b in {str(b["root"]): b for b in needs_upgrade}.values():

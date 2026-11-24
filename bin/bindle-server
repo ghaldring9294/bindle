@@ -17,6 +17,7 @@ from bindle.commands import (cmd_attach, cmd_detach, cmd_doctor, cmd_list,  # no
                              cmd_new, cmd_sync)
 from bindle.promote import (cmd_collect, cmd_outbox_add, cmd_outbox_clean,  # noqa: E402
                             cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms)
+from bindle.global_rules import cmd_global  # noqa: E402
 from bindle.upgrade import cmd_update, cmd_upgrade  # noqa: E402
 
 PROTOCOL_VERSION = "2024-11-05"
@@ -79,6 +80,22 @@ TOOLS = [
                 "bindle": {"type": "string", "description": "Bindle name or path"},
                 "folder": {"type": "string", "description": "Folder to detach from (default: cwd)"},
                 "repos": {"type": "boolean", "description": "Also detach from each git repo directly inside the folder", "default": False}
+            },
+            "required": ["bindle"]
+        }
+    },
+    {
+        "name": "global",
+        "description": (
+            "Load a bindle's rules.md in every session and subagent, in every folder, through an import "
+            "in a marked block of the user CLAUDE.md (the rest of that file is left as it is). off=true "
+            "removes it. Takes effect in the next session."
+        ),
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "bindle": {"type": "string", "description": "The bindle's name or path (with off, also the path doctor shows for one that moved)"},
+                "off": {"type": "boolean", "description": "Stop loading it everywhere"}
             },
             "required": ["bindle"]
         }
@@ -271,6 +288,7 @@ DISPATCH = {
     "attach": cmd_attach,
     "detach": cmd_detach,
     "new": cmd_new,
+    "global": cmd_global,
     "sync": cmd_sync,
     "update": cmd_update,
     "upgrade": cmd_upgrade,
@@ -296,6 +314,8 @@ def build_args(name, a):
     if name == "detach":
         return SimpleNamespace(bindle=a["bindle"], folder=a.get("folder"),
                                repos=a.get("repos", False))
+    if name == "global":
+        return SimpleNamespace(bindle=a["bindle"], off=a.get("off", False))
     if name == "new":
         return SimpleNamespace(name=a["name"], at=a.get("at"), sync=a.get("sync", False),
                                audience=a.get("audience", "private"), writes=a.get("writes", "implicit"))

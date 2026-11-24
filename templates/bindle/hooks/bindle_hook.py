@@ -476,6 +476,66 @@ def session_start_text(root, project_dir):
     return "\n".join(out)
 
 
+# ---------- global rules (an import in the user CLAUDE.md) ----------
+
+GLOBAL_START = "<!-- bindle global: start"
+GLOBAL_END = "<!-- bindle global: end -->"
+
+
+def user_claude_md():
+    """The user CLAUDE.md where Claude Code reads it: in $CLAUDE_CONFIG_DIR when set, else ~/.claude."""
+    base = (os.environ.get("CLAUDE_CONFIG_DIR") or "").strip()
+    return (Path(base) if base else Path.home() / ".claude") / "CLAUDE.md"
+
+
+def decode_text(data):
+    """A CLAUDE.md's bytes as (text, BOM, codec), so a rewrite keeps its encoding. Raises ValueError for anything but
+    UTF-8 or a UTF-16 file with a BOM (Windows editors can save that)."""
+    for bom, codec in ((b"\xef\xbb\xbf", "utf-8"), (b"\xff\xfe", "utf-16-le"), (b"\xfe\xff", "utf-16-be")):
+        if data.startswith(bom):
+            return data[len(bom):].decode(codec), bom, codec
+    return data.decode("utf-8"), b"", "utf-8"
+
+
+def global_block(lines):
+    """The indexes of the bindle-global block's start and end lines, or None. Raises ValueError when a marker is
+    missing or repeated: rewriting then could eat the person's own text."""
+    starts = [i for i, l in enumerate(lines) if l.strip().startswith(GLOBAL_START)]
+    ends = [i for i, l in enumerate(lines) if l.strip() == GLOBAL_END]
+    if not starts and not ends:
+        return None
+    if len(starts) != 1 or len(ends) != 1 or ends[0] < starts[0]:
+        raise ValueError("its bindle global block has a missing or repeated marker line")
+    return starts[0], ends[0]
+
+
+def import_line(path):
+    """How the block imports a file: absolute, forward slashes on every OS (a backslash escapes), spaces escaped."""
+    return "@" + Path(path).as_posix().replace(" ", "\\ ")
+
+
+def global_imports(text):
+    """The files the bindle-global block of a CLAUDE.md's text imports."""
+    lines = text.splitlines()
+    block = global_block(lines)
+    if not block:
+        return []
+    return [Path(l.strip()[1:].replace("\\ ", " ")) for l in lines[block[0] + 1:block[1]] if l.strip().startswith("@")]
+
+
+def user_global_imports():
+    try:
+        return global_imports(decode_text(user_claude_md().read_bytes())[0])
+    except (OSError, ValueError):
+        return []
+
+
+def imported_globally(root):
+    """True when the user CLAUDE.md imports this bindle's rules.md, so every session already has it."""
+    rules = real(Path(root) / "rules.md")
+    return any(real(p) == rules for p in user_global_imports())
+
+
 def rules_text(root):
     rules = Path(root) / "rules.md"
     if not rules.is_file() or not rules.stat().st_size:
@@ -535,7 +595,8 @@ def main(argv):
             elif text:
                 print(text)
         elif command == "rules":
-            text = rules_text(root)
+            # Imported by the user CLAUDE.md (bindle global): printing it too would load it twice.
+            text = "" if imported_globally(root) else rules_text(root)
             if text:
                 print(text)
         elif command == "session-end":
