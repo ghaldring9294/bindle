@@ -470,7 +470,8 @@ def session_start_text(root, project_dir):
     out.append(f"Bindle {name} is on and read-only in this folder ({root}): use its skills and memories, but don't "
                f"edit its files. Material moves into it only through promotion (bindle promote, which the user approves), never a direct edit.")
     index = memory / "MEMORY.md"
-    if index.is_file() and index.stat().st_size:
+    # Imported by the user CLAUDE.md (bindle global): showing it here too would load it twice.
+    if index.is_file() and index.stat().st_size and not imported_globally(root, "memory/MEMORY.md"):
         out.append(f"Memory index from the {name} bindle (files are in {memory}):")
         out.append(index.read_text(encoding="utf-8", errors="ignore").rstrip("\n"))
     return "\n".join(out)
@@ -480,6 +481,7 @@ def session_start_text(root, project_dir):
 
 GLOBAL_START = "<!-- bindle global: start"
 GLOBAL_END = "<!-- bindle global: end -->"
+GLOBAL_FILES = ("rules.md", "memory/MEMORY.md")  # what the block imports from each global bindle
 
 
 def user_claude_md():
@@ -523,6 +525,26 @@ def global_imports(text):
     return [Path(l.strip()[1:].replace("\\ ", " ")) for l in lines[block[0] + 1:block[1]] if l.strip().startswith("@")]
 
 
+def import_root(path):
+    """The bindle folder an import in the block belongs to (<root>/rules.md or <root>/memory/MEMORY.md), or None."""
+    path = Path(path)
+    if path.name == "rules.md":
+        return path.parent
+    if path.name == "MEMORY.md" and path.parent.name == "memory":
+        return path.parent.parent
+    return None
+
+
+def global_roots(text):
+    """The global bindles' folders, in the block's order."""
+    roots = []
+    for p in global_imports(text):
+        root = import_root(p)
+        if root is not None and root not in roots:
+            roots.append(root)
+    return roots
+
+
 def user_global_imports():
     try:
         return global_imports(decode_text(user_claude_md().read_bytes())[0])
@@ -530,10 +552,11 @@ def user_global_imports():
         return []
 
 
-def imported_globally(root):
-    """True when the user CLAUDE.md imports this bindle's rules.md, so every session already has it."""
-    rules = real(Path(root) / "rules.md")
-    return any(real(p) == rules for p in user_global_imports())
+def imported_globally(root, rel="rules.md"):
+    """True when the user CLAUDE.md imports this bindle file (rules.md, or memory/MEMORY.md), so every session
+    already has it."""
+    target = real(Path(root) / rel)
+    return any(real(p) == target for p in user_global_imports())
 
 
 def rules_text(root):

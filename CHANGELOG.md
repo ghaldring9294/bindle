@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.30.0 (2026-11-24)
+
+Run `bindle update` (the hooks changed), then `bindle global <name>` again for each global bindle (`doctor` names them).
+
+- `bindle global` also imports the bindle's memory index (`memory/MEMORY.md`), so its memories are reachable from every session and subagent, not only its rules. A global craft is now a portable `CLAUDE.md`: rules that always load, lessons that load when relevant.
+- Where a global bindle is attached read-only, its hook no longer shows its memory index a second time.
+- `doctor` flags a global block written by 0.29 (rules only), and counts the index in the 12,000-character warning.
+
 ## 0.29.1 (2026-11-24)
 
 No upgrade needed.

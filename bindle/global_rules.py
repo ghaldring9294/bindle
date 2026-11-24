@@ -1,4 +1,5 @@
-"""bindle global: a bindle's rules.md in every session and subagent, through an import in the user CLAUDE.md.
+"""bindle global: a bindle's rules.md and memory index in every session and subagent, through imports in the user
+CLAUDE.md.
 
 Hook output reaches only the main session, while the user CLAUDE.md and its @imports reach every session and its
 subagents. The block bindle writes there is marked; everything outside it is the person's and kept byte for byte.
@@ -12,8 +13,9 @@ from .core import BindleError, declared_bindles, find_bindle, hooks, load_bindle
 
 HEADER = ("<!-- bindle global: start. Managed by `bindle global <name>` (`--off` removes one); "
           "edits inside this block are overwritten. -->")
-# Every session and subagent pays for a global rules.md. Claude Code warns when its memory files together pass
-# 40,000 characters; 12,000 leaves room under that for a project CLAUDE.md and a memory index (up to 25 KB).
+# Every session and subagent pays for a global bindle's rules.md and memory index. Claude Code warns when its
+# memory files together pass 40,000 characters; 12,000 leaves room under that for a project CLAUDE.md and the
+# writable bindle's index (up to 25 KB).
 GLOBAL_RULES_WARN = 12000
 
 
@@ -32,8 +34,15 @@ def read_claude_md(path):
     return lines, bom, codec, eol, block
 
 
-def imports_in(lines, block):
-    return hooks().global_imports("".join(lines[block[0]:block[1] + 1])) if block else []
+def block_text(lines, block):
+    return "".join(lines[block[0]:block[1] + 1]) if block else ""
+
+
+def render(roots, eol):
+    """The block for these bindle folders: each one's rules.md and memory index, so links in the index resolve."""
+    h = hooks()
+    imports = [h.import_line(Path(root) / rel) for root in roots for rel in h.GLOBAL_FILES]
+    return [HEADER + eol] + [line + eol for line in imports] + [h.GLOBAL_END + eol]
 
 
 def same_file(a, b):
@@ -45,48 +54,55 @@ def cmd_global(args):
     path = h.user_claude_md()
     target = real(path) if path.exists() else path  # write through a link (dotfiles), never replace it
     lines, bom, codec, eol, block = read_claude_md(target)
-    imports = imports_in(lines, block)
+    roots = h.global_roots(block_text(lines, block))
 
     if args.off:
         try:
-            gone = [real(find_bindle(args.bindle)["root"] / "rules.md")]
+            gone = real(find_bindle(args.bindle)["root"])
         except BindleError:  # moved or deleted: match the path doctor printed
             given = Path(os.path.expanduser(args.bindle))
-            gone = [given, given / "rules.md"]
-        keep = [p for p in imports if not any(same_file(p, g) for g in gone)]
-        if len(keep) == len(imports):
+            gone = h.import_root(given) or given
+        keep = [r for r in roots if not same_file(r, gone)]
+        if len(keep) == len(roots):
             print(f"{args.bindle} isn't global; {path} is unchanged.")
             return 0
         write_block(target, lines, bom, codec, eol, block, keep)
-        print(f"{args.bindle}'s rules.md no longer loads everywhere; where it's attached, its own hook shows it again. "
-              f"Takes effect in the next session.")
+        print(f"{args.bindle}'s rules and memory index no longer load everywhere; where it's attached, its own hook "
+              f"shows them again. Takes effect in the next session.")
         return 0
 
     b = find_bindle(args.bindle)
     rules = b["root"] / "rules.md"
     if not rules.is_file():
         raise BindleError(f"{b['name']} has no rules.md at {rules}; create it first.")
-    if any(same_file(p, rules) for p in imports):
+    new_roots = roots if any(same_file(r, b["root"]) for r in roots) else roots + [b["root"]]
+    if block and block_text(lines, block) == "".join(render(new_roots, eol)):
         print(f"{b['name']} is already global; {path} is unchanged.")
         return 0
-    write_block(target, lines, bom, codec, eol, block, imports + [rules])
-    print(f"{b['name']}'s rules.md now loads in every session and subagent, from the next session (Claude Code reads "
-          f"{path} at session start). Where {b['name']} is attached, its hook no longer shows it a second time.")
-    size = len(rules.read_text(encoding="utf-8", errors="ignore"))
+    write_block(target, lines, bom, codec, eol, block, new_roots)
+    print(f"{b['name']}'s rules.md and memory index now load in every session and subagent, from the next session "
+          f"(Claude Code reads {path} at session start). Where {b['name']} is attached, its hook no longer shows them "
+          f"a second time.")
+    size = global_size(b["root"])
     if size > GLOBAL_RULES_WARN:
-        print(f"  warning: its rules.md is {size:,} characters; every session and subagent loads it, so keep it under "
-              f"{GLOBAL_RULES_WARN:,}")
+        print(f"  warning: its rules.md and memory index are {size:,} characters; every session and subagent loads "
+              f"them, so keep them under {GLOBAL_RULES_WARN:,}")
     if not b["sync"]:
         print(f"  note: {b['name']} has sync off, so nothing pulls it; the session check says when it's behind its remote")
     return 0
 
 
-def write_block(path, lines, bom, codec, eol, block, imports):
-    """Put the block (or, with no imports, nothing) where it was, or at the end, keeping every other line as is.
+def global_size(root):
+    files = [Path(root) / rel for rel in hooks().GLOBAL_FILES]
+    return sum(len(f.read_text(encoding="utf-8", errors="ignore")) for f in files if f.is_file())
+
+
+def write_block(path, lines, bom, codec, eol, block, roots):
+    """Put the block (or, with no bindles, nothing) where it was, or at the end, keeping every other line as is.
     A block bindle appends gets one blank line before it, and removing the block takes that line away again."""
     before, after = (lines[:block[0]], lines[block[1] + 1:]) if block else (list(lines), [])
-    if imports:
-        new = [HEADER + eol] + [hooks().import_line(p) + eol for p in imports] + [hooks().GLOBAL_END + eol]
+    if roots:
+        new = render(roots, eol)
         if not block and before:
             if not before[-1].endswith("\n"):
                 before[-1] += eol
@@ -112,13 +128,18 @@ def write_block(path, lines, bom, codec, eol, block, imports):
 
 
 def global_bindles():
-    """(rules.md path, bindle or None) for each import in the user CLAUDE.md's block."""
-    out = []
-    for p in hooks().user_global_imports():
+    """(folder, bindle or None) for each global bindle the user CLAUDE.md's block names."""
+    h, out = hooks(), []
+    try:
+        text = h.decode_text(h.user_claude_md().read_bytes())[0]
+        roots = h.global_roots(text)
+    except (OSError, ValueError):
+        return []
+    for root in roots:
         try:
-            out.append((p, load_bindle(p.parent)))
+            out.append((root, load_bindle(root)))
         except BindleError:
-            out.append((p, None))
+            out.append((root, None))
     return out
 
 
@@ -127,17 +148,18 @@ def doctor_report():
     path = hooks().user_claude_md()
     lines, warnings, problems = [], [], []
     try:
-        read_claude_md(real(path) if path.exists() else path)
+        text_lines, _, _, eol, block = read_claude_md(real(path) if path.exists() else path)
     except BindleError as e:
         return lines, warnings, [str(e)]
-    for rules, b in global_bindles():
-        folder = quote(str(rules.parent))
-        if b is None or not rules.is_file():
-            problems.append(f"{path} imports {rules}, which isn't there (the bindle moved, was renamed or deleted), so "
-                            f"those rules load nowhere: bindle global --off {folder}, then `bindle global <name>` "
-                            f"where it is now")
+    found = global_bindles()
+    for root, b in found:
+        folder = quote(str(root))
+        if b is None or not (root / "rules.md").is_file():
+            problems.append(f"{path} imports from {root}, which isn't a bindle with a rules.md any more (it moved, was "
+                            f"renamed or deleted), so its rules load nowhere: bindle global --off {folder}, then "
+                            f"`bindle global <name>` where it is now")
             continue
-        lines.append(f"  {b['name']}: global, its rules.md loads in every session ({rules})")
+        lines.append(f"  {b['name']}: global, its rules.md and memory index load in every session ({root})")
         try:
             by_name = find_bindle(b["name"])["root"] == b["root"]
         except BindleError:
@@ -146,14 +168,20 @@ def doctor_report():
             problems.append(f"{b['name']} is global from {b['root']}, but the name {b['name']} doesn't find it there "
                             f"(renamed, or no longer registered): bindle global --off {folder}, then "
                             f"`bindle global <name>` for the bindle you mean")
-        size = len(rules.read_text(encoding="utf-8", errors="ignore"))
+        size = global_size(root)
         if size > GLOBAL_RULES_WARN:
-            warnings.append(f"{b['name']}: its global rules.md is {size:,} characters, and every session and subagent "
-                            f"loads it; keep it under {GLOBAL_RULES_WARN:,}")
+            warnings.append(f"{b['name']}: its global rules.md and memory index are {size:,} characters, and every "
+                            f"session and subagent loads them; keep them under {GLOBAL_RULES_WARN:,}")
         behind = hooks().git_out(b["root"], "rev-list", "--count", "HEAD..@{upstream}")
         if behind and behind != "0":
             warnings.append(f"{b['name']} is {behind} commit(s) behind its remote (as of its last fetch), so its "
                             f"global rules are out of date: git -C {quote(str(b['root']))} pull --ff-only")
+    current = [b for _, b in found if b is not None]
+    if current and block_text(text_lines, block) != "".join(render([r for r, _ in found], eol)):
+        # Written by an older bindle (0.29 imported rules.md only), or edited by hand.
+        problems.append(f"the bindle global block in {path} isn't what this bindle writes (an older version, or "
+                        f"edited by hand), so some global files may not load: "
+                        + " && ".join(f"bindle global {b['name']}" for b in current))
     return lines, warnings, problems
 
 
@@ -165,9 +193,9 @@ def session_lines(root):
     settings = read_json(settings_path(root))
     enabled = settings.get("enabledPlugins", {})
     attached = {str(b["root"]) for b in declared_bindles(settings) if enabled.get(f"{b['name']}@{b['market']}")}
-    for rules, b in global_bindles():
-        if b is None or not rules.is_file():
-            out.append(f"bindle: global rules from {rules} aren't loading: it isn't there; bindle doctor")
+    for folder, b in global_bindles():
+        if b is None or not (folder / "rules.md").is_file():
+            out.append(f"bindle: global rules from {folder} aren't loading: no bindle with a rules.md is there; bindle doctor")
             continue
         if str(b["root"]) in attached:
             continue

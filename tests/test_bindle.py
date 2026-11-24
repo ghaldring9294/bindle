@@ -2474,6 +2474,9 @@ class GlobalRulesTest(BindleTest):
     def imports(self):
         return bindle.core.hooks().global_imports(bindle.core.hooks().decode_text(self.md.read_bytes())[0])
 
+    def roots(self):
+        return bindle.core.hooks().global_roots(bindle.core.hooks().decode_text(self.md.read_bytes())[0])
+
     def run_rules(self, b, folder):
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(b), "CLAUDE_PROJECT_DIR": str(folder)}
         return subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "rules"], env=env,
@@ -2482,7 +2485,9 @@ class GlobalRulesTest(BindleTest):
     # A first machine may have no user CLAUDE.md (or config folder) yet; global must still work there.
     def test_creates_the_file_when_missing(self):
         self.assertEqual(self.run_cli("global", "craft")[0], 0)
-        self.assertEqual([str(p) for p in self.imports()], [str(self.craft / "rules.md")])
+        # The index too: as-needed memories are only reachable when every session sees their index.
+        self.assertEqual([str(p) for p in self.imports()],
+                         [str(self.craft / "rules.md"), str(self.craft / "memory" / "MEMORY.md")])
 
     # The person's own instructions live in this file; losing or reformatting a byte of them is silent damage.
     def test_keeps_the_persons_text_byte_for_byte_and_off_restores_it(self):
@@ -2510,10 +2515,10 @@ class GlobalRulesTest(BindleTest):
         personal = self.make_bindle("personal")
         self.run_cli("global", "craft")
         self.run_cli("global", personal)
-        self.assertEqual(len(self.imports()), 2)
+        self.assertEqual(self.roots(), [self.craft, personal])
         self.assertEqual(self.md.read_text().count("bindle global: start"), 1)
         self.run_cli("global", "craft", "--off")
-        self.assertEqual([p.parent for p in self.imports()], [personal])
+        self.assertEqual(self.roots(), [personal])
 
     # Windows editors write CRLF; mixing in LF lines makes the file look changed everywhere in a diff tool.
     def test_a_crlf_file_stays_crlf(self):
@@ -2532,7 +2537,7 @@ class GlobalRulesTest(BindleTest):
         self.md.write_bytes(original)
         self.run_cli("global", "craft")
         self.assertTrue(self.md.read_bytes().startswith(original))
-        self.assertEqual(len(self.imports()), 1)
+        self.assertEqual(self.roots(), [self.craft])
         self.run_cli("global", "craft", "--off")
         self.assertEqual(self.md.read_bytes(), original)
 
@@ -2600,6 +2605,31 @@ class GlobalRulesTest(BindleTest):
         self.run_cli("global", "--off", self.craft)
         self.assertEqual(self.imports(), [])
 
+    # Where a global bindle is attached read-only, its hook showing the memory index too would load it twice.
+    def test_the_hook_skips_a_memory_index_a_global_import_already_loads(self):
+        f = self.folder()
+        (self.craft / "memory" / "MEMORY.md").write_text("- [small-prs](small-prs.md) — keep PRs small\n")
+        self.run_cli("attach", "craft", f)
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(self.craft), "CLAUDE_PROJECT_DIR": str(f)}
+        start = lambda: subprocess.run([sys.executable, str(self.craft / "hooks/bindle_hook.py"), "session-start"],
+                                       env=env, capture_output=True, text=True).stdout
+        self.assertIn("keep PRs small", start())
+        self.run_cli("global", "craft")
+        self.assertNotIn("keep PRs small", start())
+
+    # 0.29 imported only rules.md; a block left from then keeps craft's memories out of every session, silently.
+    def test_doctor_flags_a_block_from_an_older_bindle_and_running_global_again_fixes_it(self):
+        self.md.parent.mkdir()
+        self.md.write_text(f"mine\n\n{bindle.global_rules.HEADER}\n{bindle.core.hooks().import_line(self.craft / 'rules.md')}\n"
+                           f"{bindle.core.hooks().GLOBAL_END}\n")
+        code, out = self.run_cli("doctor", self.folder())
+        self.assertEqual(code, 1)
+        self.assertIn("bindle global craft", out)
+        self.run_cli("global", "craft")
+        self.assertEqual(len(self.imports()), 2)
+        self.assertTrue(self.md.read_text().startswith("mine\n\n"))
+        self.assertNotIn("isn't what this bindle writes", self.run_cli("doctor", self.folder())[1])
+
     # Global rules load into every session and subagent, so their size is paid many times over; but the hook's
     # 10k cap no longer applies, so the attached-rules problem mustn't fire for them.
     def test_doctor_warns_about_a_large_global_rules_md_instead_of_the_hook_cap(self):
@@ -2608,7 +2638,7 @@ class GlobalRulesTest(BindleTest):
         (self.craft / "rules.md").write_text("x" * (bindle.global_rules.GLOBAL_RULES_WARN + 1))
         self.run_cli("global", "craft")
         out = self.run_cli("doctor", f)[1]
-        self.assertIn("every session and subagent loads it", out)
+        self.assertIn("every session and subagent loads them", out)
         self.assertNotIn("rules.md is over", out)
 
 

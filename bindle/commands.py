@@ -637,7 +637,7 @@ def cmd_doctor(args):
         if rules.exists() and not hooks().imported_globally(b["root"]) and len(rules.read_text(encoding="utf-8", errors="ignore")) > RULES_LIMIT:
             problems.append(f"{b['name']}: rules.md is over {RULES_LIMIT} characters; the session-start hook can show only {HOOK_OUTPUT_LIMIT:,}")
         index = b["memory"] / "MEMORY.md"
-        if on and not writable_here and index.exists() and len(index.read_text(encoding="utf-8", errors="ignore")) > HOOK_OUTPUT_LIMIT - 500:
+        if on and not writable_here and index.exists() and not hooks().imported_globally(b["root"], "memory/MEMORY.md") and len(index.read_text(encoding="utf-8", errors="ignore")) > HOOK_OUTPUT_LIMIT - 500:
             problems.append(f"{b['name']}: its MEMORY.md is too long to show in full where it's read-only (the hook shows "
                             f"up to {HOOK_OUTPUT_LIMIT:,} characters); move project memories into projects/")
         layout = b["layout"] or 1
