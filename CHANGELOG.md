@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.29.1 (2026-11-24)
+
+No upgrade needed.
+
+- Tests only: two unit tests failed on Windows (a file name with `"`, which Windows doesn't allow, and a lock-rule check that expected the wrong path form). CI is green on every OS again.
+
 ## 0.29.0 (2026-11-24)
 
 Run `bindle update` (the rules hook changed, so every bindle needs an upgrade).

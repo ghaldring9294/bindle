@@ -1831,8 +1831,9 @@ class PortabilityTest(BindleTest):
             deny = json.loads((f / ".claude/settings.local.json").read_text())["permissions"]["deny"]
         finally:
             os.environ["BINDLE_HOME"] = self.env["BINDLE_HOME"]
-        self.assertIn(f"Edit(/{(real_home / 'craft').as_posix()}/**)", deny)
-        self.assertIn(f"Edit(/{(link / 'craft').as_posix()}/**)", deny)
+        # Claude Code's form for both paths (on Windows, the drive as /c), as the lock writes it.
+        self.assertIn(f"Edit(/{bindle.core.rule_path(real_home / 'craft')}/**)", deny)
+        self.assertIn(f"Edit(/{bindle.core.rule_path(link / 'craft')}/**)", deny)
 
     def test_lock_rules_use_claude_codes_path_form(self):
         self.assertEqual(bindle.core.rule_path("C:\\Users\\me\\bindle"), "/c/Users/me/bindle")
@@ -2226,7 +2227,9 @@ class SyncTest(BindleTest):
         hook = bindle.core.hooks()
         secret = "api_key = abcdefghijklmnop1234\n"
         cases = {"memory/plain.md": secret.encode(), "memory/bin.md": b"\0" + secret.encode(),
-                 'memory/we"ird name.md': secret.encode()}
+                 "memory/wéird name.md": secret.encode()}
+        if os.name != "nt":  # Windows doesn't allow " in a file name
+            cases['memory/we"ird name.md'] = secret.encode()
         subprocess.run(["git", "-C", str(self.laptop), "config", "diff.noprefix", "true"], check=True)
         for rel, data in cases.items():
             head = bindle.git(self.laptop, "rev-parse", "HEAD")
