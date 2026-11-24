@@ -35,6 +35,10 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - Offer migration (declinable). For many repos (a domain with 20+ repos, each with its own memories), migrate in batches, tracked in a checklist in the new bindle's `notes/` (pending, done or skipped per repo), so it can stop and resume across sessions.
 - Test: run it on a second macOS user account (a fresh `~/.claude` and `~/bindles`; a scratch `CLAUDE_CONFIG_DIR` starts logged out), which also covers most of the fresh-user test (road to 1.0, step 3). Comes before that test.
 
+**Planned (2026-11-24): references between bindles.** One source of truth: a domain refers to craft rather than copying it, since craft is meant to be loaded everywhere (global). The rule: a domain may refer to craft, by name not path ("craft's rules"; paths differ per machine and move), and phrased so it still makes sense if craft isn't loaded; craft never refers to a domain (it would name the domain, and dangles wherever that domain isn't attached); domains never refer to each other (a general version goes to craft, a reminder to the other's inbox).
+- The bindle template's `AGENTS.md` states the rule, so Claude follows it when writing memories (`AGENTS.md` isn't a managed file, so `upgrade` won't change an existing one; the CHANGELOG gives the line to add by hand, as 0.28.0 did).
+- `doctor` warns when a bindle's files mention a path inside another bindle, and especially when craft (an `explicit`-writes or shared bindle) mentions a domain bindle.
+
 **Order (2026-11-22):** the two remaining migration gaps below, then the demo repo and the contract test (road to 1.0, steps 1 and 2); then one thorough review of the whole repo (done 2026-11-23, an adversarial review; every finding fixed in v0.26.0); that's enough to hand to a friend for the fresh-user test. The owner's own setup waits until after.
 
 **Road to 1.0 (the tool):**
