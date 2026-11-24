@@ -99,6 +99,6 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-23:** v0.27.0: `bindle update` (pull, refresh the install, upgrade every bindle, optional push).
 - **2026-11-24:** craft promotion pass started at work; probes showed subagents miss hook-loaded rules but get CLAUDE.md imports, so `bindle global` is next; standing requirement: everything ships on macOS, Windows and Linux.
 - **2026-11-24:** v0.29.0: `bindle global` (always-on rules through a user `CLAUDE.md` import), the hook's skip, the session check's pull, doctor's checks. Probed on macOS; Windows and Linux checks listed under Next steps.
-- **2026-11-24:** v0.31.0: `bindle update` pulls each bindle before upgrading it, so two machines no longer make competing upgrade commits.
+- **2026-11-24:** v0.31.0: `bindle update` pulls each bindle before upgrading it, so two machines no longer make competing upgrade commits. Actions minutes ran out on the private repo (0.31.0's run never started), so CI now runs on release tags, pull requests (not docs-only ones) and by hand, with one macOS job (3.9) instead of two.
 - **2026-11-24:** v0.30.0: `bindle global` imports the memory index too (probed: an imported index's relative links resolve in the main session and a subagent), so craft's as-needed lessons reach every session.
 - **2026-11-24:** v0.29.1: two Windows-only test failures fixed (present since before 0.28.0, found checking CI for 0.29.0).

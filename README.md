@@ -334,7 +334,7 @@ Start with `bindle doctor <folder>`; it explains most problems and prints the fi
 
 ## For contributors
 
-- `python3 -m unittest discover -s tests` runs the unit tests (a fake `claude`, fast); `tests/e2e.sh` runs the main flow against the real Claude Code. CI runs the unit tests on macOS, Linux and Windows.
+- `python3 -m unittest discover -s tests` runs the unit tests (a fake `claude`, fast); `tests/e2e.sh` runs the main flow against the real Claude Code. CI runs the unit tests on macOS (Python 3.9), Linux and Windows for each release tag and pull request, or by hand from the Actions tab (Run workflow); run them locally before every commit.
 - [docs/design.md](docs/design.md) explains the design and why it works this way; [PLAN.md](PLAN.md) has the status and next steps; [AGENTS.md](AGENTS.md) orients AI agents working on this repo; [MIGRATION.md](MIGRATION.md) is what Claude follows to move an existing setup into bindles.
 
 ## License

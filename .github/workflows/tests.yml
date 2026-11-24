@@ -1,9 +1,13 @@
 name: tests
 
+# On releases and pull requests, or by hand (Actions → tests → Run workflow): a private repo pays for Actions
+# minutes, macOS at 10x, so not on every push to main. The unit tests run locally before every commit.
 on:
   push:
-    branches: [main]
+    tags: ["v*"]
   pull_request:
+    paths-ignore: ["**.md", "docs/**"]
+  workflow_dispatch:
 
 jobs:
   unit:
@@ -11,9 +15,9 @@ jobs:
       fail-fast: false
       matrix:
         # 3.9 is the minimum because it's still the system Python on some Macs; Linux runners no longer offer it.
+        # One macOS job: the commits are made on a Mac, where the suite runs with a current Python first.
         include:
           - { os: macos-latest, python: "3.9" }
-          - { os: macos-latest, python: "3.x" }
           - { os: ubuntu-latest, python: "3.x" }
           - { os: windows-latest, python: "3.x" }
     runs-on: ${{ matrix.os }}
