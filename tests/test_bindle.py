@@ -641,6 +641,40 @@ class InstallTest(BindleTest):
         self.assertEqual(self.run_cli("install")[0], 1)
         self.assertEqual((self.home / ".local/bin/bindle").read_text(), "mine")
 
+    def link(self, dest, target):
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            dest.symlink_to(target)
+        except OSError:
+            self.skipTest("symlinks aren't available")
+
+    # The plugin move emptied global/, so the old links dangle; if cleanup misses them, /bindle stays a dead link.
+    def test_cleanup_removes_old_links_whose_target_is_gone(self):
+        cmd, skill = self.home / ".claude/commands/bindle.md", self.home / ".claude/skills/bindle-promote"
+        self.link(cmd, self.tmp / "old/global/commands/bindle.md")
+        self.link(skill, self.tmp / "old/global/skills/bindle-promote")
+        self.assertEqual(self.run_cli("install", "--cleanup")[0], 0)
+        self.assertFalse(cmd.is_symlink() or skill.is_symlink())
+
+    # A link the person made there themselves is theirs; cleanup must not delete it.
+    def test_cleanup_keeps_a_link_bindle_didnt_make(self):
+        cmd = self.home / ".claude/commands/bindle.md"
+        self.link(cmd, self.tmp / "mine/bindle.md")
+        self.run_cli("install", "--cleanup")
+        self.assertTrue(cmd.is_symlink())
+
+    # Adding bindle's marketplace looks like an install but isn't; without a warning, /bindle is just missing.
+    def test_doctor_warns_when_bindles_plugin_isnt_installed(self):
+        f = self.folder()
+        self.assertIn("claude plugin install bindle@bindle", self.run_cli("doctor", f)[1])
+        (self.home / ".claude").mkdir(exist_ok=True)
+        (self.home / ".claude/settings.json").write_text(json.dumps({"enabledPlugins": {"bindle@bindle": True}}))
+        self.assertNotIn("bindle@bindle", self.run_cli("doctor", f)[1])
+
+    def test_doctor_points_old_links_to_cleanup(self):
+        self.link(self.home / ".claude/commands/bindle.md", self.tmp / "old/global/commands/bindle.md")
+        self.assertIn("bindle install --cleanup", self.run_cli("doctor", self.folder())[1])
+
 
 class NewerFilesTest(BindleTest):
     """A bindle upgraded on another machine by a newer bindle looks "drifted" to an older copy here; upgrading

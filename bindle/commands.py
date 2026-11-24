@@ -58,11 +58,22 @@ def cmd_install(args):
             print(f'Add {bindir} to PATH: export PATH="$HOME/.local/bin:$PATH"')
 
 
+def _old_install_paths(home):
+    """/bindle and /bindle-promote as the pre-plugin install left them: links into bindle's global/ folder (gone since
+    the plugin move, so the links dangle and exists() is False) or copies it marked. Anything else there is the person's."""
+    found = []
+    for path in [home / ".claude" / "commands" / "bindle.md", home / ".claude" / "skills" / "bindle-promote"]:
+        if path.is_symlink():
+            if "global" in Path(os.readlink(path)).parts:
+                found.append(path)
+        elif path.exists() and installed_by_bindle(path):
+            found.append(path)
+    return found
+
+
 def _old_install_items(home):
     """Paths from the old-style install that the plugin now provides."""
-    candidates = [home / ".claude" / "commands" / "bindle.md",
-                  home / ".claude" / "skills" / "bindle-promote"]
-    found = [p for p in candidates if p.exists() and (p.is_symlink() or installed_by_bindle(p))]
+    found = _old_install_paths(home)
     if session_check_installed():
         found.append(user_settings_path())
     return found
@@ -70,17 +81,21 @@ def _old_install_items(home):
 
 def _cleanup_old_install(home):
     """Remove command/skill links and the user-level session-check hook from an earlier install."""
-    for path in [home / ".claude" / "commands" / "bindle.md",
-                 home / ".claude" / "skills" / "bindle-promote"]:
-        if path.exists() and (path.is_symlink() or installed_by_bindle(path)):
-            remove(path)
-            print(f"Removed {path}")
+    for path in _old_install_paths(home):
+        remove(path)
+        print(f"Removed {path}")
     if session_check_installed():
         set_session_check(False)
 
 
 def user_settings_path():
     return Path.home() / ".claude" / "settings.json"
+
+
+def bindle_plugin_enabled(folder):
+    """Whether bindle's own plugin is on for sessions in folder, at user, project or local scope."""
+    files = [user_settings_path(), folder / ".claude" / "settings.json", settings_path(folder)]
+    return any(v and k.startswith("bindle@") for f in files for k, v in read_json(f).get("enabledPlugins", {}).items())
 
 
 def is_session_check(group):
@@ -624,6 +639,14 @@ def cmd_doctor(args):
         elif b["layout"] != LAYOUT:
             problems.append(f"{b['name']}: bindle.json has no current layout number")
             needs_upgrade.append(b)
+
+    if not bindle_plugin_enabled(folder):
+        warnings.append("bindle's own plugin isn't installed, so Claude Code has no /bindle, bindle tools or session check "
+                        "(adding its marketplace doesn't install it): claude plugin install bindle@bindle --scope user")
+    old = _old_install_paths(Path.home())
+    if old:
+        warnings.append(f"links or copies from the pre-plugin install are still in ~/.claude ({', '.join(p.name for p in old)}); "
+                        f"bindle install --cleanup")
 
     if writable:
         warnings += unattached_repos(folder, writable)

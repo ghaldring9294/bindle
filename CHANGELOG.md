@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.27.2 (2026-11-24)
+
+No upgrade needed.
+
+- Install: the README now includes `/plugin install bindle@bindle --scope user`; adding the marketplace alone doesn't install the plugin.
+- `bindle install --cleanup` removes the old `/bindle` and `/bindle-promote` links even though their target (`global/`) is gone.
+- `doctor` warns when bindle's own plugin isn't enabled, and when old-install links remain.
+
 ## 0.27.1 (2026-11-23)
 
 No upgrade needed.
