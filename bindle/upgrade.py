@@ -59,7 +59,9 @@ def describe(b, action, rel):
 def cmd_upgrade(args):
     if args.all and args.bindle:
         raise BindleError("Pass a bindle or --all, not both.")
-    if args.all:
+    if getattr(args, "bindles", None) is not None:  # update passes the ones it could bring up to date first
+        bindles = args.bindles
+    elif args.all:
         found, missing = known_bindles()
         for name, path in missing:
             print(f"{name}: skipped, registered at {path} but nothing is there now")
@@ -144,6 +146,28 @@ def pull_bindle(repo):
     return before != git(repo, "rev-parse", "HEAD")
 
 
+def pull_bindles(found):
+    """Pull each bindle (fast-forward only) before upgrading it, and return the ones that are current. Upgrading a
+    copy that's behind makes a commit that competes with the same upgrade pushed from another machine, and then
+    neither pulls cleanly. So a bindle whose pull didn't succeed (offline, diverged, a conflict) isn't upgraded."""
+    h, ready = hooks(), []
+    for b in sorted(found.values(), key=lambda b: b["name"]):
+        if not h.has_upstream(b["root"]):
+            ready.append(b)  # local only: nothing to compete with
+            continue
+        log = h.Log(b["root"])
+        log.path = None  # the sync log reports the bindle's own hook runs
+        h.sync_pull(b["root"], log)
+        if "pulled" in log.lines:
+            ready.append(b)
+            continue
+        why = (log.lines or ["not pulled"])[-1]
+        why = why[len("problem: "):] if why.startswith("problem: ") else why
+        print(f"{b['name']}: not upgraded, since it couldn't be brought up to date first ({why}); "
+              f"pull it, then run bindle update again")
+    return ready
+
+
 def cmd_update(args):
     """Update bindle and every bindle. When running from a git clone, it pulls bindle's own repo, then hands over
     to the pulled copy so upgrading each bindle runs the new code and templates. When running from a plugin cache
@@ -163,9 +187,16 @@ def cmd_update(args):
         from .commands import cmd_install  # commands imports this module
         print(f"bindle {VERSION}: refreshing the install")
         cmd_install(argparse.Namespace(session_check=None, cleanup=False))
-    found = known_bindles()[0]
+    found, missing = known_bindles()
+    for name, path in missing:
+        print(f"{name}: skipped, registered at {path} but nothing is there now")
+    if not found:
+        raise BindleError("No bindles found in ~/bindles or its registry.")
+    ready = pull_bindles(found)
     heads = {root: git(b["root"], "rev-parse", "HEAD") for root, b in found.items()}
-    code = cmd_upgrade(argparse.Namespace(all=True, bindle=None, dry_run=False))
+    code = cmd_upgrade(argparse.Namespace(all=True, bindle=None, dry_run=False, bindles=ready)) if ready else 0
+    if len(ready) < len(found):
+        code = 1
     h = hooks()
     for root, b in sorted(found.items(), key=lambda kv: kv[1]["name"]):
         if git(b["root"], "rev-parse", "HEAD") == heads[root] or not h.has_upstream(b["root"]):

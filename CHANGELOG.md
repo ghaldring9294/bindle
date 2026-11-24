@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.31.0 (2026-11-24)
+
+No upgrade needed.
+
+- `bindle update` pulls every bindle (fast-forward only) before upgrading it, so `bindle update --push` is the whole routine on each machine. A bindle it can't bring up to date (offline, diverged, or an uncommitted change the pull would overwrite) is left as it was and not upgraded, with the reason; upgrading a stale copy made a commit that competed with the same upgrade from another machine.
+
 ## 0.30.0 (2026-11-24)
 
 Run `bindle update` (the hooks changed), then `bindle global <name>` again for each global bindle (`doctor` names them).

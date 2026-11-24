@@ -816,6 +816,69 @@ class UpdateTest(InstallTest):
         self.assertEqual(bindle.git(remote, "rev-parse", "HEAD"), bindle.git(b, "rev-parse", "HEAD"))
 
 
+class UpdatePullsFirstTest(InstallTest):
+    """Two machines share a bindle. If each upgrades its own copy, they make competing commits of the same change and
+    neither can pull the other's; so update pulls each bindle first and upgrades only one that's current."""
+
+    def setUp(self):
+        super().setUp()
+        self.laptop = self.make_bindle("acme")
+        self.remote = self.tmp / "acme.git"
+        subprocess.run(["git", "clone", "-q", "--bare", str(self.laptop), str(self.remote)], check=True)
+        bindle.git(self.laptop, "remote", "add", "origin", str(self.remote))
+        bindle.git(self.laptop, "push", "-q", "-u", "origin", "HEAD")
+        with open(self.laptop / "hooks/run", "a") as f:
+            f.write("# older\n")
+        bindle.git(self.laptop, "commit", "-qam", "older hook"); bindle.git(self.laptop, "push", "-q")
+        self.pc_home = self.tmp / "pc-bindles"
+        self.pc_home.mkdir()
+        self.pc = self.pc_home / "acme"
+        subprocess.run(["git", "clone", "-q", str(self.remote), str(self.pc)], check=True)
+
+    def update_on_pc(self):
+        os.environ["BINDLE_HOME"] = str(self.pc_home)
+        try:
+            return self.run_cli("update", "--after-pull", "--push")
+        finally:
+            os.environ["BINDLE_HOME"] = self.env["BINDLE_HOME"]
+
+    def test_a_second_machine_takes_the_upgrade_instead_of_making_its_own(self):
+        self.assertEqual(self.run_cli("update", "--after-pull", "--push")[0], 0)
+        upgraded = bindle.git(self.remote, "rev-parse", "HEAD")
+        code, out = self.update_on_pc()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(bindle.git(self.pc, "rev-parse", "HEAD"), upgraded)
+        self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), upgraded)  # no competing commit
+        self.assertEqual((self.pc / "hooks/run").read_bytes(), (bindle.TEMPLATE / "hooks/run").read_bytes())
+
+    def test_a_bindle_that_cant_be_brought_up_to_date_isnt_upgraded(self):
+        self.run_cli("update", "--after-pull", "--push")
+        (self.pc / "notes" / "pc.md").write_text("pc only\n")
+        bindle.git(self.pc, "add", "-A"); bindle.git(self.pc, "commit", "-qm", "pc note")  # diverged from the remote
+        code, out = self.update_on_pc()
+        self.assertEqual(code, 1)
+        self.assertIn("acme: not upgraded", out)
+        self.assertNotEqual((self.pc / "hooks/run").read_bytes(), (bindle.TEMPLATE / "hooks/run").read_bytes())
+
+    # An uncommitted edit is someone's work in progress: a pull that would overwrite it must stop, leave it exactly
+    # as it was, and skip the upgrade; an edit the pull doesn't touch is kept and doesn't block anything.
+    def test_uncommitted_changes_are_kept_and_one_the_pull_would_overwrite_stops_the_upgrade(self):
+        (self.laptop / "rules.md").write_text("Laptop rule.\n")
+        bindle.git(self.laptop, "commit", "-qam", "laptop rule"); bindle.git(self.laptop, "push", "-q")
+        (self.pc / "rules.md").write_text("PC draft, not committed.\n")
+        code, out = self.update_on_pc()
+        self.assertEqual(code, 1)
+        self.assertIn("acme: not upgraded", out)
+        self.assertEqual((self.pc / "rules.md").read_text(), "PC draft, not committed.\n")
+        (self.pc / "rules.md").write_text((self.laptop / "rules.md").read_text())  # resolved by hand
+        bindle.git(self.pc, "checkout", "-q", "--", "rules.md")
+        (self.pc / "notes" / "draft.md").write_text("unrelated, not committed\n")
+        code, out = self.update_on_pc()
+        self.assertEqual(code, 0, out)
+        self.assertEqual((self.pc / "notes" / "draft.md").read_text(), "unrelated, not committed\n")
+        self.assertEqual((self.pc / "rules.md").read_text(), "Laptop rule.\n")
+
+
 class SessionCheckTest(InstallTest):
     """A session started in a repo inside a domain folder reads only that repo's settings; without a warning, its
     memories silently go to Claude Code's default folder instead of the domain's bindle."""

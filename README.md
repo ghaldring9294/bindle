@@ -181,7 +181,7 @@ What you write in craft isn't checked against acme's private terms (only promoti
 | `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable, read-only or not attached there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |
 | `bindle sync [<folder> \| --all]` | Commit and push the writable bindle's memories, then pull the bindles that are on. `--all`: every bindle `bindle list` finds |
-| `bindle update [--push]` | Pull bindle itself, refresh its install and upgrade every bindle; `--push` also pushes each upgraded bindle |
+| `bindle update [--push]` | Pull bindle itself, refresh its install, then pull every bindle and upgrade each one that's current; `--push` also pushes each upgraded bindle |
 | `bindle upgrade [<bindle> \| --all] [--dry-run]` | Bring a bindle's managed files up to this version of bindle |
 | `bindle promote <source> <draft> --into <target> --name <slug> [--kind …] [--description …] [--allow <term>] [--replace] [--dry-run]` | Copy an approved, general draft into another bindle on this machine, after the private-terms and secrets checks. `--replace` updates what's there; `--dry-run` shows the diff |
 | `bindle outbox add <bindle> <draft> --name <slug> [--kind …] [--description …] [--allow <term>]` | Store an approved draft for promotion, after the leak and secret checks |
@@ -285,15 +285,15 @@ A server that only exists on one machine (a local path, a tool installed in one 
 
 **When installed as a plugin:** update bindle through Claude Code (`/plugin` → Installed → bindle → Update, or `claude plugin update bindle@bindle` from the terminal). Then upgrade your bindles:
 ```
-bindle update --push     # upgrade every bindle; --push pushes each one it upgrades
+bindle update --push     # pull and upgrade every bindle; --push pushes each one it upgrades
 ```
 
 **When installed from a git clone:**
 ```
-bindle update            # pull bindle, upgrade every bindle
+bindle update            # pull bindle, then pull and upgrade every bindle
 bindle update --push     # the same, then push each bindle it upgraded
 ```
-`update` fast-forwards bindle's own clone (it stops if you've changed files there), then upgrades every bindle in `~/bindles` and its registry. It lists a push command for each bindle it upgraded that has a remote; `--push` runs them.
+`update` fast-forwards bindle's own clone (it stops if you've changed files there). Then, for every bindle in `~/bindles` and its registry, it pulls (fast-forward only) and upgrades it. So on each machine `bindle update --push` is the whole routine: no pulling each bindle by hand first. A bindle it can't bring up to date (offline, diverged from its remote, or an uncommitted change the pull would overwrite) is left exactly as it was and not upgraded, and update says why: upgrading a copy that's behind would make a commit that competes with the same upgrade pushed from another machine. Commit or stash, then run it again. Uncommitted changes the pull doesn't touch are kept. It lists a push command for each bindle it upgraded that has a remote; `--push` runs them.
 
 The session check tells you when an update is available. `doctor` prints a ready-to-run `bindle upgrade` for each bindle that's behind. A bindle that's read-only in the folder is locked to Claude, so run that upgrade yourself (in Claude Code, prefix it with `!`). [CHANGELOG.md](CHANGELOG.md) lists what changed in each version, and says when an upgrade is needed.
 
