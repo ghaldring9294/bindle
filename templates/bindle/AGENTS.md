@@ -2,7 +2,7 @@
 
 This repo is the **{{name}} bindle**: one domain's Claude Code layer, made by [bindle](https://github.com/ghaldring9294/bindle). It's a plugin (skills, commands, agents, hooks) plus this domain's memory, notes and rules.
 
-- `memory/`: auto-memory. `MEMORY.md` is the index, loaded at every session start, so keep it short: general memories get a line each; memories about only one project live in `projects/<project>/` with their own `index.md`, and `MEMORY.md` has one pointer line per project. A memory that spans projects (how two repos interact, domain-wide conventions) stays in `memory/`; a project's index can point to it with a "see also" line instead of copying it. Each memory is a file with frontmatter (`name`, `description`, `type`, and `boundary: craft | context | both`).
+- `memory/`: auto-memory, in Claude Code's own memory format. `MEMORY.md` is the index, loaded at every session start, so keep it short. How memories are organized is Claude's call; a default that works: memories about only one project in `projects/<project>/` with their own `index.md` and one pointer line in `MEMORY.md`, and anything spanning projects in `memory/`.
 - `rules.md`: standing instructions for this domain. `notes/`: notes. `projects/<repo>/`: private notes about one repo.
 - `.mcp.json` (optional): MCP servers that start wherever this bindle is on. Secrets only as `${ENV_VAR}` references, never values; files inside the bindle as `${CLAUDE_PLUGIN_ROOT}/…`.
 - `hooks/` holds files managed by bindle (`bindle doctor` flags edits): change them in bindle's template, not here.

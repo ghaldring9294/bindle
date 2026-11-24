@@ -96,7 +96,7 @@ On another machine: install the plugin (`/plugin marketplace add <bindle-repo-ur
 
 Bindles not attached to the folder contribute nothing. Individual memory files load on demand when the index points to something relevant.
 
-**Memory.** Claude saves new memories into the writable bindle's `memory/`. A memory about only one project goes in `projects/<project>/` with that folder's own `index.md`, and `MEMORY.md` keeps one pointer line per project, so the index loaded at every start stays short.
+**Memory.** Claude saves new memories into the writable bindle's `memory/` and organizes them as it judges best. The suggested default: a memory about only one project goes in `projects/<project>/` with that folder's own `index.md`, and `MEMORY.md` keeps one pointer line per project, so the index loaded at every start stays short.
 
 **Sync.** With `"sync": true` in `bindle.json`, each session start pulls the latest from the bindle's remote, and each session end commits changes under `memory/`, `projects/` and `outbox/` and pushes them. A bindle that's read-only in the folder is only pulled, never pushed. Without a remote, it commits locally. Everything else (skills, rules, notes) you commit yourself; the session start reminds you when something's waiting. `bindle sync` does the same on demand.
 

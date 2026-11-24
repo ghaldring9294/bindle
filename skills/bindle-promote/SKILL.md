@@ -12,7 +12,7 @@ The user asks in plain words; you do the judgment (finding, drafting, asking), a
 ## 1. Work out what and where
 
 - **Source:** usually the bindle that's writable in this folder (call the `doctor` tool). To make a domain-specific version of a craft skill, the source can be craft and the target this folder's writable bindle; then customize the copy here.
-- **What:** the memory, skill or command they named, or a **note**: a reminder or todo for the other domain, which you write from what they said. Memories are in the source's `memory/` and `projects/*/`, skills in `skills/<name>/`, commands in `commands/`. If they ask what could be promoted, offer memories tagged `boundary: craft` or `both`; `context` memories are never promoted.
+- **What:** the memory, skill or command they named, or a **note**: a reminder or todo for the other domain, which you write from what they said. Memories are in the source's `memory/` and `projects/*/`, skills in `skills/<name>/`, commands in `commands/`. If they ask what could be promoted, judge from the content: offer lessons that would hold outside this domain, never ones that only make sense inside it.
 - **Where:** call the `list` tool and match what they said ("my craft" → `craft`). If it's ambiguous or not listed, ask; never choose for them. A domain bindle that isn't listed: ask for its path.
 - Read only the source's own files. Never read another domain's memories.
 - If the source's `private-terms.txt` is empty, call the `terms` tool first and have them pick terms to add, so the check below means something.
@@ -20,7 +20,7 @@ The user asks in plain words; you do the judgment (finding, drafting, asking), a
 ## 2. Draft a general version
 
 - Keep the lesson; drop the domain: no organization, product, repo, system, ticket, people or data names. A reader outside this domain should find it true and useful.
-- A memory keeps the memory format (frontmatter `name`, `description`, `type`, `boundary: craft`; body with **Why:** and **How to apply:**).
+- A memory keeps Claude Code's memory format (frontmatter `name`, `description`, `type`; body with **Why:** and **How to apply:**).
 - A note: a short `.md` file with the reminder, written for when they're working in that domain. Keep this domain's specifics out of it; it's checked like everything else.
 - A skill: copy its folder to a scratch folder and rewrite the copy; a command: the same with its file. Never edit the original, and never write into the target yourself.
 

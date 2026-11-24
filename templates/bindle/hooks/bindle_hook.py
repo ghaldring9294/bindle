@@ -442,9 +442,9 @@ def session_start_text(root, project_dir):
     out = []
     if writable_here(root, project_dir):
         out.append(f"Bindle {name} is on and writable in this folder: new memories are saved to {memory}. "
-                   f"A memory about only one project goes in {root}/projects/<project>/ instead, listed in that "
-                   f"folder's index.md, with one pointer line per project in MEMORY.md; a memory that spans "
-                   f"projects stays in {memory}. To put something into another bindle (\"add this to my personal "
+                   f"Organize memories as you judge best; a default that keeps the index short: a memory about only "
+                   f"one project in {root}/projects/<project>/, listed in that folder's index.md, with one pointer "
+                   f"line per project in MEMORY.md. To put something into another bindle (\"add this to my personal "
                    f"bindle too\", \"move this skill to my craft\"), use the /bindle-promote skill; never write into "
                    f"another bindle's folder directly.")
         pending = changed_paths(root)

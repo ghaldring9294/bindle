@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.28.0 (2026-11-24)
+
+Run `bindle upgrade` (the session hook's wording changed).
+
+- Memory organization is Claude's call: the session hook, the bindle template's `AGENTS.md`, the README and the design describe the `projects/<project>/` layout as a default, not a rule.
+- Memories no longer need a `boundary:` tag. `/bindle-promote` picks candidates by content, and promoted memories keep Claude Code's own frontmatter.
+- Existing bindles keep their copied `AGENTS.md`; edit its `memory/` line to match if you like.
+
 ## 0.27.2 (2026-11-24)
 
 No upgrade needed.

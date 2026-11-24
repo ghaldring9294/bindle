@@ -37,6 +37,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 
 - **2026-07:** first prototype: base plus layers through a symlink farm, copied memory, a memory taxonomy. Archived; the model survived, the mechanics didn't.
 - **2026-11-20:** craft versus context as the line; one repo per domain; memory boundary tags; prior-art survey; found `autoMemoryDirectory`.
+- **2026-11-24:** boundary tags and the fixed memory layout dropped as requirements: Claude's memory format and judgment decide organization; promotion picks candidates by content.
 - **2026-11-21:** spike confirmed native mechanisms (memory location per folder, plugin skills and hooks per folder, read-only memory through a hook). One model for every bindle, attached per folder, all on and one writable. CLI rebuilt (v0.2.0), personal reshaped and migrated from the laptop, round trip verified.
 - **2026-11-21:** sync hooks; rules through hooks and read-only locks (v0.3.0); memories organized by project; promotion through a hash-verified outbox, `audience` and `writes`, a craft bindle (v0.4.0); the work setup moved onto bindles; notes support, scratch notes, secret checks for notes, union merge for indexes (v0.4.x).
 - **2026-11-21:** CI; README rewritten for a general audience; an independent review (16 findings) led to one Python implementation, a CLI package, hardened promotion and a wider secret check (v0.5.0); trust warnings (v0.5.1); guardrails-not-gates recorded as a principle; MCP servers in a bindle verified; design doc written.
