@@ -1,5 +1,5 @@
 {
   "name": "bindle",
-  "version": "0.32.2",
+  "version": "0.33.0",
   "description": "Git-portable, domain-scoped Claude Code context."
 }

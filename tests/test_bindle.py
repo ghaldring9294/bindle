@@ -1076,6 +1076,11 @@ class DocsTest(unittest.TestCase):
         newest = next(line for line in changelog.splitlines() if line.startswith("## "))
         self.assertTrue(newest.startswith(f"## {bindle.VERSION} "), f"{newest!r} isn't version {bindle.VERSION}")
 
+    # `/plugin update` labels its install by the manifest's version; a stale one makes an updated plugin look old.
+    def test_the_plugin_manifest_is_this_version(self):
+        manifest = json.loads((bindle.BASE / ".claude-plugin" / "plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["version"], bindle.VERSION)
+
     # Typing `bindle` alone is how people discover the commands; an error there is a dead end.
     def test_bare_bindle_prints_every_command(self):
         out = io.StringIO()
