@@ -63,7 +63,8 @@ def _old_install_paths(home):
     """/bindle and /bindle-promote as the pre-plugin install left them: links into bindle's global/ folder (gone since
     the plugin move, so the links dangle and exists() is False) or copies it marked. Anything else there is the person's."""
     found = []
-    for path in [home / ".claude" / "commands" / "bindle.md", home / ".claude" / "skills" / "bindle-promote"]:
+    for path in [home / ".claude" / "commands" / "bindle.md", home / ".claude" / "skills" / "bindle-promote",
+                 home / ".claude" / "skills" / "promote"]:
         if path.is_symlink():
             if "global" in Path(os.readlink(path)).parts:
                 found.append(path)
@@ -214,6 +215,8 @@ def cmd_session_check(args):
                      or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
         start = start or Path.cwd()
         lines = [w for w in [session_warning(start)] if w] + global_rules.session_lines(settings_root(start)) + update_notes()
+        if not lines and not known_bindles()[0]:
+            lines = ["bindle: no bindles set up yet — type /bindle:onboard to get started"]
     except Exception as e:  # noqa: BLE001 (a hook must never stop a session)
         if not args.hook:
             raise

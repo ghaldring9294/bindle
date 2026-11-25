@@ -965,6 +965,19 @@ class SessionCheckTest(InstallTest):
         self.assertNotIn("doesn't know", self.run_cli("doctor", self.domain)[1])
 
 
+class OnboardingPromptTest(BindleTest):
+    """A fresh user with no bindles gets a nudge toward /bindle:onboard; once any bindle exists, it's gone."""
+
+    def test_session_check_offers_onboarding_when_no_bindles_exist(self):
+        out = self.run_cli("session-check", self.folder())[1]
+        self.assertIn("/bindle:onboard", out)
+
+    def test_onboarding_line_disappears_once_a_bindle_exists(self):
+        self.make_bindle("craft")
+        out = self.run_cli("session-check", self.folder())[1]
+        self.assertNotIn("/bindle:onboard", out)
+
+
 def all_options(parser, prefix=""):
     """(command, --option) for every subcommand, nested ones included (outbox add)."""
     import argparse
@@ -2013,7 +2026,7 @@ class MemoryHookTest(BindleTest):
         b, f = self.make_bindle("personal"), self.folder()
         self.run_cli("attach", b, f, "--writable")
         out = self.run_hook(b, f)
-        self.assertIn("/bindle-promote", out)
+        self.assertIn("/bindle:promote", out)
         self.assertIn("never write into another bindle's folder directly", out)
 
     # Where it's writable, Claude Code loads the index itself; printing it again would duplicate it.

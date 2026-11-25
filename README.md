@@ -41,7 +41,7 @@ You need Claude Code 2.1.74 or later, git, and Python 3.9 or later. It runs on m
 /plugin marketplace add https://github.com/ghaldring9294/bindle.git
 /plugin install bindle@bindle --scope user
 ```
-Adding the marketplace only makes the plugin available; the install turns it on, and user scope turns it on in every folder (your bindles still load only where you attach them). This gives you the `/bindle` command, the `/bindle-promote` skill, MCP tools that Claude calls directly (attach, detach, doctor, sync and so on — no shell commands needed), and the session-check hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating. Nothing else to do.
+Adding the marketplace only makes the plugin available; the install turns it on, and user scope turns it on in every folder (your bindles still load only where you attach them). This gives you the `/bindle` command, the `/bindle:promote` and `/bindle:onboard` skills, MCP tools that Claude calls directly (attach, detach, doctor, sync and so on — no shell commands needed), and the session-check hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating. If no bindles exist yet, the session check offers `/bindle:onboard` to walk you through setup. Nothing else to do.
 
 **For terminal access** (optional — lets you run `bindle` commands outside Claude Code):
 ```
@@ -141,7 +141,7 @@ bindle attach ~/bindles/craft ~/clients/globex
 
 **A new machine.** Install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone each bindle into place (a bindle used in many folders to `~/bindles/<name>`, a domain bindle to `<domain folder>/.bindle`), then `bindle attach` once per folder. Use `bindle new` only to create a bindle the first time. A folder's attach settings stay on that machine, so this is the only setup step.
 
-**Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle-promote` skill). It drafts a general rewrite, asks where it should go, and once you approve, puts it there in one step, after a check against the source bindle's private terms:
+**Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle:promote` skill). It drafts a general rewrite, asks where it should go, and once you approve, puts it there in one step, after a check against the source bindle's private terms:
 ```
 bindle promote acme draft.md --into craft --name small-prs --description "keep PRs small"
 ```

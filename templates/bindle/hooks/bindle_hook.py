@@ -445,7 +445,7 @@ def session_start_text(root, project_dir):
                    f"Organize memories as you judge best; a default that keeps the index short: a memory about only "
                    f"one project in {root}/projects/<project>/, listed in that folder's index.md, with one pointer "
                    f"line per project in MEMORY.md. To put something into another bindle (\"add this to my personal "
-                   f"bindle too\", \"move this skill to my craft\"), use the /bindle-promote skill; never write into "
+                   f"bindle too\", \"move this skill to my craft\"), use the /bindle:promote skill; never write into "
                    f"another bindle's folder directly.")
         pending = changed_paths(root)
         if sync_enabled(root):

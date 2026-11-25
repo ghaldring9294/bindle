@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-24, v0.31.0)
+## Where it stands (2026-11-24, v0.32.0)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -27,13 +27,8 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - Cross-platform: block editing and the hook skip unit-tested on all three OSes; manual checks of how Claude Code resolves the import path on Windows (`C:/…`, `~`) and Linux. Contract-test assumption: "a user CLAUDE.md `@path` import reaches the main session and subagents".
 - Then: README, `/bindle`, docs/design.md (always-on rules and why), CHANGELOG, release, `bindle update` on each machine.
 
-**Planned (2026-11-24): onboarding (`/bindle-onboard`)**, to make setup easy; it becomes the basic demo, built from the person's real bindles. bindle-demo stays for the multi-domain walkthrough (promotion, private terms, notes between domains) and as the contract test's base.
-- Offered by the session check when no bindles exist (one line, gone once a bindle exists; no state kept).
-- First question: do you already have bindles? If yes: clone each into place (`~/bindles/<name>`, or `<domain>/.bindle`), attach, `global`, and skip creating.
-- Otherwise: create craft and make it global; create a demo domain and attach craft to it; then "see it work": a session in the demo folder loads craft's rules but not the default memory folder's context (the person launches it, or a short headless `claude -p` shows it).
-- Remotes: for each bindle, ask where it lives (a private personal repo, the employer's git, or local only) and give the commands; bindle never adds a remote itself. Outside onboarding: `doctor` warns when sync is on and there's no remote; the writable bindle's session text lets Claude offer help when backup or another machine comes up.
-- Offer migration (declinable). For many repos (a domain with 20+ repos, each with its own memories), migrate in batches, tracked in a checklist in the new bindle's `notes/` (pending, done or skipped per repo), so it can stop and resume across sessions.
-- Test: run it on a second macOS user account (a fresh `~/.claude` and `~/bindles`; a scratch `CLAUDE_CONFIG_DIR` starts logged out), which also covers most of the fresh-user test (road to 1.0, step 3). Comes before that test.
+**Done (2026-11-24, v0.32.0): onboarding (`/bindle:onboard`)**. The session check offers `/bindle:onboard` when no bindles exist (one line, gone once any bindle exists). The skill walks through: already have bindles (clone flow) or fresh start (create craft, make it global, attach, remotes, optional migration). Craft is the first bindle: its `rules.md` becomes the portable `CLAUDE.md` via `bindle global`, loading in every session and subagent. bindle-demo stays for the multi-domain walkthrough (promotion, private terms, notes between domains) and as the contract test's base.
+- Still to test: run it on a second macOS user account (a fresh `~/.claude` and `~/bindles`; a scratch `CLAUDE_CONFIG_DIR` starts logged out), which also covers most of the fresh-user test (road to 1.0, step 3).
 
 **Planned (2026-11-24): references between bindles.** One source of truth: a domain refers to craft rather than copying it, since craft is meant to be loaded everywhere (global). The rule: a domain may refer to craft, by name not path ("craft's rules"; paths differ per machine and move), and phrased so it still makes sense if craft isn't loaded; craft never refers to a domain (it would name the domain, and dangles wherever that domain isn't attached); domains never refer to each other (a general version goes to craft, a reminder to the other's inbox).
 - The bindle template's `AGENTS.md` states the rule, so Claude follows it when writing memories (`AGENTS.md` isn't a managed file, so `upgrade` won't change an existing one; the CHANGELOG gives the line to add by hand, as 0.28.0 did).
@@ -101,4 +96,5 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-24:** v0.29.0: `bindle global` (always-on rules through a user `CLAUDE.md` import), the hook's skip, the session check's pull, doctor's checks. Probed on macOS; Windows and Linux checks listed under Next steps.
 - **2026-11-24:** v0.31.0: `bindle update` pulls each bindle before upgrading it, so two machines no longer make competing upgrade commits. Actions minutes ran out on the private repo (0.31.0's run never started), so CI now runs on release tags, pull requests (not docs-only ones) and by hand, with one macOS job (3.9) instead of two.
 - **2026-11-24:** v0.30.0: `bindle global` imports the memory index too (probed: an imported index's relative links resolve in the main session and a subagent), so craft's as-needed lessons reach every session.
+- **2026-11-24:** v0.32.0: `/bindle:onboard` skill and session-check nudge for new users; skills and commands renamed to drop the redundant `bindle-` prefix (`/bindle:promote`, `/bindle:onboard`, `/bindle:docs` instead of `bindle:bindle-promote`, etc.).
 - **2026-11-24:** v0.29.1: two Windows-only test failures fixed (present since before 0.28.0, found checking CI for 0.29.0).

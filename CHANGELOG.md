@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.32.0 (2026-11-24)
+
+No upgrade needed.
+
+- **`/bindle:onboard` skill:** walks a new user through first-time setup — creating or cloning a craft bindle, making it global (so its `rules.md` loads in every session), attaching it, and setting up a remote. The session check offers it when no bindles exist on the machine.
+- **Skills and commands renamed** to drop the redundant `bindle-` prefix: `/bindle:promote` (was `bindle:bindle-promote`), `/bindle:onboard`, `/bindle:docs`. The `install --cleanup` step covers the old skill links too.
+
 ## 0.31.0 (2026-11-24)
 
 No upgrade needed.

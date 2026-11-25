@@ -1,5 +1,5 @@
 ---
-name: bindle-promote
+name: promote
 description: Promote a memory, skill or command from the current domain's bindle into another bindle (a craft bindle, personal, another client), as a general rewrite the user approves; or send another domain a note (a reminder or todo). Use when the user asks to put something from here into another bindle, in any words: "promote the doc-style skill to my craft", "add this to my personal bindle too", "move this skill to my craft", "copy that memory to globex", "keep this lesson in craft", "save this for my personal setup as well"; when they say a lesson is worth keeping elsewhere, asks what could be promoted, or wants a reminder in another domain ("remind me in globex to send the invoice").
 ---
 
