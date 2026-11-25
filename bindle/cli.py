@@ -5,7 +5,7 @@ import sys
 from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_session_check, cmd_sync
 from .core import VERSION, BindleError
 from .global_rules import cmd_global
-from .promote import KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms
+from .promote import KINDS, PROMOTE_KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms
 from .upgrade import cmd_update, cmd_upgrade
 
 FOLDER_HELP = "the folder you launch Claude from (default: here)"
@@ -86,13 +86,14 @@ def build_parser():
 
     s = sub.add_parser("promote", help="copy an approved, general draft from one bindle into another (checked for domain names and secrets)")
     s.add_argument("source", help="the bindle the draft comes from, by name or path (its private terms are checked)")
-    s.add_argument("path", help="the draft: a memory or command .md file, or a skill folder")
+    s.add_argument("path", nargs="?", help="the draft: a memory or command .md file, a skill folder, or any file (--kind file); none with --remove")
     s.add_argument("--into", required=True, help="the target bindle: a path or a name; it must be on this machine")
-    s.add_argument("--kind", choices=list(KINDS), default="memory")
-    s.add_argument("--name", required=True, help="the item's slug, e.g. small-prs")
+    s.add_argument("--kind", choices=PROMOTE_KINDS, default="memory", help="file: any other file, named by its path in the target (rules.md, agents/x.md)")
+    s.add_argument("--name", required=True, help="the item's slug, e.g. small-prs; for --kind file, its path in the target")
     s.add_argument("--description", default="", help="one line for the target's memory index")
     s.add_argument("--allow", action="append", default=[], metavar="TERM", help="a private term you've decided is fine to share in this promotion (repeatable); possible secrets can't be allowed")
     s.add_argument("--replace", action="store_true", help="update what's already in the target (git history keeps the old version)")
+    s.add_argument("--remove", action="store_true", help="take the named item out of the target instead (git history keeps it)")
     s.add_argument("--dry-run", action="store_true", help="show what would change in the target, as a diff when replacing")
     s.set_defaults(fn=cmd_promote)
 

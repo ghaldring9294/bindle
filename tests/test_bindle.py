@@ -1453,6 +1453,78 @@ class PromotionTest(BindleTest):
         self.assertEqual(self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--replace")[0], 1)
         self.assertNotIn("widgetd", (self.personal / "memory/small-prs.md").read_text(encoding="utf-8"))
 
+    # Craft is read-only everywhere, so promotion must reach every part of it, not only memories, skills and commands.
+    def test_a_file_reaches_any_path_in_the_target_without_an_index_line(self):
+        draft = self.tmp / "file.md"
+        draft.write_text("Keep PRs small.\n", encoding="utf-8")
+        for path in ("memory/machines/work-mac.md", "agents/reviewer.md"):
+            code, out = self.run_cli("promote", self.acme, draft, "--into", self.personal, "--kind", "file", "--name", path)
+            self.assertEqual(code, 0, out)
+            self.assertIn("Keep PRs small.", (self.personal / path).read_text(encoding="utf-8"))
+        index = self.personal / "memory/MEMORY.md"
+        self.assertNotIn("work-mac", index.read_text(encoding="utf-8") if index.exists() else "")  # linked on demand, not always loaded
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+        # rules.md comes with every bindle, so changing it is a replace, never a silent overwrite.
+        draft.write_text("# rules\nKeep PRs tiny.\n", encoding="utf-8")
+        self.assertEqual(self.run_cli("promote", self.acme, draft, "--into", self.personal, "--kind", "file", "--name", "rules.md")[0], 1)
+        code, out = self.run_cli("promote", self.acme, draft, "--into", self.personal, "--kind", "file", "--name", "rules.md", "--replace")
+        self.assertEqual(code, 0, out)
+        self.assertIn("tiny", (self.personal / "rules.md").read_text(encoding="utf-8"))
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+
+    # Reaching any path mustn't reach bindle's own machinery: a changed hook or bindle.json would run or reconfigure
+    # in every session where the bindle is on, and a path out of the folder could write anywhere.
+    def test_a_file_cannot_touch_bindles_own_files_or_leave_the_target(self):
+        draft = self.tmp / "x.md"
+        draft.write_text("hello\n", encoding="utf-8")
+        before = bindle.git(self.personal, "rev-parse", "HEAD")
+        for path in ("bindle.json", "Bindle.json", "private-terms.txt", "hooks/run", "outbox/x/item.json",
+                     ".git/config", ".claude-plugin/plugin.json", "../escape.md", "memory/../../escape.md", "/etc/x", "a\\b.md"):
+            code, out = self.run_cli("promote", self.acme, draft, "--into", self.personal, "--kind", "file", "--name", path)
+            self.assertEqual(code, 1, f"{path} was accepted: {out}")
+        self.assertEqual(bindle.git(self.personal, "rev-parse", "HEAD"), before)
+        self.assertFalse((self.tmp / "escape.md").exists())
+
+    def test_a_file_is_leak_checked_like_any_draft(self):
+        self.draft.write_text("Retry like widgetd does.\n", encoding="utf-8")
+        code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--kind", "file", "--name", "rules.md", "--replace")
+        self.assertEqual(code, 1)
+        self.assertIn("widgetd", out)
+        self.assertNotIn("widgetd", (self.personal / "rules.md").read_text(encoding="utf-8") if (self.personal / "rules.md").exists() else "")
+
+    # Removing is a change too: a bindle read-only everywhere would otherwise keep a stale lesson loading in every session.
+    def test_remove_takes_a_memory_and_its_index_line_out_in_one_commit(self):
+        self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--description", "keep PRs small")
+        code, out = self.run_cli("promote", self.acme, "--into", self.personal, "--name", "small-prs", "--remove", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("index line", out)
+        self.assertTrue((self.personal / "memory/small-prs.md").exists())  # dry run changes nothing
+        code, out = self.run_cli("promote", self.acme, "--into", self.personal, "--name", "small-prs", "--remove")
+        self.assertEqual(code, 0, out)
+        self.assertFalse((self.personal / "memory/small-prs.md").exists())
+        self.assertNotIn("small-prs", (self.personal / "memory/MEMORY.md").read_text(encoding="utf-8"))  # no dangling link
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+        self.assertIn("small-prs", bindle.git(self.personal, "log", "-1", "--stat"))
+
+    def test_remove_takes_out_a_skill_folder_or_a_file(self):
+        skill = self.tmp / "review" ; skill.mkdir()
+        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nv1\n", encoding="utf-8")
+        self.run_cli("promote", self.acme, skill, "--into", self.personal, "--kind", "skill", "--name", "review")
+        self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--kind", "file", "--name", "agents/reviewer.md")
+        self.assertEqual(self.run_cli("promote", self.acme, "--into", self.personal, "--kind", "skill", "--name", "review", "--remove")[0], 0)
+        self.assertEqual(self.run_cli("promote", self.acme, "--into", self.personal, "--kind", "file", "--name", "agents/reviewer.md", "--remove")[0], 0)
+        self.assertFalse((self.personal / "skills/review").exists())
+        self.assertFalse((self.personal / "agents/reviewer.md").exists())
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+
+    # A typo must not look like success, and the guard on bindle's own files holds for removal too.
+    def test_remove_refuses_what_isnt_there_and_bindles_own_files(self):
+        code, out = self.run_cli("promote", self.acme, "--into", self.personal, "--name", "typo", "--remove")
+        self.assertEqual(code, 1)
+        self.assertIn("nothing removed", out)
+        self.assertEqual(self.run_cli("promote", self.acme, "--into", self.personal, "--kind", "file", "--name", "bindle.json", "--remove")[0], 1)
+        self.assertTrue((self.personal / "bindle.json").exists())
+
     def test_promote_finds_the_target_by_name(self):
         self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft", "--writes", "explicit")
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", "craft", "--name", "small-prs")

@@ -167,23 +167,27 @@ TOOLS = [
         "name": "promote",
         "description": (
             "Copy an approved, general draft from one bindle into another on this machine, "
-            "after checking for private terms and secrets. Use with the /bindle-promote skill."
+            "after checking for private terms and secrets; or remove an item from it. The only way to change "
+            "a bindle that's read-only here (such as craft): any file in it, including rules.md and agents. "
+            "Use with the /bindle:promote skill."
         ),
         "inputSchema": {
             "type": "object",
             "properties": {
                 "source": {"type": "string", "description": "Source bindle (name or path)"},
-                "path": {"type": "string", "description": "Path to the draft file or skill folder"},
+                "path": {"type": "string", "description": "Path to the draft file or skill folder (none with remove)"},
                 "into": {"type": "string", "description": "Target bindle (name or path)"},
-                "name": {"type": "string", "description": "Item slug (e.g. small-prs)"},
-                "kind": {"type": "string", "enum": ["memory", "skill", "command", "note"], "default": "memory"},
+                "name": {"type": "string", "description": "Item slug (e.g. small-prs); for kind file, its path in the target (rules.md, agents/x.md)"},
+                "kind": {"type": "string", "enum": ["memory", "skill", "command", "note", "file"], "default": "memory",
+                         "description": "file: any other file in the target, named by its path"},
                 "description": {"type": "string", "description": "One line for the memory index", "default": ""},
                 "allow": {"type": "array", "items": {"type": "string"},
                           "description": "Private terms the user decided are fine to share", "default": []},
                 "replace": {"type": "boolean", "description": "Update what's already in the target", "default": False},
+                "remove": {"type": "boolean", "description": "Take the named item out of the target (no path)", "default": False},
                 "dry_run": {"type": "boolean", "description": "Show the diff without changing anything", "default": False}
             },
-            "required": ["source", "path", "into", "name"]
+            "required": ["source", "into", "name"]
         }
     },
     {
@@ -327,10 +331,10 @@ def build_args(name, a):
         return SimpleNamespace(bindle=a.get("bindle"), all=a.get("all", False),
                                dry_run=a.get("dry_run", False))
     if name == "promote":
-        return SimpleNamespace(source=a["source"], path=a["path"], into=a["into"], name=a["name"],
+        return SimpleNamespace(source=a["source"], path=a.get("path"), into=a["into"], name=a["name"],
                                kind=a.get("kind", "memory"), description=a.get("description", ""),
                                allow=a.get("allow", []), replace=a.get("replace", False),
-                               dry_run=a.get("dry_run", False))
+                               remove=a.get("remove", False), dry_run=a.get("dry_run", False))
     if name == "terms":
         return SimpleNamespace(bindle=a["bindle"], folder=a.get("folder"))
     if name == "collect":

@@ -19,6 +19,10 @@ from .core import BindleError, find_bindle, quote, ref, git, hooks, known_bindle
 KINDS = {"memory": "memory", "skill": "skills", "command": "commands", "note": "notes"}
 INBOX_HEADER = "# Inbox\n\nNotes sent from other domains, oldest first. Remove each one once it's handled.\n"
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+# A "file" is any other file in the target, named by its path there (rules.md, agents/x.md); promotion only, not the outbox.
+PROMOTE_KINDS = [*KINDS, "file"]
+PATH_PART_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")  # no leading dot: keeps .git, .claude-plugin and .. out
+BINDLES_OWN = ("bindle.json", "private-terms.txt", "hooks", "outbox")  # bindle's machinery, never promoted into
 COLLECTABLE = ("approved",)  # items collected before 0.14 kept status "collected"; outbox clean removes them
 
 
@@ -162,13 +166,27 @@ def commit(root, message, *paths):
     return git(root, "commit", "-q", "-m", message, "--", *paths) is not None
 
 
+def check_name(slug, kind):
+    if kind != "file":
+        if not SLUG_RE.match(slug):
+            raise BindleError("Name must be lowercase letters, digits, hyphens or underscores.")
+        return
+    parts = slug.split("/")
+    if "\\" in slug or not all(PATH_PART_RE.match(p) for p in parts):
+        raise BindleError(f"{slug!r}: a file's name is its path in the target (rules.md, memory/machines/x.md): "
+                          "letters, digits, '.', '_' and '-', parts joined by '/', none starting with a dot.")
+    if parts[0].lower() in BINDLES_OWN:
+        raise BindleError(f"{slug} is bindle's own ({', '.join(BINDLES_OWN)}); promotion doesn't change it.")
+
+
 def check_draft(b, slug, kind, src, description, verb, allowed=()):
     """A draft is fit to leave bindle b: a valid name, the right shape for its kind, and nothing that names
     b's domain or looks like a secret."""
-    if not SLUG_RE.match(slug):
-        raise BindleError("Name must be lowercase letters, digits, hyphens or underscores.")
+    check_name(slug, kind)
     if not src.exists():
         raise BindleError(f"{src} doesn't exist.")
+    if kind == "file" and not src.is_file():
+        raise BindleError("A file is a single file; promote a skill folder as a skill.")
     if kind in ("memory", "command", "note") and not (src.is_file() and src.suffix == ".md"):
         raise BindleError(f"A {kind} is a single .md file.")
     if kind == "skill" and not (src.is_dir() and (src / "SKILL.md").is_file()):
@@ -178,9 +196,17 @@ def check_draft(b, slug, kind, src, description, verb, allowed=()):
         raise BindleError(f"Not {verb}; the draft still names this domain or looks like it holds a secret:\n" + describe_hits(hits))
 
 
-def destination(target, slug, kind, src):
-    out = target["root"] / "skills" / src.name if kind == "skill" else target["root"] / KINDS[kind] / f"{slug}.md"
-    if out.resolve().parent != (target["root"] / KINDS[kind]).resolve():
+def destination(target, slug, kind, src=None):
+    root = target["root"]
+    if kind == "file":
+        out = root / slug
+        if root.resolve() not in out.resolve().parents:  # a linked folder inside the target could point anywhere
+            raise BindleError(f"{slug}: its destination {out} is outside {target['name']}.")
+        if out.is_dir():
+            raise BindleError(f"{slug} is a folder in {target['name']}; a file can't replace it.")
+        return out
+    out = root / "skills" / (src.name if src else slug) if kind == "skill" else root / KINDS[kind] / f"{slug}.md"
+    if out.resolve().parent != (root / KINDS[kind]).resolve():
         raise BindleError(f"{slug}: its destination {out} is outside {target['name']}.")
     return out
 
@@ -235,6 +261,10 @@ def cmd_promote(args):
     source, target = find_bindle(args.source), find_bindle(args.into)
     if source["root"] == target["root"]:
         raise BindleError("Source and target are the same bindle.")
+    if args.remove:
+        return remove_from(source, target, args)
+    if not args.path:
+        raise BindleError("Give the draft's path (or --remove to take an item out of the target).")
     src = Path(args.path)
     check_draft(source, args.name, args.kind, src, args.description, "promoted", args.allow)
     if args.replace and args.kind == "note":
@@ -244,6 +274,37 @@ def cmd_promote(args):
     moved, committed = place(source, target, [(args.name, args.kind, src, args.description)], replace=args.replace)
     print(f"{'Replaced' if args.replace else 'Promoted'} {args.kind} {args.name} from {source['name']} into {target['name']}: {', '.join(moved)} "
           f"(leak check and secret check passed)." + ("" if committed else f" Not committed in {target['name']}; commit by hand."))
+    print(push_hint(target))
+    return 0
+
+
+def remove_from(source, target, args):
+    """Take an item out of the target: the same reviewed, committed step as adding one, so a bindle that's
+    read-only everywhere (craft) can still lose what it no longer needs. Git history keeps it."""
+    slug, kind = args.name, args.kind
+    if kind == "note":
+        raise BindleError("Notes are removed from the target's notes/inbox.md by hand, once handled.")
+    if args.path or args.replace:
+        raise BindleError("--remove takes no draft and no --replace.")
+    check_name(slug, kind)
+    out = destination(target, slug, kind)
+    rel = out.relative_to(target["root"]).as_posix()
+    if out.is_symlink() or not out.exists() or (out.is_dir() != (kind == "skill")):
+        raise BindleError(f"{target['name']} has no {kind} at {rel}; nothing removed.")
+    index = target["root"] / "memory" / "MEMORY.md"
+    lines = index.read_text(encoding="utf-8").splitlines(keepends=True) if kind == "memory" and index.exists() else []
+    kept = [l for l in lines if f"({slug}.md)" not in l]
+    if args.dry_run:
+        print(f"Would remove {rel} from {target['name']}" + (" and its memory index line." if len(kept) < len(lines) else "."))
+        return 0
+    shutil.rmtree(out) if kind == "skill" else out.unlink()
+    paths = [rel]
+    if len(kept) < len(lines):
+        write_text(index, "".join(kept))
+        paths.append("memory/MEMORY.md")
+    committed = commit(target["root"], f"Remove {kind} {slug} (from a {source['name']} session)", *paths)
+    print(f"Removed {kind} {slug} from {target['name']}: {', '.join(paths)}."
+          + ("" if committed else f" Not committed in {target['name']}; commit by hand."))
     print(push_hint(target))
     return 0
 

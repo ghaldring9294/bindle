@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.33.0 (2026-11-25)
+
+No upgrade needed. Run `/plugin update bindle` (or `bindle update`), then restart Claude Code.
+
+- **Promotion reaches anything in a bindle.** Craft is read-only in every folder, so any change to it now goes through promotion: `--kind file` places any file by its path in the target (`rules.md`, `agents/reviewer.md`, `memory/machines/work-mac.md`), and `--remove` takes an item out (a memory with its index line). Both are leak-checked (removal has nothing to check) and committed like any promotion, for a target on this machine. Bindle's own files (`bindle.json`, `private-terms.txt`, `hooks/`, `outbox/`, dot folders) are refused.
+- **Claude reaches for promotion by the target, not only the wording.** `/bindle:promote` and `/bindle` now cover any change to a bindle that's read-only here, including when a bindle's own file says where something goes, so Claude no longer writes into craft directly.
+
 ## 0.32.2 (2026-11-25)
 
 No upgrade needed.

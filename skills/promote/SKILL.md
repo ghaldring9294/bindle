@@ -1,6 +1,6 @@
 ---
 name: promote
-description: Promote a memory, skill or command from the current domain's bindle into another bindle (a craft bindle, personal, another client), as a general rewrite the user approves; or send another domain a note (a reminder or todo). Use when the user asks to put something from here into another bindle, in any words: "promote the doc-style skill to my craft", "add this to my personal bindle too", "move this skill to my craft", "copy that memory to globex", "keep this lesson in craft", "save this for my personal setup as well"; when they say a lesson is worth keeping elsewhere, asks what could be promoted, or wants a reminder in another domain ("remind me in globex to send the invoice").
+description: Promote a memory, skill or command from the current domain's bindle into another bindle (a craft bindle, personal, another client), as a general rewrite the user approves; or send another domain a note (a reminder or todo). Use when the user asks to put something from here into another bindle, in any words: "promote the doc-style skill to my craft", "add this to my personal bindle too", "move this skill to my craft", "copy that memory to globex", "keep this lesson in craft", "save this for my personal setup as well"; when they say a lesson is worth keeping elsewhere, asks what could be promoted, or wants a reminder in another domain ("remind me in globex to send the invoice"). Also use for any change to a bindle that's read-only here, craft above all (add, edit or remove its rules.md, an agent, a memory or any file): when the user asks ("change X in my craft", "update my craft rules") or a task would write into one, even when that bindle's own file says where things go.
 ---
 
 # Promote into another bindle
@@ -12,7 +12,7 @@ The user asks in plain words; you do the judgment (finding, drafting, asking), a
 ## 1. Work out what and where
 
 - **Source:** usually the bindle that's writable in this folder (call the `doctor` tool). To make a domain-specific version of a craft skill, the source can be craft and the target this folder's writable bindle; then customize the copy here.
-- **What:** the memory, skill or command they named, or a **note**: a reminder or todo for the other domain, which you write from what they said. Memories are in the source's `memory/` and `projects/*/`, skills in `skills/<name>/`, commands in `commands/`. If they ask what could be promoted, judge from the content: offer lessons that would hold outside this domain, never ones that only make sense inside it.
+- **What:** the memory, skill or command they named, any other file in the target (kind `file`, named by its path there: `rules.md`, `agents/<name>.md`, `memory/machines/<name>.md`; no index line), a **removal** (remove=true), or a **note**: a reminder or todo for the other domain, which you write from what they said. Memories are in the source's `memory/` and `projects/*/`, skills in `skills/<name>/`, commands in `commands/`. If they ask what could be promoted, judge from the content: offer lessons that would hold outside this domain, never ones that only make sense inside it.
 - **Where:** call the `list` tool and match what they said ("my craft" → `craft`). If it's ambiguous or not listed, ask; never choose for them. A domain bindle that isn't listed: ask for its path.
 - Read only the source's own files. Never read another domain's memories.
 - If the source's `private-terms.txt` is empty, call the `terms` tool first and have them pick terms to add, so the check below means something.
@@ -26,7 +26,7 @@ The user asks in plain words; you do the judgment (finding, drafting, asking), a
 
 ## 3. Check with them
 
-If the target already has it (an update, such as improving a craft skill you're using here), call the `promote` tool with dry_run=true and show them that diff; on approval, call it with replace=true. Otherwise show the draft beside the original, say briefly what you removed, and name the target. Nothing moves without a yes for that item.
+If the target already has it (an update, such as improving a craft skill you're using here, or editing craft's `rules.md`), call the `promote` tool with dry_run=true and show them that diff; on approval, call it with replace=true. For a removal, call it with remove=true and dry_run=true, show what would go, and remove on their yes. Otherwise show the draft beside the original, say briefly what you removed, and name the target. Nothing moves without a yes for that item.
 
 Ask with the AskUserQuestion tool (a select they arrow through), one question per item: "Send small-prs to craft as a memory?" with options **Approve**, **Edit** and **Drop**, and the draft (or the diff) as Approve's preview, since the dialog can hide what you wrote before it. On Edit, ask what to change, redraft, and ask again. Without that tool, ask in plain text: "Approve, edit, or drop?"
 
@@ -48,6 +48,6 @@ Tell them to collect it there (or in a session there) with the `collect` tool (o
 
 - Say where it landed, and how to use it there (a skill is `/<target>:<skill>` from the next session where the target is on).
 - If the target has a remote, offer to push it (`git -C <target path> push`). Sync pushes a bindle only from a session where it's writable, so anything promoted into a bindle that's read-only everywhere (like craft) needs this push to reach other machines. Ask first.
-- If they're moving it rather than copying, offer to remove the original from the source (it's writable here). Removing something from another bindle can't happen from here, since that bindle is read-only: tell them to open a session in that bindle's own folder (for craft, `~/bindles/craft`) and remove it there.
-- Rules (`rules.md`, `~/.claude/CLAUDE.md`) aren't promoted. To move a rule, show them the text and where it goes; they add it in a session in the target bindle's folder. General instructions belong in a craft bindle's `rules.md`, which loads wherever craft is on, or in every session and subagent once craft is global (`bindle global craft`).
+- If they're moving it rather than copying, offer to remove the original from the source (it's writable here).
+- A rule goes in as kind `file` with name `rules.md` and replace=true: draft the whole new file from the target's current `rules.md`. General instructions belong in a craft bindle's `rules.md`, which loads wherever craft is on, or in every session and subagent once craft is global (`bindle global craft`). `~/.claude/CLAUDE.md` isn't in a bindle; edit it only when they ask.
 - Sending it to a second bindle is a second promotion. To drop a waiting outbox item: call the `outbox_remove` tool.
