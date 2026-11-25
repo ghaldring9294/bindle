@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-25, v0.36.0)
+## Where it stands (2026-11-25, v0.36.1)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -34,7 +34,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - The bindle template's `AGENTS.md` states the rule, so Claude follows it when writing memories (`AGENTS.md` isn't a managed file, so `upgrade` won't change an existing one; the CHANGELOG gives the line to add by hand, as 0.28.0 did).
 - `doctor` warns when a bindle's files mention a path inside another bindle, and especially when craft (an `explicit`-writes or shared bindle) mentions a domain bindle.
 
-**Planned (2026-11-25): Claude explains bindle well.** Asked "what is bindle?" in any session, Claude should give the four parts, not only the first: **git-portable** (a domain's context in a repo, the same on every machine); **domain-scoped** (a level between you and the project; the launch folder turns bindles on, one writable); **guarded boundaries** (read-only lock, private-terms and secret checks, bindle never touches remotes); **intentional movement** (promotion as an approved general rewrite, the outbox for another machine, notes to another domain's inbox; never a direct copy). Today a session sees only `/bindle`'s description ("carries … between machines in git repos", part one), and "The model" in `commands/bindle.md` explains the mechanics but not the why.
+**Done (2026-11-25, v0.36.1): Claude explains bindle well.** Measured: before, a fresh `claude -p "what is bindle?"` in an unrelated folder covered git-portable and promotion, but not guarded boundaries or the domain level; after, all four parts. Asked "what is bindle?" in any session, Claude should give the four parts, not only the first: **git-portable** (a domain's context in a repo, the same on every machine); **domain-scoped** (a level between you and the project; the launch folder turns bindles on, one writable); **guarded boundaries** (read-only lock, private-terms and secret checks, bindle never touches remotes); **intentional movement** (promotion as an approved general rewrite, the outbox for another machine, notes to another domain's inbox; never a direct copy). Today a session sees only `/bindle`'s description ("carries … between machines in git repos", part one), and "The model" in `commands/bindle.md` explains the mechanics but not the why.
 - One short "What bindle is" section in `commands/bindle.md` (Claude's version) matching the README's opening (people's version); `/bindle`'s description names the four parts and triggers on "what is bindle" and how-does-it-work questions; `/bindle:onboard` uses the same framing.
 - A test that the README opening and `commands/bindle.md` both name the four parts, so they don't drift.
 - Measure: a fresh `claude -p "what is bindle?"` in an unrelated folder, before and after; done when the answer covers all four parts.
@@ -142,3 +142,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-25:** v0.34.0: sync commits `notes/` (scratch stays local; a secret-looking note is held back like a memory). The v0.33.0 promotion measure passed (2/2 runs).
 - **2026-11-25:** v0.35.0: sync pushes an explicit-writes bindle's commits (craft) and names its uncommitted edits; never commits there.
 - **2026-11-25:** v0.36.0: `bindle machine` (machine name in the registry, detected hardware, one line in the user `CLAUDE.md` block, refreshed by the session check).
+- **2026-11-25:** v0.36.1: `/bindle` explains the four parts (git-portable, domain-scoped, guarded boundaries, intentional movement), matching the README; measured before and after.
