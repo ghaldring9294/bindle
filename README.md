@@ -41,6 +41,12 @@ You need Claude Code 2.1.74 or later, git, and Python 3.9 or later. It runs on m
 /plugin marketplace add https://github.com/ghaldring9294/bindle.git
 /plugin install bindle@bindle --scope user
 ```
+If the remote URL doesn't work, clone the repo first and add it by local path:
+```
+git clone https://github.com/ghaldring9294/bindle.git
+/plugin marketplace add /path/to/bindle
+/plugin install bindle@bindle --scope user
+```
 Adding the marketplace only makes the plugin available; the install turns it on, and user scope turns it on in every folder (your bindles still load only where you attach them). This gives you the `/bindle` command, the `/bindle:promote` and `/bindle:onboard` skills, MCP tools that Claude calls directly (attach, detach, doctor, sync and so on — no shell commands needed), and the session-check hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating. If no bindles exist yet, the session check offers `/bindle:onboard` to walk you through setup. Nothing else to do.
 
 **For terminal access** (optional — lets you run `bindle` commands outside Claude Code):
