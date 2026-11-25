@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-25, v0.32.2)
+## Where it stands (2026-11-25, v0.33.0)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -66,10 +66,10 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 
 **Planned (2026-11-25): sync commits `notes/` too.** Decided (David, 2026-11-25): notes matter as much as memories. Today sync commits only `memory/`, `projects/` and `outbox/`, so a task note or TODO edited on one machine doesn't reach the others until someone commits it by hand. Add `notes` to `SYNCED` in the managed hook (so `bindle upgrade` for every bindle), with the same secret check; still never for an `explicit`-writes bindle, where nothing is committed automatically. Update the README, docs/design.md ("Memory and sync") and the template's `AGENTS.md`.
 
-**Done (2026-11-25, v0.33.0, except the measure): any change to craft goes through promotion.** Decided (David, 2026-11-25): he can ask Claude to change anything in craft from any session, and Claude does it through promotion (reviewed, leak-checked, committed), saying so. Found in real use: asked to gather machine specs, Claude wrote straight into craft because craft's own `machines.md` said where specs go; the promote skill triggers on wording that names another bindle, not on the write target.
+**Done (2026-11-25, v0.33.0): any change to craft goes through promotion.** Decided (David, 2026-11-25): he can ask Claude to change anything in craft from any session, and Claude does it through promotion (reviewed, leak-checked, committed), saying so. Found in real use: asked to gather machine specs, Claude wrote straight into craft because craft's own `machines.md` said where specs go; the promote skill triggers on wording that names another bindle, not on the write target.
 - **Reach for it:** the promote skill's description and `commands/bindle.md` trigger on the write target: any create, edit or removal in a bindle that's read-only here (including one a bindle's own file asks for), and plain asks like "change X in my craft". Measure with a fresh `claude -p` whose request implies craft without naming it, before and after.
 - **Cover everything promotion couldn't carry:** done as `--kind file` (any file by its path: `rules.md`, agents, `memory/machines/<name>.md`, no index line) and `--remove`, for a target on this machine only (the outbox is unchanged). Bindle's own files (`bindle.json`, `private-terms.txt`, `hooks/`, `outbox/`, dot folders) are refused. "Promoting rules" left docs/design.md's Later ideas.
-- **Still to do:** the `claude -p` measure above, after `/plugin update bindle` on this machine.
+- **Measured (2026-11-25):** two fresh `claude -p` runs asked to record new gaming-PC specs (craft's `machines.md`, craft not named) from a folder where personal is writable. Both opened `/bindle:promote` and called `promote --kind file --replace --dry-run` into craft; writes were denied, so craft stayed clean. No pre-0.33.0 baseline was rerun: the real-use failure above is the before.
 
 **Order (2026-11-22):** the two remaining migration gaps below, then the demo repo (since retired) and the contract test (road to 1.0, step 1); then one thorough review of the whole repo (done 2026-11-23, an adversarial review; every finding fixed in v0.26.0); that's enough to hand to a friend for the fresh-user test. The owner's own setup waits until after.
 
