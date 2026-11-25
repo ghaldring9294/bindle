@@ -53,12 +53,13 @@ def build_parser():
     s.add_argument("--repos", action="store_true", help="also each git repo directly inside the folder (sessions started in a repo read only its own settings)")
     s.set_defaults(fn=cmd_detach)
 
-    s = sub.add_parser("global", help="load a bindle's rules.md in every session and subagent, in every folder",
-                       description="Load a bindle's rules.md everywhere: writes an import of it in a marked block in "
-                                   "your user CLAUDE.md (~/.claude/CLAUDE.md, or in $CLAUDE_CONFIG_DIR), leaving the "
-                                   "rest of that file as it is. Takes effect in the next session.")
+    s = sub.add_parser("global", help="turn a whole bindle on in every session and subagent, in every folder",
+                       description="Turn a bindle on everywhere: writes imports of its rules.md and memory index in a "
+                                   "marked block in your user CLAUDE.md (~/.claude/CLAUDE.md, or in $CLAUDE_CONFIG_DIR), "
+                                   "leaving the rest of that file as it is, and installs its plugin (agents, skills, "
+                                   "commands, hooks) at user scope. Takes effect in the next session.")
     s.add_argument("bindle", help="the bindle's name or path (with --off, also the path doctor shows for one that moved)")
-    s.add_argument("--off", action="store_true", help="stop loading it everywhere (remove its import)")
+    s.add_argument("--off", action="store_true", help="stop loading it everywhere (remove its imports and the user-scope plugin)")
     s.set_defaults(fn=cmd_global)
 
     s = sub.add_parser("machine", help="show or set this machine's name, which every session and subagent sees",

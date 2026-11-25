@@ -2,6 +2,15 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.37.0 (2026-11-25)
+
+No upgrade needed. Run `/plugin update bindle` (or `bindle update`), then `bindle global <name>` again for each global bindle (`doctor` names them), and restart Claude Code.
+
+- **Global brings the whole bindle.** `bindle global` also installs the bindle's plugin at user scope, so its agents, skills and commands are on in every folder (as `<bindle>:<name>`) and its hooks run in every session; `--off` uninstalls it. Where it's also attached, Claude Code loads it once.
+- **Craft is locked everywhere.** A global bindle that takes explicit writes gets its read-only lock in the user settings too. Promotion still changes it; only Claude's edit tools are denied.
+- With its plugin on everywhere, a global bindle's own hook keeps it current, so the session check no longer pulls it (two pulls at once would fight over git's lock). `doctor` warns about a global bindle without its plugin.
+- The user `settings.json` is now read from `$CLAUDE_CONFIG_DIR` when that's set, as Claude Code does.
+
 ## 0.36.1 (2026-11-25)
 
 No upgrade needed. Run `/plugin update bindle` (or `bindle update`), then restart Claude Code.

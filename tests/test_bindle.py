@@ -2695,6 +2695,41 @@ class GlobalRulesTest(BindleTest):
         return subprocess.run([sys.executable, str(b / "hooks/bindle_hook.py"), "rules"], env=env,
                               capture_output=True, text=True).stdout
 
+    def user_settings(self):
+        return json.loads((self.tmp / "claude-config" / "settings.json").read_text(encoding="utf-8"))
+
+    # Global means the whole bindle: agents and skills kept in craft must reach every folder, as its rules do.
+    def test_installs_the_plugin_at_user_scope_and_off_removes_it(self):
+        self.run_cli("global", "craft")
+        self.assertTrue(self.user_settings()["enabledPlugins"]["craft@bindle-craft"])
+        self.assertIn("--scope user", self.log.read_text(encoding="utf-8"))
+        self.run_cli("global", "craft", "--off")
+        self.assertFalse(self.user_settings().get("enabledPlugins", {}).get("craft@bindle-craft"))
+
+    # Craft is on in every folder now, so it must be locked in every folder, or a session anywhere could edit it
+    # directly instead of promoting; a bindle that can be writable mustn't be, or its own writable folder breaks.
+    def test_locks_an_explicit_writes_bindle_everywhere_but_not_one_that_can_be_writable(self):
+        self.run_cli("global", "craft")
+        self.assertNotIn("permissions", self.user_settings())  # craft here takes implicit writes
+        self.run_cli("global", "craft", "--off")
+        meta = json.loads((self.craft / "bindle.json").read_text(encoding="utf-8")); meta["writes"] = "explicit"
+        (self.craft / "bindle.json").write_text(json.dumps(meta), encoding="utf-8")
+        self.run_cli("global", "craft")
+        self.assertEqual(self.user_settings()["permissions"]["deny"], bindle.core.lock_rules(self.craft))
+        self.run_cli("global", "craft", "--off")
+        self.assertNotIn("permissions", self.user_settings())
+
+    # A bindle made global before 0.37.0 has only the imports; running global again must add the plugin, and
+    # doctor must say to.
+    def test_rerunning_global_installs_a_missing_plugin(self):
+        self.run_cli("global", "craft")
+        settings = self.user_settings(); settings["enabledPlugins"].pop("craft@bindle-craft")
+        (self.tmp / "claude-config" / "settings.json").write_text(json.dumps(settings), encoding="utf-8")
+        self.assertIn("bindle global craft", self.run_cli("doctor", self.folder())[1])
+        code, out = self.run_cli("global", "craft")
+        self.assertIn("now installed at user scope", out)
+        self.assertTrue(self.user_settings()["enabledPlugins"]["craft@bindle-craft"])
+
     # A first machine may have no user CLAUDE.md (or config folder) yet; global must still work there.
     def test_creates_the_file_when_missing(self):
         self.assertEqual(self.run_cli("global", "craft")[0], 0)
@@ -2924,7 +2959,8 @@ class MachineTest(BindleTest):
 class GlobalSyncTest(BindleTest):
     """A global bindle's rules load in every folder, but its own hook (and so its pull) runs only where it's
     attached. The session check, which runs in every session, keeps it current and pushes its commits, but never
-    commits to it."""
+    commits to it. Since 0.37.0 global also installs its plugin at user scope, so its own hook runs everywhere; these
+    tests cover a bindle made global before that (imports only), which the session check still keeps current."""
 
     def setUp(self):
         super().setUp()
@@ -2940,6 +2976,10 @@ class GlobalSyncTest(BindleTest):
         self.other = self.tmp / "other-machine"
         subprocess.run(["git", "clone", "-q", str(self.remote), str(self.other)], check=True)
         self.run_cli("global", "craft")
+        self.user_settings = self.tmp / "claude-config" / "settings.json"
+        settings = json.loads(self.user_settings.read_text(encoding="utf-8"))
+        settings["enabledPlugins"].pop("craft@bindle-craft")  # as global left it before 0.37.0
+        self.user_settings.write_text(json.dumps(settings), encoding="utf-8")
         self.elsewhere = self.folder("elsewhere")
 
     def push_rule_from_the_other_machine(self, text):
@@ -2997,6 +3037,14 @@ class GlobalSyncTest(BindleTest):
         (self.craft / "rules.md").write_text("Promoted rule.\n", encoding="utf-8")
         bindle.git(self.craft, "commit", "-qam", "promoted")
         self.assertNotIn("no session pushes it", self.run_cli("doctor", self.elsewhere)[1])
+
+    # Once its plugin is on everywhere, its own hook pulls it in every session; both hooks start together, so a
+    # second pull from the session check would fight it over git's lock.
+    def test_a_global_bindle_whose_plugin_is_on_everywhere_is_left_to_its_own_hook(self):
+        self.run_cli("global", "craft")  # installs the plugin at user scope
+        self.push_rule_from_the_other_machine("Not yet.\n")
+        self.run_cli("session-check", self.elsewhere)
+        self.assertNotEqual((self.craft / "rules.md").read_text(encoding="utf-8"), "Not yet.\n")
 
     # Where it's attached, the session check leaves it to its own hook, which must push promoted commits too.
     def test_its_own_hook_pushes_commits_where_it_is_attached(self):

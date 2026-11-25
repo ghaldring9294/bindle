@@ -10,7 +10,8 @@ import tempfile
 from pathlib import Path
 
 from . import machine
-from .core import BindleError, declared_bindles, find_bindle, hooks, load_bindle, quote, read_json, real, settings_path
+from .core import (BindleError, claude, declared_bindles, directory_marketplaces, find_bindle, hooks, load_bindle, plugin_id,
+                   quote, read_json, real, set_lock, settings_path, user_settings_path, write_json)
 
 HEADER = ("<!-- bindle global: start. Managed by `bindle global <name>` (`--off` removes one); "
           "edits inside this block are overwritten. -->")
@@ -70,6 +71,44 @@ def same_file(a, b):
     return os.path.normcase(str(real(a))) == os.path.normcase(str(real(b)))
 
 
+def on_everywhere(b):
+    """Whether the bindle's plugin (agents, skills, commands, hooks) is installed at user scope, so it's on in every folder."""
+    return bool(read_json(user_settings_path()).get("enabledPlugins", {}).get(plugin_id(b)))
+
+
+def install_everywhere(b):
+    """Global means the whole bindle (decided 2026-11-25): install its plugin at user scope, Claude Code's own way
+    to turn a plugin on in every folder. A local install where it's attached is the same plugin and loads once
+    (probed 2026-11-25). An explicit-writes bindle is never writable, so it's locked against Claude's edit tools
+    everywhere too; promotion writes through bindle, not those tools. Returns True when something changed."""
+    changed, home = False, Path.home()
+    declared = dict(directory_marketplaces(read_json(user_settings_path()))).get(b["market"])
+    if not declared or real(declared) != b["root"]:
+        claude(home, "plugin", "marketplace", "add", str(b["root"]), "--scope", "user")
+        changed = True
+    if not on_everywhere(b):
+        claude(home, "plugin", "install", plugin_id(b), "--scope", "user")
+        changed = True
+    if b["writes"] == "explicit":
+        settings = read_json(user_settings_path())
+        before = list(settings.get("permissions", {}).get("deny", []))
+        set_lock(settings, b["root"], locked=True)
+        if settings.get("permissions", {}).get("deny", []) != before:
+            write_json(user_settings_path(), settings)
+            changed = True
+    return changed
+
+
+def remove_everywhere(b):
+    """Undo install_everywhere; the marketplace declaration stays, as detach leaves a folder's."""
+    if on_everywhere(b):
+        claude(Path.home(), "plugin", "uninstall", plugin_id(b), "--scope", "user")
+    settings = read_json(user_settings_path())
+    if settings:
+        set_lock(settings, b["root"], locked=False)
+        write_json(user_settings_path(), settings)
+
+
 def cmd_global(args):
     h = hooks()
     path = h.user_claude_md()
@@ -79,17 +118,20 @@ def cmd_global(args):
 
     if args.off:
         try:
-            gone = real(find_bindle(args.bindle)["root"])
+            found = find_bindle(args.bindle)
+            gone = real(found["root"])
         except BindleError:  # moved or deleted: match the path doctor printed
-            given = Path(os.path.expanduser(args.bindle))
+            found, given = None, Path(os.path.expanduser(args.bindle))
             gone = h.import_root(given) or given
+        if found and on_everywhere(found):
+            remove_everywhere(found)
         keep = [r for r in roots if not same_file(r, gone)]
         if len(keep) == len(roots):
             print(f"{args.bindle} isn't global; {path} is unchanged.")
             return 0
         write_block(target, lines, bom, codec, eol, block, keep, machine.line())
-        print(f"{args.bindle}'s rules and memory index no longer load everywhere; where it's attached, its own hook "
-              f"shows them again. Takes effect in the next session.")
+        print(f"{args.bindle} no longer loads everywhere (rules, memory index, agents, skills, commands, hooks); "
+              f"where it's attached, it's still on. Takes effect in the next session.")
         return 0
 
     b = find_bindle(args.bindle)
@@ -97,13 +139,18 @@ def cmd_global(args):
     if not rules.is_file():
         raise BindleError(f"{b['name']} has no rules.md at {rules}; create it first.")
     new_roots = roots if any(same_file(r, b["root"]) for r in roots) else roots + [b["root"]]
+    plugin_changed = install_everywhere(b)  # also for a bindle made global before 0.37.0, which had only the imports
     if block and block_text(lines, block) == "".join(render(new_roots, eol, machine.line())):
-        print(f"{b['name']} is already global; {path} is unchanged.")
+        print(f"{b['name']} is already global; {path} is unchanged."
+              + (f" Its plugin is now installed at user scope, so its agents, skills and commands are on in every "
+                 f"folder from the next session." if plugin_changed else ""))
         return 0
     write_block(target, lines, bom, codec, eol, block, new_roots, machine.line())
-    print(f"{b['name']}'s rules.md and memory index now load in every session and subagent, from the next session "
-          f"(Claude Code reads {path} at session start). Where {b['name']} is attached, its hook no longer shows them "
-          f"a second time.")
+    print(f"{b['name']} now loads in every session and subagent, from the next session: its rules.md and memory index "
+          f"through {path}, and its agents, skills, commands and hooks through its plugin at user scope. Where "
+          f"{b['name']} is attached, its hook no longer shows the rules and index a second time."
+          + (f" It takes explicit writes, so it's locked against Claude's edit tools everywhere; change it through "
+             f"promotion." if b["writes"] == "explicit" else ""))
     size = global_size(b["root"])
     if size > GLOBAL_RULES_WARN:
         print(f"  warning: its rules.md and memory index are {size:,} characters; every session and subagent loads "
@@ -192,6 +239,9 @@ def doctor_report():
             problems.append(f"{b['name']} is global from {b['root']}, but the name {b['name']} doesn't find it there "
                             f"(renamed, or no longer registered): bindle global --off {folder}, then "
                             f"`bindle global <name>` for the bindle you mean")
+        if not on_everywhere(b):
+            warnings.append(f"{b['name']} is global, but its plugin isn't installed at user scope, so its agents, skills "
+                            f"and commands load only where it's attached: bindle global {b['name']}")
         size = global_size(root)
         if size > GLOBAL_RULES_WARN:
             warnings.append(f"{b['name']}: its global rules.md and memory index are {size:,} characters, and every "
@@ -213,8 +263,9 @@ def doctor_report():
 
 def session_lines(root):
     """What the session check says about global bindles, after pulling each that has sync on (nothing is committed;
-    an explicit-writes one's commits are pushed). A global bindle's own hook runs only where it's attached, so nothing else keeps it current.
-    One attached in this session's folder is left to its own hook, which pulls it now too."""
+    an explicit-writes one's commits are pushed), for one whose own hook isn't running in this session. Its hook runs
+    where it's attached, and everywhere once its plugin is on at user scope (0.37.0); both hooks start together, so
+    pulling it here too would fight its hook over git's lock."""
     h, out = hooks(), []
     settings = read_json(settings_path(root))
     enabled = settings.get("enabledPlugins", {})
@@ -231,6 +282,8 @@ def session_lines(root):
             if behind and behind != "0":
                 out.append(f"bindle: {name} is {behind} commit(s) behind its remote, so its rules are out of date: "
                            f"git -C {quote(str(b['root']))} pull --ff-only")
+            continue
+        if on_everywhere(b):
             continue
         log = h.Log(b["root"])
         log.path = None  # keep the bindle's sync log for its own hooks' runs, whose problems it reports

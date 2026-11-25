@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-25, v0.36.1)
+## Where it stands (2026-11-25, v0.37.0)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -39,7 +39,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - A test that the README opening and `commands/bindle.md` both name the four parts, so they don't drift.
 - Measure: a fresh `claude -p "what is bindle?"` in an unrelated folder, before and after; done when the answer covers all four parts.
 
-**Planned (2026-11-25): global brings the plugin parts too.** A global bindle's `rules.md` and memory index load everywhere, but its agents, skills and commands load only where it's attached (`attach` installs the plugin at local scope). So agents kept in craft don't travel the way its rules do. Decided (David, 2026-11-25): global means the whole bindle, so making craft global makes its agents available everywhere. `bindle global <name>` also installs the bindle's plugin at user scope (Claude Code's own mechanism), and `--off` removes it.
+**Done (2026-11-25, v0.37.0): global brings the plugin parts too.** Decided: hooks run in every session (David); a plugin on at both scopes loads once and a user-scope plugin's agents load where it isn't attached (probed 2026-11-25); an explicit-writes global bindle is locked at user scope too (David: fine as long as promotion is unaffected, which it is). Still to do: the manual Windows and Linux checks below. A global bindle's `rules.md` and memory index load everywhere, but its agents, skills and commands load only where it's attached (`attach` installs the plugin at local scope). So agents kept in craft don't travel the way its rules do. Decided (David, 2026-11-25): global means the whole bindle, so making craft global makes its agents available everywhere. `bindle global <name>` also installs the bindle's plugin at user scope (Claude Code's own mechanism), and `--off` removes it.
 - Decide first: whether its hooks should run in every session (or the hook stays quiet where the bindle isn't attached); how it interacts with a local-scope install where it's also attached (no double load); names become `<bindle>:<agent>`, so references by bare name change.
 - `doctor` reports a global bindle whose plugin isn't installed at user scope.
 - Cross-platform: manual check that a user-scope plugin's agents and skills load in a subagent-capable session on macOS, Windows and Linux. Contract-test assumption: a user-scope plugin's agents are available in every folder.
@@ -143,3 +143,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-25:** v0.35.0: sync pushes an explicit-writes bindle's commits (craft) and names its uncommitted edits; never commits there.
 - **2026-11-25:** v0.36.0: `bindle machine` (machine name in the registry, detected hardware, one line in the user `CLAUDE.md` block, refreshed by the session check).
 - **2026-11-25:** v0.36.1: `/bindle` explains the four parts (git-portable, domain-scoped, guarded boundaries, intentional movement), matching the README; measured before and after.
+- **2026-11-25:** v0.37.0: `bindle global` installs the bindle's plugin at user scope (agents, skills, commands, hooks everywhere) and locks an explicit-writes one everywhere; probed that a plugin on at both scopes loads once.

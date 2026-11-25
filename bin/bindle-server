@@ -88,9 +88,11 @@ TOOLS = [
     {
         "name": "global",
         "description": (
-            "Load a bindle's rules.md in every session and subagent, in every folder, through an import "
-            "in a marked block of the user CLAUDE.md (the rest of that file is left as it is). off=true "
-            "removes it. Takes effect in the next session."
+            "Turn a whole bindle on everywhere: its rules.md and memory index load in every session and "
+            "subagent through imports in a marked block of the user CLAUDE.md (the rest of that file is left "
+            "as it is), and its plugin (agents, skills, commands, hooks) is installed at user scope. An "
+            "explicit-writes bindle is also locked against edit tools everywhere. off=true undoes both. "
+            "Takes effect in the next session."
         ),
         "inputSchema": {
             "type": "object",

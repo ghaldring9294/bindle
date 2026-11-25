@@ -35,7 +35,7 @@ Explain what craft is in terms of what it does for them, not the mechanics:
 > "This creates a place for instructions that follow you everywhere — your preferences for how Claude works, your workflow rules, skills you build up over time. Think of it as a portable CLAUDE.md that loads in every session, every subagent, in any folder, on any machine where you clone it."
 
 1. Call the `new` tool: name=`craft`, at=`~/bindles/craft`, sync=false (no remote yet).
-2. Call `global` with bindle=`craft` — this imports craft's `rules.md` and memory index into the user `CLAUDE.md`, so they load everywhere.
+2. Call `global` with bindle=`craft` — this imports craft's `rules.md` and memory index into the user `CLAUDE.md` and installs its plugin at user scope, so its rules, agents and skills load everywhere.
 3. Name this machine: call `machine` with no name to get a suggestion, ask them for a short name (a select with the suggestion first), then call `machine` with it. Say why in one line: memories reach every machine, and the name lets Claude tell whether one applies here.
 
 Tell them: "Created your craft bindle and set it global. Let's put something in it so you can see it working."

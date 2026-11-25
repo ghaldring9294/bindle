@@ -13,7 +13,7 @@ from . import global_rules, machine
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, VERSION, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, bindles_home, domains, quote, ref, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, load_bindle,
+                   exclude_from_enclosing_repo, bindles_home, domains, quote, ref, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, user_settings_path, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json, write_text, version_tuple, from_newer_bindle)
 
@@ -88,10 +88,6 @@ def _cleanup_old_install(home):
         print(f"Removed {path}")
     if session_check_installed():
         set_session_check(False)
-
-
-def user_settings_path():
-    return Path.home() / ".claude" / "settings.json"
 
 
 def bindle_plugin_enabled(folder):

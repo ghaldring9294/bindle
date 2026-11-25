@@ -19,7 +19,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.36.1"
+VERSION = "0.37.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -232,6 +232,11 @@ def name_problems(b):
     if listed != [name]:
         found.append(f".claude-plugin/marketplace.json lists plugins {listed}, not ['{name}']")
     return [f"{name}: bindle.json says {name!r} but {f}; make the names agree (README: Renaming a bindle)" for f in found]
+
+
+def user_settings_path():
+    """The user settings.json beside the user CLAUDE.md: in $CLAUDE_CONFIG_DIR when set, else ~/.claude."""
+    return hooks().user_claude_md().parent / "settings.json"
 
 
 def plugin_id(b):
