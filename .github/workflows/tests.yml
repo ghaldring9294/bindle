@@ -27,6 +27,5 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Unit tests
+        # No PYTHONUTF8: on Windows the default encoding isn't UTF-8, so this job fails a read or write that forgets encoding="utf-8".
         run: python -m unittest discover -s tests -v
-        env:
-          PYTHONUTF8: "1"  # the tests write UTF-8 text with Python's defaults; the code itself always says utf-8

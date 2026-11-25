@@ -78,19 +78,19 @@ class BindleTest(unittest.TestCase):
         return f
 
     def settings(self, folder):
-        return json.loads((folder / ".claude" / "settings.local.json").read_text())
+        return json.loads((folder / ".claude" / "settings.local.json").read_text(encoding="utf-8"))
 
     def claude_calls(self):
-        return self.log.read_text().splitlines() if self.log.exists() else []
+        return self.log.read_text(encoding="utf-8").splitlines() if self.log.exists() else []
 
 
 class NewTest(BindleTest):
     def test_scaffolds_a_plugin_shaped_bindle_named_throughout(self):
         b = self.make_bindle("acme")
-        self.assertEqual(json.loads((b / "bindle.json").read_text()), {"name": "acme", "layout": 1, "sync": False, "audience": "private", "writes": "implicit",
+        self.assertEqual(json.loads((b / "bindle.json").read_text(encoding="utf-8")), {"name": "acme", "layout": 1, "sync": False, "audience": "private", "writes": "implicit",
                                                                    "bindle_version": bindle.core.VERSION})
-        self.assertEqual(json.loads((b / ".claude-plugin/plugin.json").read_text())["name"], "acme")
-        self.assertEqual(json.loads((b / ".claude-plugin/marketplace.json").read_text())["name"], "bindle-acme")
+        self.assertEqual(json.loads((b / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))["name"], "acme")
+        self.assertEqual(json.loads((b / ".claude-plugin/marketplace.json").read_text(encoding="utf-8"))["name"], "bindle-acme")
         for d in ["memory", "notes", "projects", "skills", "commands", "agents"]:
             self.assertTrue((b / d).is_dir(), d)
         self.assertNotIn("{{name}}", "".join(p.read_text(encoding="utf-8") for p in b.rglob("*") if p.is_file() and ".git" not in p.parts))
@@ -137,7 +137,7 @@ class EnclosingRepoTest(BindleTest):
         repo = self.project_repo()
         self.assertEqual(self.run_cli("new", "acme", "--at", repo / ".bindle")[0], 0)
         self.assertEqual(bindle.git(repo, "status", "--porcelain"), "")
-        self.assertIn("/.bindle/", (repo / ".git/info/exclude").read_text())
+        self.assertIn("/.bindle/", (repo / ".git/info/exclude").read_text(encoding="utf-8"))
         self.assertFalse((repo / ".gitignore").exists())
 
     def test_new_outside_a_repo_touches_nothing_else(self):
@@ -147,7 +147,7 @@ class EnclosingRepoTest(BindleTest):
     def test_doctor_flags_a_bindle_the_repo_would_commit(self):
         repo = self.project_repo()
         self.run_cli("new", "acme", "--at", repo / ".bindle")
-        (repo / ".git/info/exclude").write_text("")
+        (repo / ".git/info/exclude").write_text("", encoding="utf-8")
         self.run_cli("attach", repo / ".bindle", repo, "--writable")
         code, out = self.run_cli("doctor", repo)
         self.assertEqual(code, 1)
@@ -156,7 +156,7 @@ class EnclosingRepoTest(BindleTest):
     def test_doctor_flags_a_bindle_the_repo_already_tracks(self):
         repo = self.project_repo()
         self.run_cli("new", "acme", "--at", repo / ".bindle")
-        (repo / ".git/info/exclude").write_text("")
+        (repo / ".git/info/exclude").write_text("", encoding="utf-8")
         rmtree(repo / ".bindle/.git")
         bindle.git(repo, "add", "-A")
         self.run_cli("attach", repo / ".bindle", repo)
@@ -168,11 +168,11 @@ class EnclosingRepoTest(BindleTest):
     def test_a_demo_bindle_may_be_tracked(self):
         repo = self.project_repo()
         self.run_cli("new", "demo", "--at", repo / ".bindle")
-        (repo / ".git/info/exclude").write_text("")
+        (repo / ".git/info/exclude").write_text("", encoding="utf-8")
         rmtree(repo / ".bindle/.git")
-        meta = json.loads((repo / ".bindle/bindle.json").read_text())
+        meta = json.loads((repo / ".bindle/bindle.json").read_text(encoding="utf-8"))
         meta["demo"] = True
-        (repo / ".bindle/bindle.json").write_text(json.dumps(meta))
+        (repo / ".bindle/bindle.json").write_text(json.dumps(meta), encoding="utf-8")
         bindle.git(repo, "add", "-A")
         self.run_cli("attach", repo / ".bindle", repo)
         code, out = self.run_cli("doctor", repo)
@@ -183,13 +183,13 @@ class NotesTest(BindleTest):
     def test_scratch_notes_are_ignored_but_their_readme_is_kept(self):
         b = self.make_bindle("acme")
         self.assertIn("notes/scratch/README.md", bindle.git(b, "ls-files"))
-        (b / "notes/scratch/dump.txt").write_text("throwaway\n")
+        (b / "notes/scratch/dump.txt").write_text("throwaway\n", encoding="utf-8")
         self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
 
     def test_doctor_flags_a_secret_in_a_note(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        (b / "notes/logins.md").write_text("api_key = abcdefghijklmnopqrstuvwx\n")
+        (b / "notes/logins.md").write_text("api_key = abcdefghijklmnopqrstuvwx\n", encoding="utf-8")
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("notes/logins.md may hold a secret; move it to secure storage", out)
@@ -198,20 +198,20 @@ class NotesTest(BindleTest):
     def test_doctor_ignores_secrets_in_files_git_ignores(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        (b / "notes/scratch/tmp.md").write_text("token: abcdefghijklmnopqrstuvwx\n")
+        (b / "notes/scratch/tmp.md").write_text("token: abcdefghijklmnopqrstuvwx\n", encoding="utf-8")
         self.assertEqual(self.run_cli("doctor", f)[0], 0)
 
     def test_upgrade_adds_missing_ignore_rules_without_touching_the_bindles_own(self):
         b = self.make_bindle("acme")
-        (b / ".gitignore").write_text("*.out\n")
+        (b / ".gitignore").write_text("*.out\n", encoding="utf-8")
         (b / ".gitattributes").unlink()
         (b / "notes/scratch/README.md").unlink()  # made before these existed: never in its history
         bindle.git(b, "add", "-A"); bindle.git(b, "commit", "-q", "--amend", "-m", "an old bindle")
         self.run_cli("upgrade", b)
-        ignore = (b / ".gitignore").read_text()
+        ignore = (b / ".gitignore").read_text(encoding="utf-8")
         self.assertTrue(ignore.startswith("*.out\n"))
         self.assertIn("notes/scratch/*", ignore)
-        self.assertIn("merge=union", (b / ".gitattributes").read_text())
+        self.assertIn("merge=union", (b / ".gitattributes").read_text(encoding="utf-8"))
         self.assertTrue((b / "notes/scratch/README.md").exists())
         self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
 
@@ -351,7 +351,7 @@ class LockTest(BindleTest):
     def test_detach_removes_the_lock_and_leaves_other_rules(self):
         b, f = self.make_bindle("personal"), self.folder()
         (f / ".claude").mkdir()
-        (f / ".claude/settings.local.json").write_text(json.dumps({"permissions": {"deny": ["Bash(rm -rf:*)"]}}))
+        (f / ".claude/settings.local.json").write_text(json.dumps({"permissions": {"deny": ["Bash(rm -rf:*)"]}}), encoding="utf-8")
         self.run_cli("attach", b, f)
         self.run_cli("detach", "personal", f)
         self.assertEqual(self.deny(f), ["Bash(rm -rf:*)"])
@@ -361,7 +361,7 @@ class LockTest(BindleTest):
         self.run_cli("attach", b, f)
         s = self.settings(f)
         del s["permissions"]
-        (f / ".claude/settings.local.json").write_text(json.dumps(s))
+        (f / ".claude/settings.local.json").write_text(json.dumps(s), encoding="utf-8")
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("not locked against edits", out)
@@ -376,8 +376,8 @@ class RulesTest(BindleTest):
 
     def test_rules_load_whether_the_bindle_is_writable_or_read_only(self):
         acme, personal, f = self.make_bindle("acme"), self.make_bindle("personal"), self.folder()
-        (acme / "rules.md").write_text("Use Acme's ticket prefix.\n")
-        (personal / "rules.md").write_text("Prefer small PRs.\n")
+        (acme / "rules.md").write_text("Use Acme's ticket prefix.\n", encoding="utf-8")
+        (personal / "rules.md").write_text("Prefer small PRs.\n", encoding="utf-8")
         self.run_cli("attach", acme, f, "--writable")
         self.run_cli("attach", personal, f)
         self.assertIn("Use Acme's ticket prefix.", self.run_rules(acme, f))
@@ -388,7 +388,7 @@ class RulesTest(BindleTest):
     def test_doctor_flags_rules_too_long_for_the_hook(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        (b / "rules.md").write_text("x" * (bindle.RULES_LIMIT + 1))
+        (b / "rules.md").write_text("x" * (bindle.RULES_LIMIT + 1), encoding="utf-8")
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("rules.md is over", out)
@@ -426,7 +426,7 @@ class ReposTest(BindleTest):
     # The trust warning is about the bindle, not the folder; repeated once per repo it gets skimmed.
     def test_the_trust_warning_shows_once_across_repos(self):
         b, d = self.make_bindle("craft"), self.domain()
-        (b / ".mcp.json").write_text("{}\n")
+        (b / ".mcp.json").write_text("{}\n", encoding="utf-8")
         code, out = self.run_cli("attach", b, d, "--repos")
         self.assertEqual(code, 0, out)
         self.assertEqual(out.count("runs code on this machine"), 1, out)
@@ -450,7 +450,7 @@ class ReposTest(BindleTest):
     def test_bad_settings_in_one_repo_changes_nothing(self):
         b, d = self.make_bindle("acme"), self.domain()
         (d / "web" / ".claude").mkdir()
-        (d / "web" / ".claude" / "settings.local.json").write_text("{not json")
+        (d / "web" / ".claude" / "settings.local.json").write_text("{not json", encoding="utf-8")
         code, out = self.run_cli("attach", b, d, "--repos")
         self.assertEqual(code, 1)
         self.assertIn("isn't valid JSON", out)
@@ -541,7 +541,7 @@ class DoctorTest(BindleTest):
     def test_flags_a_hook_that_drifted_from_the_template(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f)
-        with open(b / "hooks/bindle_hook.py", "a") as h:
+        with open(b / "hooks/bindle_hook.py", "a", encoding="utf-8") as h:
             h.write("# local edit\n")
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
@@ -553,7 +553,7 @@ class DoctorTest(BindleTest):
     def test_reports_uncommitted_memories_and_a_missing_remote(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        (b / "memory" / "fact.md").write_text("x")
+        (b / "memory" / "fact.md").write_text("x", encoding="utf-8")
         _, out = self.run_cli("doctor", f)
         self.assertIn("1 uncommitted change(s)", out)
         self.assertIn("no remote", out)
@@ -579,7 +579,7 @@ class DoctorTest(BindleTest):
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 0, out)  # a warning, not a problem: a personal bindle may have nothing private
         self.assertIn("private-terms.txt lists no terms", out)
-        with open(b / "private-terms.txt", "a") as t:
+        with open(b / "private-terms.txt", "a", encoding="utf-8") as t:
             t.write("Acme\n")
         self.assertNotIn("private-terms.txt lists no terms", self.run_cli("doctor", f)[1])
 
@@ -595,7 +595,7 @@ class DoctorTest(BindleTest):
         self.run_cli("attach", b, f)
         self.assertNotIn("make the names agree", self.run_cli("doctor", f)[1])
         plugin = b / ".claude-plugin/plugin.json"
-        plugin.write_text(plugin.read_text().replace('"acme"', '"acme2"'))
+        plugin.write_text(plugin.read_text(encoding="utf-8").replace('"acme"', '"acme2"'), encoding="utf-8")
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 1)
         self.assertIn("plugin.json has name 'acme2'", out)
@@ -626,7 +626,7 @@ class InstallTest(BindleTest):
     def test_installs_the_cli_on_path(self):
         self.assertEqual(self.run_cli("install")[0], 0)
         if bindle.core.WINDOWS:
-            self.assertIn(str(bindle.BASE / "bin" / "bindle"), (self.home / ".local/bin/bindle.cmd").read_text())
+            self.assertIn(str(bindle.BASE / "bin" / "bindle"), (self.home / ".local/bin/bindle.cmd").read_text(encoding="utf-8"))
         else:
             self.assertEqual(os.readlink(self.home / ".local/bin/bindle"), str(bindle.BASE / "bin/bindle"))
         self.assertFalse((self.home / ".claude/commands/bindle.md").exists(),
@@ -639,9 +639,9 @@ class InstallTest(BindleTest):
     # A real file there is the person's own; replacing it would lose their work.
     def test_refuses_to_replace_a_real_file(self):
         (self.home / ".local/bin").mkdir(parents=True)
-        (self.home / ".local/bin/bindle").write_text("mine")
+        (self.home / ".local/bin/bindle").write_text("mine", encoding="utf-8")
         self.assertEqual(self.run_cli("install")[0], 1)
-        self.assertEqual((self.home / ".local/bin/bindle").read_text(), "mine")
+        self.assertEqual((self.home / ".local/bin/bindle").read_text(encoding="utf-8"), "mine")
 
     def link(self, dest, target):
         dest.parent.mkdir(parents=True, exist_ok=True)
@@ -670,7 +670,7 @@ class InstallTest(BindleTest):
         f = self.folder()
         self.assertIn("claude plugin install bindle@bindle", self.run_cli("doctor", f)[1])
         (self.home / ".claude").mkdir(exist_ok=True)
-        (self.home / ".claude/settings.json").write_text(json.dumps({"enabledPlugins": {"bindle@bindle": True}}))
+        (self.home / ".claude/settings.json").write_text(json.dumps({"enabledPlugins": {"bindle@bindle": True}}), encoding="utf-8")
         self.assertNotIn("bindle@bindle", self.run_cli("doctor", f)[1])
 
     def test_doctor_points_old_links_to_cleanup(self):
@@ -685,29 +685,29 @@ class NewerFilesTest(BindleTest):
     def test_an_older_bindle_refuses_to_upgrade_and_says_to_pull_instead(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        meta = json.loads((b / "bindle.json").read_text()); meta["bindle_version"] = "99.0.0"
-        (b / "bindle.json").write_text(json.dumps(meta))
-        with open(b / "hooks/run", "a") as fh:
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8")); meta["bindle_version"] = "99.0.0"
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8")
+        with open(b / "hooks/run", "a", encoding="utf-8") as fh:
             fh.write("# from bindle 99\n")
-        newer = (b / "hooks/run").read_text()
+        newer = (b / "hooks/run").read_text(encoding="utf-8")
         code, out = self.run_cli("doctor", f)
         self.assertIn("newer than this copy", out)
         self.assertNotIn("bindle upgrade acme", out)
         other = self.make_bindle("zeta")  # sorts after acme: a skip mustn't stop the rest
-        with open(other / "hooks/run", "a") as fh:
+        with open(other / "hooks/run", "a", encoding="utf-8") as fh:
             fh.write("# drifted\n")
         code, out = self.run_cli("upgrade", "--all")
         self.assertNotEqual(code, 0)  # skipping is reported, not silent
-        self.assertEqual((b / "hooks/run").read_text(), newer)
+        self.assertEqual((b / "hooks/run").read_text(encoding="utf-8"), newer)
         self.assertEqual((other / "hooks/run").read_bytes(), (bindle.TEMPLATE / "hooks/run").read_bytes())
         self.assertIn("were upgraded by a newer bindle elsewhere", self.run_cli("session-check", f)[1])
 
     def test_upgrade_records_the_version_that_wrote_the_files(self):
         b = self.make_bindle("acme")
-        with open(b / "hooks/run", "a") as fh:
+        with open(b / "hooks/run", "a", encoding="utf-8") as fh:
             fh.write("# drifted\n")
         self.run_cli("upgrade", b)
-        self.assertEqual(json.loads((b / "bindle.json").read_text())["bindle_version"], bindle.core.VERSION)
+        self.assertEqual(json.loads((b / "bindle.json").read_text(encoding="utf-8"))["bindle_version"], bindle.core.VERSION)
 
 
 class McpLaunchTest(unittest.TestCase):
@@ -785,7 +785,7 @@ class UpdateTest(InstallTest):
     def clone_pair(self):
         origin, clone = self.tmp / "origin", self.tmp / "clone"
         subprocess.run(["git", "init", "-q", str(origin)], check=True)
-        (origin / "f.txt").write_text("1\n")
+        (origin / "f.txt").write_text("1\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(origin), "add", "-A"], check=True)
         subprocess.run(["git", "-C", str(origin), "commit", "-qm", "one"], check=True)
         subprocess.run(["git", "clone", "-q", str(origin), str(clone)], check=True)
@@ -795,15 +795,15 @@ class UpdateTest(InstallTest):
     def test_pull_fast_forwards_a_clean_clone_and_refuses_a_dirty_one(self):
         from bindle import upgrade
         origin, clone = self.clone_pair()
-        (origin / "f.txt").write_text("2\n")
+        (origin / "f.txt").write_text("2\n", encoding="utf-8")
         subprocess.run(["git", "-C", str(origin), "commit", "-qam", "two"], check=True)
         self.assertTrue(upgrade.pull_bindle(clone))
-        self.assertEqual((clone / "f.txt").read_text(), "2\n")
+        self.assertEqual((clone / "f.txt").read_text(encoding="utf-8"), "2\n")
         self.assertFalse(upgrade.pull_bindle(clone))  # nothing new
-        (clone / "f.txt").write_text("mine\n")
+        (clone / "f.txt").write_text("mine\n", encoding="utf-8")
         with self.assertRaises(bindle.core.BindleError):
             upgrade.pull_bindle(clone)
-        self.assertEqual((clone / "f.txt").read_text(), "mine\n")
+        self.assertEqual((clone / "f.txt").read_text(encoding="utf-8"), "mine\n")
 
     # The first thing update says is whether bindle itself changed; buffered, it once came out after everything else.
     def test_update_reports_its_own_pull_before_the_upgrade_output(self):
@@ -822,7 +822,7 @@ class UpdateTest(InstallTest):
         subprocess.run(["git", "clone", "-q", "--bare", str(b), str(remote)], check=True)
         bindle.git(b, "remote", "add", "origin", str(remote))
         bindle.git(b, "push", "-q", "-u", "origin", "HEAD")
-        with open(b / "hooks/run", "a") as f:
+        with open(b / "hooks/run", "a", encoding="utf-8") as f:
             f.write("# older\n")
         bindle.git(b, "commit", "-qam", "older hook"); bindle.git(b, "push", "-q")
         head = bindle.git(remote, "rev-parse", "HEAD")
@@ -831,7 +831,7 @@ class UpdateTest(InstallTest):
         self.assertEqual((b / "hooks/run").read_bytes(), (bindle.TEMPLATE / "hooks/run").read_bytes())
         self.assertIn(f"git -C {b} push", out)
         self.assertEqual(bindle.git(remote, "rev-parse", "HEAD"), head)  # not pushed without --push
-        with open(b / "hooks/run", "a") as f:
+        with open(b / "hooks/run", "a", encoding="utf-8") as f:
             f.write("# older again\n")
         bindle.git(b, "commit", "-qam", "older again")
         code, out = self.run_cli("update", "--after-pull", "--push")
@@ -850,7 +850,7 @@ class UpdatePullsFirstTest(InstallTest):
         subprocess.run(["git", "clone", "-q", "--bare", str(self.laptop), str(self.remote)], check=True)
         bindle.git(self.laptop, "remote", "add", "origin", str(self.remote))
         bindle.git(self.laptop, "push", "-q", "-u", "origin", "HEAD")
-        with open(self.laptop / "hooks/run", "a") as f:
+        with open(self.laptop / "hooks/run", "a", encoding="utf-8") as f:
             f.write("# older\n")
         bindle.git(self.laptop, "commit", "-qam", "older hook"); bindle.git(self.laptop, "push", "-q")
         self.pc_home = self.tmp / "pc-bindles"
@@ -876,7 +876,7 @@ class UpdatePullsFirstTest(InstallTest):
 
     def test_a_bindle_that_cant_be_brought_up_to_date_isnt_upgraded(self):
         self.run_cli("update", "--after-pull", "--push")
-        (self.pc / "notes" / "pc.md").write_text("pc only\n")
+        (self.pc / "notes" / "pc.md").write_text("pc only\n", encoding="utf-8")
         bindle.git(self.pc, "add", "-A"); bindle.git(self.pc, "commit", "-qm", "pc note")  # diverged from the remote
         code, out = self.update_on_pc()
         self.assertEqual(code, 1)
@@ -886,20 +886,20 @@ class UpdatePullsFirstTest(InstallTest):
     # An uncommitted edit is someone's work in progress: a pull that would overwrite it must stop, leave it exactly
     # as it was, and skip the upgrade; an edit the pull doesn't touch is kept and doesn't block anything.
     def test_uncommitted_changes_are_kept_and_one_the_pull_would_overwrite_stops_the_upgrade(self):
-        (self.laptop / "rules.md").write_text("Laptop rule.\n")
+        (self.laptop / "rules.md").write_text("Laptop rule.\n", encoding="utf-8")
         bindle.git(self.laptop, "commit", "-qam", "laptop rule"); bindle.git(self.laptop, "push", "-q")
-        (self.pc / "rules.md").write_text("PC draft, not committed.\n")
+        (self.pc / "rules.md").write_text("PC draft, not committed.\n", encoding="utf-8")
         code, out = self.update_on_pc()
         self.assertEqual(code, 1)
         self.assertIn("acme: not upgraded", out)
-        self.assertEqual((self.pc / "rules.md").read_text(), "PC draft, not committed.\n")
-        (self.pc / "rules.md").write_text((self.laptop / "rules.md").read_text())  # resolved by hand
+        self.assertEqual((self.pc / "rules.md").read_text(encoding="utf-8"), "PC draft, not committed.\n")
+        (self.pc / "rules.md").write_text((self.laptop / "rules.md").read_text(encoding="utf-8"), encoding="utf-8")  # resolved by hand
         bindle.git(self.pc, "checkout", "-q", "--", "rules.md")
-        (self.pc / "notes" / "draft.md").write_text("unrelated, not committed\n")
+        (self.pc / "notes" / "draft.md").write_text("unrelated, not committed\n", encoding="utf-8")
         code, out = self.update_on_pc()
         self.assertEqual(code, 0, out)
-        self.assertEqual((self.pc / "notes" / "draft.md").read_text(), "unrelated, not committed\n")
-        self.assertEqual((self.pc / "rules.md").read_text(), "Laptop rule.\n")
+        self.assertEqual((self.pc / "notes" / "draft.md").read_text(encoding="utf-8"), "unrelated, not committed\n")
+        self.assertEqual((self.pc / "rules.md").read_text(encoding="utf-8"), "Laptop rule.\n")
 
 
 class SessionCheckTest(InstallTest):
@@ -915,7 +915,7 @@ class SessionCheckTest(InstallTest):
         self.run_cli("attach", self.acme, self.domain, "--writable")
 
     def user_settings(self):
-        return json.loads((self.home / ".claude" / "settings.json").read_text())
+        return json.loads((self.home / ".claude" / "settings.json").read_text(encoding="utf-8"))
 
     def hook(self, cwd):
         """Runs the installed hook command the way Claude Code does: through bash, with the session's JSON on stdin."""
@@ -927,7 +927,7 @@ class SessionCheckTest(InstallTest):
     def test_install_adds_one_hook_and_removing_it_leaves_everything_else(self):
         (self.home / ".claude").mkdir()
         mine = {"model": "opus", "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo mine"}]}]}}
-        (self.home / ".claude" / "settings.json").write_text(json.dumps(mine))
+        (self.home / ".claude" / "settings.json").write_text(json.dumps(mine), encoding="utf-8")
         self.run_cli("install", "--session-check")
         self.run_cli("install", "--session-check")  # again: still one
         groups = self.user_settings()["hooks"]["SessionStart"]
@@ -962,14 +962,14 @@ class SessionCheckTest(InstallTest):
     def test_a_broken_settings_file_keeps_the_hook_quiet(self):
         self.run_cli("install", "--session-check")
         (self.domain / "web" / ".claude").mkdir()
-        (self.domain / "web" / ".claude" / "settings.local.json").write_text("{not json")
+        (self.domain / "web" / ".claude" / "settings.local.json").write_text("{not json", encoding="utf-8")
         out = self.hook(self.domain / "web")
         self.assertEqual((out.returncode, out.stdout), (0, ""))
 
     # After `git pull` in bindle, every bindle keeps running its old hooks until upgraded; people forget that step.
     def test_every_session_names_bindles_due_for_an_upgrade_until_upgraded(self):
         self.run_cli("install", "--session-check")
-        with open(self.acme / "hooks/run", "a") as f:
+        with open(self.acme / "hooks/run", "a", encoding="utf-8") as f:
             f.write("# older copy\n")
         message = json.loads(self.hook(self.folder("downloads")).stdout)["systemMessage"]
         self.assertIn("bindle: acme needs an upgrade; bindle upgrade --all", message)
@@ -980,9 +980,9 @@ class SessionCheckTest(InstallTest):
     def test_doctor_asks_for_a_reattach_when_the_domain_isnt_recorded(self):
         self.run_cli("install", "--session-check")
         registry = self.tmp / "bindles" / "registry.json"
-        data = json.loads(registry.read_text())
+        data = json.loads(registry.read_text(encoding="utf-8"))
         data.pop("domains")
-        registry.write_text(json.dumps(data))
+        registry.write_text(json.dumps(data), encoding="utf-8")
         self.assertIn("doesn't know", self.run_cli("doctor", self.domain)[1])
         self.run_cli("attach", self.acme, self.domain, "--writable")
         self.assertNotIn("doesn't know", self.run_cli("doctor", self.domain)[1])
@@ -1028,7 +1028,7 @@ def example_commands(text):
 class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
-        readme = (bindle.BASE / "README.md").read_text()
+        readme = (bindle.BASE / "README.md").read_text(encoding="utf-8")
         parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "update", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check", "global"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
@@ -1101,7 +1101,7 @@ class DocsTest(unittest.TestCase):
     # /bindle is what Claude reads to operate bindle for someone; an operation missing there is one Claude
     # guesses at or doesn't know to offer. MCP tools cover most commands; install and session-check are CLI-only.
     def test_the_bindle_command_tells_claude_every_operation(self):
-        guide = (bindle.BASE / "commands" / "bindle.md").read_text()
+        guide = (bindle.BASE / "commands" / "bindle.md").read_text(encoding="utf-8")
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         mcp_tool_names = {"list", "doctor", "attach", "detach", "new", "sync", "update", "upgrade",
@@ -1125,8 +1125,8 @@ class UpgradeTest(BindleTest):
     def test_brings_a_drifted_or_old_bindle_up_to_date_and_commits(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f)
-        (b / "hooks/bindle_hook.py").write_text("# old\n")
-        (b / "hooks/lib.sh").write_text("# obsolete\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n", encoding="utf-8")
+        (b / "hooks/lib.sh").write_text("# obsolete\n", encoding="utf-8")
         (b / "AGENTS.md").unlink()  # made before AGENTS.md existed: never in its history
         bindle.git(b, "add", "-A")
         bindle.git(b, "commit", "-q", "--amend", "-m", "an old bindle")
@@ -1134,18 +1134,18 @@ class UpgradeTest(BindleTest):
         self.assertEqual(self.run_cli("upgrade", b)[0], 0)
         self.assertEqual((b / "hooks/bindle_hook.py").read_bytes(), (bindle.TEMPLATE / "hooks/bindle_hook.py").read_bytes())
         self.assertFalse((b / "hooks/lib.sh").exists())
-        self.assertIn("acme bindle", (b / "AGENTS.md").read_text())
+        self.assertIn("acme bindle", (b / "AGENTS.md").read_text(encoding="utf-8"))
         self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
         self.assertEqual(self.run_cli("doctor", f)[0], 0)
 
     # Upgrade owns only its files; a person's own edits must stay theirs.
     def test_never_overwrites_or_commits_the_bindles_own_files(self):
         b = self.make_bindle("acme")
-        (b / "README.md").write_text("my readme\n")
-        (b / "memory/fact.md").write_text("unsaved\n")
-        (b / "hooks/bindle_hook.py").write_text("# old\n")
+        (b / "README.md").write_text("my readme\n", encoding="utf-8")
+        (b / "memory/fact.md").write_text("unsaved\n", encoding="utf-8")
+        (b / "hooks/bindle_hook.py").write_text("# old\n", encoding="utf-8")
         self.run_cli("upgrade", b)
-        self.assertEqual((b / "README.md").read_text(), "my readme\n")
+        self.assertEqual((b / "README.md").read_text(encoding="utf-8"), "my readme\n")
         status = bindle.git(b, "status", "--porcelain")
         self.assertIn("README.md", status)
         self.assertIn("memory/fact.md", status)
@@ -1153,10 +1153,10 @@ class UpgradeTest(BindleTest):
 
     def test_dry_run_changes_nothing(self):
         b = self.make_bindle("acme")
-        (b / "hooks/bindle_hook.py").write_text("# old\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n", encoding="utf-8")
         code, out = self.run_cli("upgrade", b, "--dry-run")
         self.assertIn("update hooks/bindle_hook.py", out)
-        self.assertEqual((b / "hooks/bindle_hook.py").read_text(), "# old\n")
+        self.assertEqual((b / "hooks/bindle_hook.py").read_text(encoding="utf-8"), "# old\n")
 
     def test_an_up_to_date_bindle_gets_no_commit(self):
         b = self.make_bindle("acme")
@@ -1167,9 +1167,9 @@ class UpgradeTest(BindleTest):
 
     def test_refuses_a_bindle_from_a_newer_version(self):
         b = self.make_bindle("acme")
-        meta = json.loads((b / "bindle.json").read_text())
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8"))
         meta["layout"] = bindle.LAYOUT + 1
-        (b / "bindle.json").write_text(json.dumps(meta))
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8")
         code, out = self.run_cli("upgrade", b)
         self.assertEqual(code, 1)
         self.assertIn("Run bindle update", out)
@@ -1182,8 +1182,8 @@ class UpgradeTest(BindleTest):
         bindle.git(b, "remote", "add", "origin", str(remote)); bindle.git(b, "fetch", "-q", "origin")
         bindle.git(b, "branch", "-q", "-u", "origin/" + bindle.git(b, "rev-parse", "--abbrev-ref", "HEAD"))
         self.run_cli("attach", b, f)
-        (b / "hooks/bindle_hook.py").write_text("# old\n")
-        (b / "hooks/hooks.json").write_text("{}\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n", encoding="utf-8")
+        (b / "hooks/hooks.json").write_text("{}\n", encoding="utf-8")
         _, out = self.run_cli("doctor", f)
         self.assertIn(f"bindle upgrade craft && git -C {bindle.commands.quote(b)} push", out)
         self.assertEqual(out.count("bindle upgrade craft"), 1)
@@ -1193,7 +1193,7 @@ class UpgradeTest(BindleTest):
         self.run_cli("attach", acme, f, "--writable")
         self.run_cli("attach", personal, f)
         for b in (acme, personal):
-            (b / "hooks/bindle_hook.py").write_text("# old\n")
+            (b / "hooks/bindle_hook.py").write_text("# old\n", encoding="utf-8")
         cwd = os.getcwd()
         os.chdir(f)
         try:
@@ -1210,7 +1210,7 @@ class UpgradeKeepsDeletionsTest(BindleTest):
         b = self.make_bindle("acme")
         (b / "rules.md").unlink()
         bindle.git(b, "commit", "-qam", "no rules here")
-        with open(b / "hooks/run", "a") as fh:
+        with open(b / "hooks/run", "a", encoding="utf-8") as fh:
             fh.write("# drifted\n")
         self.run_cli("upgrade", b)
         self.assertFalse((b / "rules.md").exists())
@@ -1222,12 +1222,12 @@ class UpgradeAllTest(BindleTest):
         self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft")
         self.run_cli("new", "acme", "--at", self.tmp / "acme" / ".bindle")
         for root in (self.tmp / "bindles" / "craft", self.tmp / "acme" / ".bindle"):
-            with open(root / "hooks/bindle_hook.py", "a") as h:
+            with open(root / "hooks/bindle_hook.py", "a", encoding="utf-8") as h:
                 h.write("# stale\n")
         code, out = self.run_cli("upgrade", "--all")
         self.assertEqual(code, 0, out)
         for root in (self.tmp / "bindles" / "craft", self.tmp / "acme" / ".bindle"):
-            self.assertNotIn("# stale", (root / "hooks/bindle_hook.py").read_text())
+            self.assertNotIn("# stale", (root / "hooks/bindle_hook.py").read_text(encoding="utf-8"))
 
     def test_all_and_a_path_together_is_refused(self):
         self.assertEqual(self.run_cli("upgrade", "--all", self.tmp)[0], 1)
@@ -1245,7 +1245,7 @@ class SyncAllTest(BindleTest):
             bindle.git(root, "remote", "add", "origin", str(remote))
             bindle.git(root, "fetch", "-q", "origin")
             bindle.git(root, "branch", "-q", "-u", "origin/" + bindle.git(root, "rev-parse", "--abbrev-ref", "HEAD"))
-            (root / "memory" / "fact.md").write_text("a fact\n")
+            (root / "memory" / "fact.md").write_text("a fact\n", encoding="utf-8")
         code, out = self.run_cli("sync", "--all")
         self.assertEqual(code, 0, out)
         self.assertEqual(bindle.git(roots["acme"], "status", "--porcelain"), "")  # committed
@@ -1263,10 +1263,10 @@ class PromotionTest(BindleTest):
         super().setUp()
         self.acme = self.make_bindle("acme")
         self.personal = self.make_bindle("personal")
-        (self.acme / "private-terms.txt").write_text("# terms\nAcme\nACME-\nwidgetd\n")
+        (self.acme / "private-terms.txt").write_text("# terms\nAcme\nACME-\nwidgetd\n", encoding="utf-8")
         bindle.git(self.acme, "commit", "-qam", "terms")
         self.draft = self.tmp / "draft.md"
-        self.draft.write_text("---\nname: small-prs\ndescription: keep PRs small\ntype: feedback\nboundary: craft\n---\nKeep PRs small.\n")
+        self.draft.write_text("---\nname: small-prs\ndescription: keep PRs small\ntype: feedback\nboundary: craft\n---\nKeep PRs small.\n", encoding="utf-8")
 
     def add(self, *extra):
         return self.run_cli("outbox", "add", self.acme, self.draft, "--name", "small-prs", "--description", "keep PRs small", *extra)
@@ -1275,8 +1275,8 @@ class PromotionTest(BindleTest):
         self.assertEqual(self.add()[0], 0)
         code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
         self.assertEqual(code, 0, out)
-        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text())
-        self.assertIn("(small-prs.md) — keep PRs small", (self.personal / "memory/MEMORY.md").read_text())
+        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text(encoding="utf-8"))
+        self.assertIn("(small-prs.md) — keep PRs small", (self.personal / "memory/MEMORY.md").read_text(encoding="utf-8"))
         self.assertFalse((self.acme / "outbox/small-prs").exists())  # delivered: the outbox holds only what's waiting
         self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
         self.assertEqual(bindle.git(self.acme, "status", "--porcelain"), "")
@@ -1286,9 +1286,9 @@ class PromotionTest(BindleTest):
     def test_clean_removes_collected_items_and_keeps_waiting_ones(self):
         self.add()
         item = self.acme / "outbox/small-prs/item.json"
-        item.write_text(json.dumps({**json.loads(item.read_text()), "status": "collected", "collected_into": ["personal"]}))
+        item.write_text(json.dumps({**json.loads(item.read_text(encoding="utf-8")), "status": "collected", "collected_into": ["personal"]}), encoding="utf-8")
         bindle.git(self.acme, "commit", "-qam", "an item collected by an older bindle")
-        self.draft.write_text("Name things for what they do.\n")
+        self.draft.write_text("Name things for what they do.\n", encoding="utf-8")
         self.run_cli("outbox", "add", self.acme, self.draft, "--name", "naming")
         self.assertIn("would remove small-prs", self.run_cli("outbox", "clean", self.acme, "--dry-run")[1])
         self.assertTrue((self.acme / "outbox/small-prs").exists())
@@ -1338,8 +1338,8 @@ class PromotionTest(BindleTest):
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal,
                                  "--name", "small-prs", "--description", "keep PRs small")
         self.assertEqual(code, 0, out)
-        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text())
-        self.assertIn("(small-prs.md) — keep PRs small", (self.personal / "memory/MEMORY.md").read_text())
+        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text(encoding="utf-8"))
+        self.assertIn("(small-prs.md) — keep PRs small", (self.personal / "memory/MEMORY.md").read_text(encoding="utf-8"))
         self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")  # committed in the target
         self.assertFalse((self.acme / "outbox/small-prs").exists())  # nothing left waiting
         self.assertEqual(bindle.git(self.acme, "status", "--porcelain"), "")  # source untouched
@@ -1348,21 +1348,21 @@ class PromotionTest(BindleTest):
     def test_a_note_is_appended_to_the_targets_inbox_with_where_it_came_from(self):
         note = self.tmp / "note.md"
         for slug, text in (("invoice", "Send the March invoice.\n"), ("call-back", "Call back about the renewal.\n")):
-            note.write_text(text)
+            note.write_text(text, encoding="utf-8")
             code, out = self.run_cli("promote", self.acme, note, "--into", self.personal, "--kind", "note", "--name", slug)
             self.assertEqual(code, 0, out)
-        inbox = (self.personal / "notes/inbox.md").read_text()
+        inbox = (self.personal / "notes/inbox.md").read_text(encoding="utf-8")
         self.assertEqual(inbox.count("## "), 2)
         self.assertIn("from acme · invoice", inbox)
         self.assertIn("Send the March invoice.", inbox)
         self.assertIn("Call back about the renewal.", inbox)
-        self.assertNotIn("invoice", (self.personal / "memory/MEMORY.md").read_text() if (self.personal / "memory/MEMORY.md").exists() else "")
+        self.assertNotIn("invoice", (self.personal / "memory/MEMORY.md").read_text(encoding="utf-8") if (self.personal / "memory/MEMORY.md").exists() else "")
         self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
 
     # A note is text written in the source's session, so it's the likeliest way for the source's specifics to leak.
     def test_a_note_naming_the_source_domain_is_refused(self):
         note = self.tmp / "note.md"
-        note.write_text("Tell them how widgetd does retries.\n")
+        note.write_text("Tell them how widgetd does retries.\n", encoding="utf-8")
         code, out = self.run_cli("promote", self.acme, note, "--into", self.personal, "--kind", "note", "--name", "retries")
         self.assertEqual(code, 1)
         self.assertFalse((self.personal / "notes/inbox.md").exists())
@@ -1370,16 +1370,16 @@ class PromotionTest(BindleTest):
     # The target may be on another machine; the note waits in the outbox and is delivered there.
     def test_a_waiting_note_is_delivered_by_collect(self):
         note = self.tmp / "note.md"
-        note.write_text("Renew the domain.\n")
+        note.write_text("Renew the domain.\n", encoding="utf-8")
         self.run_cli("outbox", "add", self.acme, note, "--kind", "note", "--name", "renew")
         code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "renew")
         self.assertEqual(code, 0, out)
-        self.assertIn("Renew the domain.", (self.personal / "notes/inbox.md").read_text())
+        self.assertIn("Renew the domain.", (self.personal / "notes/inbox.md").read_text(encoding="utf-8"))
         self.assertFalse((self.acme / "outbox/renew").exists())
 
     # The same guard as the outbox: a draft that still names the source domain never reaches another bindle.
     def test_promote_refuses_a_draft_naming_the_domain_and_writes_nothing(self):
-        self.draft.write_text("Keep PRs small, like we do on widgetd.\n")
+        self.draft.write_text("Keep PRs small, like we do on widgetd.\n", encoding="utf-8")
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
         self.assertEqual(code, 1)
         self.assertIn("widgetd", out)
@@ -1387,7 +1387,7 @@ class PromotionTest(BindleTest):
 
     # The check is for ourselves: a named term is a prompt to think, and the person can decide it's fine.
     def test_a_private_term_can_be_allowed_on_purpose_but_only_that_term(self):
-        self.draft.write_text("Keep PRs small, like Acme does on widgetd.\n")
+        self.draft.write_text("Keep PRs small, like Acme does on widgetd.\n", encoding="utf-8")
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
         self.assertEqual(code, 1)
         self.assertIn("--allow <term>", out)
@@ -1400,7 +1400,7 @@ class PromotionTest(BindleTest):
 
     # A secret in git history can't be taken back, so it stays a hard stop whatever is allowed.
     def test_a_possible_secret_cannot_be_allowed(self):
-        self.draft.write_text("token = ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8" + "\n")
+        self.draft.write_text("token = ghp_" + "a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8" + "\n", encoding="utf-8")
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "tok",
                                  "--allow", "possible secret")
         self.assertEqual(code, 1)
@@ -1410,7 +1410,7 @@ class PromotionTest(BindleTest):
     # An item's own record of allowed terms is a claim any file write can make, so collect needs the person's
     # --allow again; outbox add prints the collect command with it, so the approved item still goes through.
     def test_terms_allowed_at_approval_must_be_allowed_again_at_collect(self):
-        self.draft.write_text("Keep PRs small, like Acme does.\n")
+        self.draft.write_text("Keep PRs small, like Acme does.\n", encoding="utf-8")
         code, out = self.run_cli("outbox", "add", self.acme, self.draft, "--name", "small-prs", "--allow", "Acme")
         self.assertEqual(code, 0, out)
         self.assertIn("--items small-prs --allow Acme", out)
@@ -1422,50 +1422,50 @@ class PromotionTest(BindleTest):
         self.assertIn("Keep PRs small, like Acme does.", out)  # the person sees exactly what crossed
 
     def test_promote_never_overwrites_something_in_the_target(self):
-        (self.personal / "memory/small-prs.md").write_text("mine\n")
+        (self.personal / "memory/small-prs.md").write_text("mine\n", encoding="utf-8")
         code, _ = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
         self.assertEqual(code, 1)
-        self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
+        self.assertEqual((self.personal / "memory/small-prs.md").read_text(encoding="utf-8"), "mine\n")
 
     # Improving a craft skill while using it in another domain is the natural moment; --replace allows it, on purpose only.
     def test_replace_updates_a_memory_without_a_second_index_line(self):
         self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--description", "keep PRs small")
-        self.draft.write_text("---\nname: small-prs\ndescription: keep PRs small\ntype: feedback\nboundary: craft\n---\nKeep PRs small and focused.\n")
+        self.draft.write_text("---\nname: small-prs\ndescription: keep PRs small\ntype: feedback\nboundary: craft\n---\nKeep PRs small and focused.\n", encoding="utf-8")
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--replace")
         self.assertEqual(code, 0, out)
-        self.assertIn("small and focused", (self.personal / "memory/small-prs.md").read_text())
-        self.assertEqual((self.personal / "memory/MEMORY.md").read_text().count("(small-prs.md)"), 1)
+        self.assertIn("small and focused", (self.personal / "memory/small-prs.md").read_text(encoding="utf-8"))
+        self.assertEqual((self.personal / "memory/MEMORY.md").read_text(encoding="utf-8").count("(small-prs.md)"), 1)
         self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
         self.assertIn("small and focused", bindle.git(self.personal, "show", "HEAD"))  # the update is its own commit
 
     # A file the new version of a skill dropped must not linger from the old one.
     def test_replace_swaps_a_whole_skill_folder(self):
         skill = self.tmp / "review" ; skill.mkdir()
-        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nv1\n")
-        (skill / "old.md").write_text("gone in v2\n")
+        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nv1\n", encoding="utf-8")
+        (skill / "old.md").write_text("gone in v2\n", encoding="utf-8")
         self.run_cli("promote", self.acme, skill, "--into", self.personal, "--kind", "skill", "--name", "review")
         (skill / "old.md").unlink()
-        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nv2\n")
+        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nv2\n", encoding="utf-8")
         self.assertEqual(self.run_cli("promote", self.acme, skill, "--into", self.personal, "--kind", "skill", "--name", "review", "--replace")[0], 0)
-        self.assertIn("v2", (self.personal / "skills/review/SKILL.md").read_text())
+        self.assertIn("v2", (self.personal / "skills/review/SKILL.md").read_text(encoding="utf-8"))
         self.assertFalse((self.personal / "skills/review/old.md").exists())
 
     # The person approves an update by seeing what changes; --dry-run gives Claude the exact diff to show.
     def test_dry_run_shows_the_diff_and_writes_nothing(self):
         self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
-        self.draft.write_text(self.draft.read_text().replace("Keep PRs small.", "Keep PRs tiny."))
+        self.draft.write_text(self.draft.read_text(encoding="utf-8").replace("Keep PRs small.", "Keep PRs tiny."), encoding="utf-8")
         code, out = self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--dry-run")
         self.assertEqual(code, 0, out)
         self.assertIn("-Keep PRs small.", out)
         self.assertIn("+Keep PRs tiny.", out)
-        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text())
+        self.assertIn("Keep PRs small.", (self.personal / "memory/small-prs.md").read_text(encoding="utf-8"))
 
     # The replacement still crosses the boundary, so it's checked like a first promotion.
     def test_replace_is_still_leak_checked(self):
         self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs")
-        self.draft.write_text("Keep PRs small, as on widgetd.\n")
+        self.draft.write_text("Keep PRs small, as on widgetd.\n", encoding="utf-8")
         self.assertEqual(self.run_cli("promote", self.acme, self.draft, "--into", self.personal, "--name", "small-prs", "--replace")[0], 1)
-        self.assertNotIn("widgetd", (self.personal / "memory/small-prs.md").read_text())
+        self.assertNotIn("widgetd", (self.personal / "memory/small-prs.md").read_text(encoding="utf-8"))
 
     def test_promote_finds_the_target_by_name(self):
         self.run_cli("new", "craft", "--at", self.tmp / "bindles" / "craft", "--writes", "explicit")
@@ -1485,25 +1485,25 @@ class PromotionTest(BindleTest):
 
     # The leak check is the structural guard: a draft that still names the domain never enters the outbox.
     def test_a_draft_naming_the_domain_is_refused(self):
-        self.draft.write_text("Keep PRs small, like we do on widgetd.\n")
+        self.draft.write_text("Keep PRs small, like we do on widgetd.\n", encoding="utf-8")
         code, out = self.add()
         self.assertEqual(code, 1)
         self.assertIn("widgetd", out)
         self.assertFalse((self.acme / "outbox/small-prs").exists())
 
     def test_terms_match_whole_words_case_insensitively(self):
-        self.draft.write_text("Ticket ACME-123 taught us this.\n")
+        self.draft.write_text("Ticket ACME-123 taught us this.\n", encoding="utf-8")
         self.assertEqual(self.add()[0], 1)
-        self.draft.write_text("Acmeological reasoning is fine.\n")
+        self.draft.write_text("Acmeological reasoning is fine.\n", encoding="utf-8")
         self.assertEqual(self.add()[0], 0)
 
     def test_a_ticket_prefix_term_matches_ticket_keys(self):
-        (self.acme / "private-terms.txt").write_text("PROJ-\n")
-        self.draft.write_text("Fixed in PROJ-4512.\n")
+        (self.acme / "private-terms.txt").write_text("PROJ-\n", encoding="utf-8")
+        self.draft.write_text("Fixed in PROJ-4512.\n", encoding="utf-8")
         self.assertEqual(self.add()[0], 1)
 
     def test_a_draft_that_looks_like_a_secret_is_refused(self):
-        self.draft.write_text("token: abcdefghijklmnopqrstuvwxyz123456\n")
+        self.draft.write_text("token: abcdefghijklmnopqrstuvwxyz123456\n", encoding="utf-8")
         code, out = self.add()
         self.assertEqual(code, 1)
         self.assertIn("possible secret", out)
@@ -1511,7 +1511,7 @@ class PromotionTest(BindleTest):
     # The outbox could be edited after approval; collect checks again at the moment of crossing.
     def test_collect_rechecks_an_outbox_item_edited_after_approval(self):
         self.add()
-        (self.acme / "outbox/small-prs/memory.md").write_text("Edited later to mention Acme.\n")
+        (self.acme / "outbox/small-prs/memory.md").write_text("Edited later to mention Acme.\n", encoding="utf-8")
         code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
         self.assertEqual(code, 1)
         self.assertFalse((self.personal / "memory/small-prs.md").exists())
@@ -1529,28 +1529,28 @@ class PromotionTest(BindleTest):
         code, out = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
         self.assertEqual(code, 1)  # delivered items leave the outbox, so there's nothing to deliver twice
         self.assertIn("Not in acme's outbox", out)
-        lines = [l for l in (self.personal / "memory/MEMORY.md").read_text().splitlines() if "small-prs" in l]
+        lines = [l for l in (self.personal / "memory/MEMORY.md").read_text(encoding="utf-8").splitlines() if "small-prs" in l]
         self.assertEqual(len(lines), 1)
 
     def test_a_skill_moves_as_a_folder(self):
         skill = self.tmp / "review-checklist"
         skill.mkdir()
-        (skill / "SKILL.md").write_text("---\nname: review-checklist\ndescription: x\n---\nCheck tests first.\n")
+        (skill / "SKILL.md").write_text("---\nname: review-checklist\ndescription: x\n---\nCheck tests first.\n", encoding="utf-8")
         self.assertEqual(self.run_cli("outbox", "add", self.acme, skill, "--kind", "skill", "--name", "review-checklist")[0], 0)
         self.assertEqual(self.run_cli("collect", self.acme, "--into", self.personal, "--items", "review-checklist")[0], 0)
-        self.assertIn("Check tests first.", (self.personal / "skills/review-checklist/SKILL.md").read_text())
+        self.assertIn("Check tests first.", (self.personal / "skills/review-checklist/SKILL.md").read_text(encoding="utf-8"))
 
     def test_never_overwrites_something_already_in_the_target(self):
         self.add()
-        (self.personal / "memory/small-prs.md").write_text("mine\n")
+        (self.personal / "memory/small-prs.md").write_text("mine\n", encoding="utf-8")
         code, _ = self.run_cli("collect", self.acme, "--into", self.personal, "--items", "small-prs")
         self.assertEqual(code, 1)
-        self.assertEqual((self.personal / "memory/small-prs.md").read_text(), "mine\n")
+        self.assertEqual((self.personal / "memory/small-prs.md").read_text(encoding="utf-8"), "mine\n")
 
 
 def registry_entries(tmp):
     path = tmp / "bindles" / "registry.json"
-    return json.loads(path.read_text())["bindles"] if path.exists() else {}
+    return json.loads(path.read_text(encoding="utf-8"))["bindles"] if path.exists() else {}
 
 
 class ListTest(BindleTest):
@@ -1572,7 +1572,7 @@ class ListTest(BindleTest):
     def test_a_domain_bindle_is_registered_and_found_by_name_anywhere(self):
         globex = self.tmp / "clients" / "globex" / ".bindle"
         self.run_cli("new", "globex", "--at", globex)
-        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text())["bindles"], {"globex": str(globex)})
+        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text(encoding="utf-8"))["bindles"], {"globex": str(globex)})
         f = self.folder()
         self.assertEqual(self.run_cli("attach", "globex", f)[0], 0)
         self.assertIn("globex", self.run_cli("list", self.folder("elsewhere"))[1])
@@ -1583,7 +1583,7 @@ class ListTest(BindleTest):
         self.run_cli("new", "acme", "--at", first)
         code, out = self.run_cli("new", "acme", "--at", second)
         self.assertIn("names must be unique", out)
-        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text())["bindles"]["acme"], str(first))
+        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text(encoding="utf-8"))["bindles"]["acme"], str(first))
 
     # A registered bindle that moved must be findable again, not stuck on its old path.
     def test_a_moved_bindle_is_shown_as_missing_then_re_registered_on_attach(self):
@@ -1594,7 +1594,7 @@ class ListTest(BindleTest):
         old.rename(new)
         self.assertIn("nothing is there now", self.run_cli("list", self.folder())[1])
         self.run_cli("attach", new, self.folder())
-        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text())["bindles"]["acme"], str(new))
+        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text(encoding="utf-8"))["bindles"]["acme"], str(new))
 
     # Bindles in the home folder are found by their folder; registering them too would leave two sources of truth.
     def test_bindles_in_the_home_folder_need_no_entry(self):
@@ -1630,7 +1630,7 @@ class TermsTest(BindleTest):
     # Suggesting what's already listed would bury the new candidates.
     def test_leaves_out_terms_already_listed(self):
         domain = self.make_domain()
-        with open(domain / ".bindle" / "private-terms.txt", "a") as t:
+        with open(domain / ".bindle" / "private-terms.txt", "a", encoding="utf-8") as t:
             t.write("ACME-WEB\nacme-\n")
         out = self.run_cli("terms", domain / ".bindle")[1]
         terms = [line.split()[0] for line in out.splitlines() if line.startswith("  ")]
@@ -1639,15 +1639,15 @@ class TermsTest(BindleTest):
     # It suggests; the person decides. Writing the file would put generic words in the leak check unasked.
     def test_never_writes_the_file(self):
         domain = self.make_domain()
-        before = (domain / ".bindle" / "private-terms.txt").read_text()
+        before = (domain / ".bindle" / "private-terms.txt").read_text(encoding="utf-8")
         self.run_cli("terms", domain / ".bindle")
-        self.assertEqual((domain / ".bindle" / "private-terms.txt").read_text(), before)
+        self.assertEqual((domain / ".bindle" / "private-terms.txt").read_text(encoding="utf-8"), before)
 
 
 class AudienceWritesTest(BindleTest):
     def test_new_records_audience_and_writes(self):
         self.run_cli("new", "craft", "--at", self.tmp / "craft", "--audience", "shared", "--writes", "explicit")
-        meta = json.loads((self.tmp / "craft/bindle.json").read_text())
+        meta = json.loads((self.tmp / "craft/bindle.json").read_text(encoding="utf-8"))
         self.assertEqual((meta["audience"], meta["writes"]), ("shared", "explicit"))
 
     # An explicit bindle only takes reviewed material; letting sessions write memories into it would bypass that.
@@ -1691,10 +1691,10 @@ class ReviewRegressionTest(BindleTest):
     # A crafted item.json could point collect at the source's private memories.
     def test_collect_refuses_an_item_pointing_outside_its_folder(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
-        (acme / "memory/private.md").write_text("private context\n")
+        (acme / "memory/private.md").write_text("private context\n", encoding="utf-8")
         item = acme / "outbox/evil"
         item.mkdir(parents=True)
-        (item / "item.json").write_text(json.dumps({"kind": "memory", "file": "../../memory/private.md", "status": "approved"}))
+        (item / "item.json").write_text(json.dumps({"kind": "memory", "file": "../../memory/private.md", "status": "approved"}), encoding="utf-8")
         code, out = self.run_cli("collect", acme, "--into", personal, "--items", "evil")
         self.assertEqual(code, 1)
         self.assertFalse((personal / "memory/evil.md").exists())
@@ -1703,18 +1703,18 @@ class ReviewRegressionTest(BindleTest):
     # private term through, and a description can't smuggle extra lines into the target's index.
     def test_a_hand_written_item_cant_allow_its_own_terms_or_inject_index_lines(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
-        (acme / "private-terms.txt").write_text("Acme\n")
+        (acme / "private-terms.txt").write_text("Acme\n", encoding="utf-8")
         item = acme / "outbox/billing"
         item.mkdir(parents=True)
-        (item / "memory.md").write_text("Acme bills on the 1st.\n")
+        (item / "memory.md").write_text("Acme bills on the 1st.\n", encoding="utf-8")
         sha = bindle.promote.content_hash(item / "memory.md")
         meta = {"kind": "memory", "file": "memory.md", "status": "approved", "sha256": sha, "allowed_terms": ["Acme"],
                 "description": "billing"}
-        (item / "item.json").write_text(json.dumps(meta))
+        (item / "item.json").write_text(json.dumps(meta), encoding="utf-8")
         self.assertEqual(self.run_cli("collect", acme, "--into", personal, "--items", "billing")[0], 1)
-        (item / "memory.md").write_text("Bills go out on the 1st.\n")
+        (item / "memory.md").write_text("Bills go out on the 1st.\n", encoding="utf-8")
         meta.update(sha256=bindle.promote.content_hash(item / "memory.md"), description="billing\n- [x](x.md) — injected")
-        (item / "item.json").write_text(json.dumps(meta))
+        (item / "item.json").write_text(json.dumps(meta), encoding="utf-8")
         code, out = self.run_cli("collect", acme, "--into", personal, "--items", "billing")
         self.assertEqual(code, 1)
         self.assertIn("single line", out)
@@ -1723,7 +1723,7 @@ class ReviewRegressionTest(BindleTest):
     # The person sees exactly what would cross before anything moves.
     def test_collect_dry_run_shows_the_content_and_moves_nothing(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
-        draft = self.tmp / "d.md"; draft.write_text("Small PRs review faster.\n")
+        draft = self.tmp / "d.md"; draft.write_text("Small PRs review faster.\n", encoding="utf-8")
         self.run_cli("outbox", "add", acme, draft, "--name", "small-prs")
         code, out = self.run_cli("collect", acme, "--into", personal, "--items", "small-prs", "--dry-run")
         self.assertEqual(code, 0, out)
@@ -1733,10 +1733,10 @@ class ReviewRegressionTest(BindleTest):
 
     def test_collect_refuses_an_item_that_was_never_approved(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
-        draft = self.tmp / "d.md"; draft.write_text("general\n")
+        draft = self.tmp / "d.md"; draft.write_text("general\n", encoding="utf-8")
         self.run_cli("outbox", "add", acme, draft, "--name", "lesson")
-        meta = json.loads((acme / "outbox/lesson/item.json").read_text()); meta["status"] = "draft"
-        (acme / "outbox/lesson/item.json").write_text(json.dumps(meta))
+        meta = json.loads((acme / "outbox/lesson/item.json").read_text(encoding="utf-8")); meta["status"] = "draft"
+        (acme / "outbox/lesson/item.json").write_text(json.dumps(meta), encoding="utf-8")
         code, out = self.run_cli("collect", acme, "--into", personal, "--items", "lesson")
         self.assertEqual(code, 1)
         self.assertIn("not approved", out)
@@ -1745,7 +1745,7 @@ class ReviewRegressionTest(BindleTest):
     def test_a_draft_containing_a_symlink_is_refused(self):
         acme = self.make_bindle("acme")
         skill = self.tmp / "review"; skill.mkdir()
-        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nok\n")
+        (skill / "SKILL.md").write_text("---\nname: review\ndescription: x\n---\nok\n", encoding="utf-8")
         try:
             (skill / "ref").symlink_to(acme / "memory", target_is_directory=True)
         except OSError:
@@ -1757,13 +1757,13 @@ class ReviewRegressionTest(BindleTest):
     # The leak check read only file contents; names and descriptions crossed unchecked.
     def test_the_leak_check_covers_name_description_and_file_names(self):
         acme = self.make_bindle("acme")
-        (acme / "private-terms.txt").write_text("widgetd\n")
-        draft = self.tmp / "d.md"; draft.write_text("general\n")
+        (acme / "private-terms.txt").write_text("widgetd\n", encoding="utf-8")
+        draft = self.tmp / "d.md"; draft.write_text("general\n", encoding="utf-8")
         self.assertEqual(self.run_cli("outbox", "add", acme, draft, "--name", "widgetd-prs")[0], 1)
         self.assertEqual(self.run_cli("outbox", "add", acme, draft, "--name", "prs", "--description", "how widgetd ships")[0], 1)
         skill = self.tmp / "deploy"; skill.mkdir()
-        (skill / "SKILL.md").write_text("---\nname: deploy\ndescription: x\n---\nok\n")
-        (skill / "widgetd-runbook.md").write_text("steps\n")
+        (skill / "SKILL.md").write_text("---\nname: deploy\ndescription: x\n---\nok\n", encoding="utf-8")
+        (skill / "widgetd-runbook.md").write_text("steps\n", encoding="utf-8")
         self.assertEqual(self.run_cli("outbox", "add", acme, skill, "--kind", "skill", "--name", "deploy")[0], 1)
 
     # The secret check was case-sensitive and missed common formats.
@@ -1778,10 +1778,10 @@ class ReviewRegressionTest(BindleTest):
 
     def test_sync_refuses_an_uppercase_api_key(self):
         b, f = self.make_bindle("acme"), self.folder()
-        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
-        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8")); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8"); bindle.git(b, "commit", "-qam", "sync on")
         self.run_cli("attach", b, f, "--writable")
-        (b / "memory/k.md").write_text("API_KEY=abcdefghijklmnopqrstuvwx1234\n")
+        (b / "memory/k.md").write_text("API_KEY=abcdefghijklmnopqrstuvwx1234\n", encoding="utf-8")
         head = bindle.git(b, "rev-parse", "HEAD")
         self.hook(b, f, "session-end")
         self.assertEqual(bindle.git(b, "rev-parse", "HEAD"), head)
@@ -1790,7 +1790,7 @@ class ReviewRegressionTest(BindleTest):
     def test_doctor_checks_notes_with_non_ascii_names(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        (b / "notes/café.md").write_text("token: abcdefghijklmnopqrstuvwx\n")
+        (b / "notes/café.md").write_text("token: abcdefghijklmnopqrstuvwx\n", encoding="utf-8")
         code, out = self.run_cli("doctor", f)
         self.assertIn("café.md may hold a secret", out)
 
@@ -1807,20 +1807,20 @@ class ReviewRegressionTest(BindleTest):
 
     def test_upgrade_stamps_a_missing_layout_instead_of_crashing(self):
         b = self.make_bindle("acme")
-        meta = json.loads((b / "bindle.json").read_text()); del meta["layout"]
-        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "old")
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8")); del meta["layout"]
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8"); bindle.git(b, "commit", "-qam", "old")
         self.assertEqual(self.run_cli("upgrade", b)[0], 0)
-        self.assertEqual(json.loads((b / "bindle.json").read_text())["layout"], bindle.LAYOUT)
+        self.assertEqual(json.loads((b / "bindle.json").read_text(encoding="utf-8"))["layout"], bindle.LAYOUT)
 
     # `git add -- memory outbox` failed when outbox/ was missing, so memories never synced.
     def test_memories_sync_when_the_outbox_folder_is_missing(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.with_remote(b)
-        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
-        (b / "bindle.json").write_text(json.dumps(meta))
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8")); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8")
         bindle.git(b, "rm", "-rq", "outbox"); bindle.git(b, "commit", "-qam", "no outbox"); bindle.git(b, "push", "-q")
         self.run_cli("attach", b, f, "--writable")
-        (b / "memory/fact.md").write_text("x\n")
+        (b / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(b, f, "session-end")
         self.assertEqual(bindle.git(b, "status", "--porcelain"), "")
         self.assertEqual(bindle.git(b, "rev-list", "--count", "@{upstream}..HEAD"), "0")
@@ -1828,13 +1828,13 @@ class ReviewRegressionTest(BindleTest):
     # The sync log was hard-coded under .git/, which is a file in a worktree.
     def test_sync_works_in_a_worktree(self):
         main = self.make_bindle("acme")
-        meta = json.loads((main / "bindle.json").read_text()); meta["sync"] = True
-        (main / "bindle.json").write_text(json.dumps(meta)); bindle.git(main, "commit", "-qam", "sync on")
+        meta = json.loads((main / "bindle.json").read_text(encoding="utf-8")); meta["sync"] = True
+        (main / "bindle.json").write_text(json.dumps(meta), encoding="utf-8"); bindle.git(main, "commit", "-qam", "sync on")
         wt = self.tmp / "acme-wt"
         bindle.git(main, "worktree", "add", "-q", "-b", "wt", str(wt))
         f = self.folder()
         self.run_cli("attach", wt, f, "--writable")
-        (wt / "memory/fact.md").write_text("x\n")
+        (wt / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(wt, f, "session-end")
         self.assertEqual(bindle.git(wt, "status", "--porcelain"), "")
 
@@ -1864,13 +1864,13 @@ class ReviewRegressionTest(BindleTest):
     def test_collect_writes_nothing_when_any_item_fails(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
         for n in ("one", "two"):
-            d = self.tmp / f"{n}.md"; d.write_text(f"{n}\n")
+            d = self.tmp / f"{n}.md"; d.write_text(f"{n}\n", encoding="utf-8")
             self.run_cli("outbox", "add", acme, d, "--name", n)
-        (acme / "outbox/two/memory.md").write_text("edited after approval\n")
+        (acme / "outbox/two/memory.md").write_text("edited after approval\n", encoding="utf-8")
         code, _ = self.run_cli("collect", acme, "--into", personal, "--items", "one,two")
         self.assertEqual(code, 1)
         self.assertFalse((personal / "memory/one.md").exists())
-        self.assertEqual(json.loads((acme / "outbox/one/item.json").read_text())["status"], "approved")
+        self.assertEqual(json.loads((acme / "outbox/one/item.json").read_text(encoding="utf-8"))["status"], "approved")
 
     def test_a_command_must_be_a_file(self):
         acme = self.make_bindle("acme")
@@ -1879,7 +1879,7 @@ class ReviewRegressionTest(BindleTest):
 
     def test_collect_with_a_missing_item_file_fails_cleanly(self):
         acme, personal = self.make_bindle("acme"), self.make_bindle("personal")
-        d = self.tmp / "d.md"; d.write_text("x\n")
+        d = self.tmp / "d.md"; d.write_text("x\n", encoding="utf-8")
         self.run_cli("outbox", "add", acme, d, "--name", "gone")
         (acme / "outbox/gone/memory.md").unlink()
         code, out = self.run_cli("collect", acme, "--into", personal, "--items", "gone")
@@ -1889,11 +1889,11 @@ class ReviewRegressionTest(BindleTest):
     # Sync committed into a rebase the person was in the middle of.
     def test_sync_skips_while_a_rebase_is_in_progress(self):
         b, f = self.make_bindle("acme"), self.folder()
-        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
-        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8")); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8"); bindle.git(b, "commit", "-qam", "sync on")
         self.run_cli("attach", b, f, "--writable")
         (Path(bindle.git(b, "rev-parse", "--absolute-git-dir")) / "rebase-merge").mkdir()
-        (b / "memory/fact.md").write_text("x\n")
+        (b / "memory/fact.md").write_text("x\n", encoding="utf-8")
         head = bindle.git(b, "rev-parse", "HEAD")
         self.hook(b, f, "session-end")
         self.assertEqual(bindle.git(b, "rev-parse", "HEAD"), head)
@@ -1906,7 +1906,7 @@ class ReviewRegressionTest(BindleTest):
         f = self.folder()
         self.run_cli("attach", b, f)
         (self.tmp / "bindles" / "registry.json").unlink()
-        (b / "hooks/bindle_hook.py").write_text("# old\n")
+        (b / "hooks/bindle_hook.py").write_text("# old\n", encoding="utf-8")
         _, out = self.run_cli("doctor", f)
         self.assertIn(f"bindle upgrade {bindle.commands.quote(b)}", out)
 
@@ -1927,7 +1927,7 @@ class PortabilityTest(BindleTest):
             self.run_cli("new", "craft", "--at", link / "craft")
             f = self.folder()
             self.run_cli("attach", "craft", f)
-            deny = json.loads((f / ".claude/settings.local.json").read_text())["permissions"]["deny"]
+            deny = json.loads((f / ".claude/settings.local.json").read_text(encoding="utf-8"))["permissions"]["deny"]
         finally:
             os.environ["BINDLE_HOME"] = self.env["BINDLE_HOME"]
         # Claude Code's form for both paths (on Windows, the drive as /c), as the lock writes it.
@@ -1954,8 +1954,8 @@ class TrustTest(BindleTest):
 
     def test_doctor_warns_about_extra_code_in_a_read_only_bindle_without_failing(self):
         b, f = self.make_bindle("craft"), self.folder()
-        (b / "hooks/telemetry.sh").write_text("curl example.com\n")
-        (b / ".mcp.json").write_text("{}\n")
+        (b / "hooks/telemetry.sh").write_text("curl example.com\n", encoding="utf-8")
+        (b / ".mcp.json").write_text("{}\n", encoding="utf-8")
         self.run_cli("attach", b, f)
         code, out = self.run_cli("doctor", f)
         self.assertEqual(code, 0, out)
@@ -1965,15 +1965,15 @@ class TrustTest(BindleTest):
 
     def test_plugin_json_hooks_and_servers_count_as_code(self):
         b = self.make_bindle("craft")
-        manifest = json.loads((b / ".claude-plugin/plugin.json").read_text())
+        manifest = json.loads((b / ".claude-plugin/plugin.json").read_text(encoding="utf-8"))
         manifest["mcpServers"] = {"x": {"command": "x"}}
-        (b / ".claude-plugin/plugin.json").write_text(json.dumps(manifest))
+        (b / ".claude-plugin/plugin.json").write_text(json.dumps(manifest), encoding="utf-8")
         self.assertIn("plugin.json declares mcpServers", bindle.core.extra_code(bindle.core.load_bindle(b)))
 
     # Your own writable bindle may carry your own tools; warning there would only be noise.
     def test_no_warning_for_the_writable_bindle(self):
         b, f = self.make_bindle("personal"), self.folder()
-        (b / "hooks/pixel.sh").write_text("echo hi\n")
+        (b / "hooks/pixel.sh").write_text("echo hi\n", encoding="utf-8")
         self.run_cli("attach", b, f, "--writable")
         self.assertNotIn("runs code on this machine", self.run_cli("doctor", f)[1])
 
@@ -1982,7 +1982,7 @@ class TrustTest(BindleTest):
 
     def test_attach_warns_and_still_attaches(self):
         b, f = self.make_bindle("craft"), self.folder()
-        (b / "hooks/extra.sh").write_text("echo\n")
+        (b / "hooks/extra.sh").write_text("echo\n", encoding="utf-8")
         code, out = self.run_cli("attach", b, f)
         self.assertEqual(code, 0)
         self.assertIn("runs code on this machine", out)
@@ -1991,15 +1991,15 @@ class TrustTest(BindleTest):
     # Someone with push access changes a shared bindle's hooks; the next session start says so before they run.
     def test_session_start_warns_when_a_pull_changes_code(self):
         b = self.make_bindle("craft")
-        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
-        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8")); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8"); bindle.git(b, "commit", "-qam", "sync on")
         remote = self.tmp / "craft.git"
         subprocess.run(["git", "clone", "-q", "--bare", str(b), str(remote)], check=True)
         bindle.git(b, "remote", "add", "origin", str(remote)); bindle.git(b, "fetch", "-q", "origin")
         bindle.git(b, "branch", "-q", "-u", "origin/" + bindle.git(b, "rev-parse", "--abbrev-ref", "HEAD"))
         other = self.tmp / "other"
         subprocess.run(["git", "clone", "-q", str(remote), str(other)], check=True)
-        (other / "hooks/new.sh").write_text("echo surprise\n")
+        (other / "hooks/new.sh").write_text("echo surprise\n", encoding="utf-8")
         bindle.git(other, "add", "-A"); bindle.git(other, "commit", "-qm", "new hook"); bindle.git(other, "push", "-q")
         f = self.folder()
         self.run_cli("attach", b, f)
@@ -2022,7 +2022,7 @@ class MemoryHookTest(BindleTest):
 
     def test_prints_the_index_where_the_bindle_is_read_only(self):
         b, f = self.make_bindle("personal"), self.folder()
-        (b / "memory/MEMORY.md").write_text("- [Fact](fact.md) — a personal fact\n")
+        (b / "memory/MEMORY.md").write_text("- [Fact](fact.md) — a personal fact\n", encoding="utf-8")
         self.run_cli("attach", b, f)
         out = self.run_hook(b, f)
         self.assertIn("Memory index from the personal bindle", out)
@@ -2033,14 +2033,14 @@ class MemoryHookTest(BindleTest):
     def test_mentions_inbox_notes_where_the_bindle_is_writable(self):
         b, f = self.make_bindle("personal"), self.folder()
         (b / "notes").mkdir(exist_ok=True)
-        (b / "notes/inbox.md").write_text("# Inbox\n\n## 2026-11-22 · from acme · invoice\n\nSend it.\n")
+        (b / "notes/inbox.md").write_text("# Inbox\n\n## 2026-11-22 · from acme · invoice\n\nSend it.\n", encoding="utf-8")
         self.run_cli("attach", b, f, "--writable")
         out = json.loads(self.run_hook(b, f))
         # Hook text reaches only Claude, which can't speak before the person does; the systemMessage is what they see.
         self.assertIn("1 note(s) from other domains waiting", out["systemMessage"])
         self.assertIn("has 1 note(s) sent from other domains", out["hookSpecificOutput"]["additionalContext"])
         self.assertIn("Bindle personal is on and writable", out["hookSpecificOutput"]["additionalContext"])
-        (b / "notes/inbox.md").write_text("# Inbox\n")
+        (b / "notes/inbox.md").write_text("# Inbox\n", encoding="utf-8")
         self.assertNotIn("sent from other domains", self.run_hook(b, f))
 
     # Someone says "add this to my personal bindle too"; without a pointer to promotion, Claude may just write
@@ -2055,7 +2055,7 @@ class MemoryHookTest(BindleTest):
     # Where it's writable, Claude Code loads the index itself; printing it again would duplicate it.
     def test_says_writable_without_repeating_the_index(self):
         b, f = self.make_bindle("personal"), self.folder()
-        (b / "memory/MEMORY.md").write_text("- [Fact](fact.md) — a personal fact\n")
+        (b / "memory/MEMORY.md").write_text("- [Fact](fact.md) — a personal fact\n", encoding="utf-8")
         self.run_cli("attach", b, f, "--writable")
         out = self.run_hook(b, f)
         self.assertIn("Bindle personal is on and writable", out)
@@ -2065,7 +2065,7 @@ class MemoryHookTest(BindleTest):
     # Notes aren't loaded; the session only needs to know where they are, and only where the bindle is writable.
     def test_points_to_notes_where_writable(self):
         b, f = self.make_bindle("acme"), self.folder()
-        (b / "notes/README.md").write_text("# Notes\n")
+        (b / "notes/README.md").write_text("# Notes\n", encoding="utf-8")
         self.run_cli("attach", b, f, "--writable")
         out = self.run_hook(b, f)
         self.assertIn("Notes for this domain are in", out)
@@ -2078,19 +2078,19 @@ class MemoryHookTest(BindleTest):
     def test_reminds_about_uncommitted_notes_where_writable(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        (b / "notes/todo.md").write_text("draft\n")
+        (b / "notes/todo.md").write_text("draft\n", encoding="utf-8")
         out = self.run_hook(b, f)
         self.assertIn("1 uncommitted change(s) (1 in notes)", out)
 
     # With sync on, memory/ commits itself at session end; reminding about it would be noise.
     def test_doesnt_count_what_sync_commits(self):
         b, f = self.make_bindle("acme"), self.folder()
-        meta = json.loads((b / "bindle.json").read_text()); meta["sync"] = True
-        (b / "bindle.json").write_text(json.dumps(meta)); bindle.git(b, "commit", "-qam", "sync on")
+        meta = json.loads((b / "bindle.json").read_text(encoding="utf-8")); meta["sync"] = True
+        (b / "bindle.json").write_text(json.dumps(meta), encoding="utf-8"); bindle.git(b, "commit", "-qam", "sync on")
         self.run_cli("attach", b, f, "--writable")
-        (b / "memory/fact.md").write_text("x\n")
+        (b / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.assertNotIn("uncommitted", self.run_hook(b, f))
-        (b / "rules.md").write_text("a rule\n")
+        (b / "rules.md").write_text("a rule\n", encoding="utf-8")
         self.assertIn("1 uncommitted change(s)", self.run_hook(b, f))
 
     def test_no_reminder_when_everything_is_committed(self):
@@ -2102,7 +2102,7 @@ class MemoryHookTest(BindleTest):
     def test_flags_a_secret_in_an_uncommitted_note(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
-        (b / "notes/logins.md").write_text("password: abcdefghijklmnopqrstuvwx\n")
+        (b / "notes/logins.md").write_text("password: abcdefghijklmnopqrstuvwx\n", encoding="utf-8")
         self.assertIn("notes/logins.md may hold a secret", self.run_hook(b, f))
 
     def test_says_nothing_about_notes_when_there_are_none(self):
@@ -2153,16 +2153,16 @@ class SyncTest(BindleTest):
 
     # The point of sync: a memory saved on one machine is there at the next session on the other.
     def test_a_memory_saved_on_one_machine_reaches_the_other(self):
-        (self.laptop / "memory/fact.md").write_text("ion cannon ready\n")
+        (self.laptop / "memory/fact.md").write_text("ion cannon ready\n", encoding="utf-8")
         self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-end.sh").returncode, 0)
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
-        self.assertEqual((self.desktop / "memory/fact.md").read_text(), "ion cannon ready\n")
+        self.assertEqual((self.desktop / "memory/fact.md").read_text(encoding="utf-8"), "ion cannon ready\n")
 
     # A pushed secret can't be taken back, so a suspicious memory is never committed; but one false match
     # mustn't stop every other memory from syncing, and the person has to hear about it.
     def test_holds_back_a_memory_that_looks_like_a_secret_and_syncs_the_rest(self):
-        (self.laptop / "memory/oops.md").write_text("api_key: abcdefghijklmnopqrstuvwx123456\n")
-        (self.laptop / "memory/fact.md").write_text("ion cannon ready\n")
+        (self.laptop / "memory/oops.md").write_text("api_key: abcdefghijklmnopqrstuvwx123456\n", encoding="utf-8")
+        (self.laptop / "memory/fact.md").write_text("ion cannon ready\n", encoding="utf-8")
         self.assertEqual(self.hook(self.laptop, self.laptop_folder, "session-end.sh").returncode, 0)
         pushed = bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD")
         self.assertIn("memory/fact.md", pushed)
@@ -2177,11 +2177,11 @@ class SyncTest(BindleTest):
     # and a secret committed by hand (as the session start suggests for other files) must still never be pushed.
     def test_project_memories_sync_and_a_committed_secret_is_never_pushed(self):
         (self.laptop / "projects/web").mkdir(parents=True)
-        (self.laptop / "projects/web/rate-limit.md").write_text("100 requests a minute\n")
+        (self.laptop / "projects/web/rate-limit.md").write_text("100 requests a minute\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
-        self.assertEqual((self.desktop / "projects/web/rate-limit.md").read_text(), "100 requests a minute\n")
-        (self.laptop / "projects/web/deploy.md").write_text("api_key = sk_live_abcdefghijklmnopqrstuvwx\n")
+        self.assertEqual((self.desktop / "projects/web/rate-limit.md").read_text(encoding="utf-8"), "100 requests a minute\n")
+        (self.laptop / "projects/web/deploy.md").write_text("api_key = sk_live_abcdefghijklmnopqrstuvwx\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("projects/web/deploy.md", self.run_cli("doctor", self.laptop_folder)[1])
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "by hand")
@@ -2190,9 +2190,9 @@ class SyncTest(BindleTest):
 
     # Nearly every session edits MEMORY.md; an unstaged edit once parsed as "emory/MEMORY.md" and stopped all sync.
     def test_an_edited_memory_index_syncs_with_new_memories(self):
-        with open(self.laptop / "memory/MEMORY.md", "a") as f:
+        with open(self.laptop / "memory/MEMORY.md", "a", encoding="utf-8") as f:
             f.write("- [Fact](fact.md) — a fact\n")
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         pushed = bindle.git(self.remote, "show", "HEAD:memory/MEMORY.md")
         self.assertIn("a fact", pushed)
@@ -2201,9 +2201,9 @@ class SyncTest(BindleTest):
     # Removing a secret in a later commit doesn't take it out of history; pushing both commits would leak it.
     def test_a_secret_committed_then_removed_is_never_pushed(self):
         head = bindle.git(self.remote, "rev-parse", "HEAD")
-        (self.laptop / "skills/deploy.md").write_text("key AKIAABCDEFGHIJKLMNOP\n")
+        (self.laptop / "skills/deploy.md").write_text("key AKIAABCDEFGHIJKLMNOP\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "oops")
-        (self.laptop / "skills/deploy.md").write_text("key in the vault\n")
+        (self.laptop / "skills/deploy.md").write_text("key in the vault\n", encoding="utf-8")
         bindle.git(self.laptop, "commit", "-qam", "fixed")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), head)
@@ -2214,24 +2214,24 @@ class SyncTest(BindleTest):
 
     # A run that fails early and then pulls ends its log with "pulled"; doctor must still see the failure.
     def test_doctor_reports_a_problem_from_earlier_in_the_last_run(self):
-        (self.laptop / "memory/oops.md").write_text("api_key: abcdefghijklmnopqrstuvwx123456\n")
+        (self.laptop / "memory/oops.md").write_text("api_key: abcdefghijklmnopqrstuvwx123456\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-start.sh")
         code, out = self.run_cli("doctor", self.laptop_folder)
         self.assertIn("held back, may hold a secret: memory/oops.md", out)
 
     # An uncommitted note the remote didn't touch mustn't stop memories syncing between machines.
     def test_an_unrelated_uncommitted_note_doesnt_stall_sync(self):
-        (self.desktop / "memory/from-desktop.md").write_text("d\n")
+        (self.desktop / "memory/from-desktop.md").write_text("d\n", encoding="utf-8")
         self.hook(self.desktop, self.desktop_folder, "session-end.sh")
-        (self.laptop / "notes/draft.md").write_text("v1\n")
+        (self.laptop / "notes/draft.md").write_text("v1\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "draft")
-        (self.laptop / "notes/draft.md").write_text("still editing\n")  # tracked, uncommitted
-        (self.laptop / "memory/from-laptop.md").write_text("l\n")
+        (self.laptop / "notes/draft.md").write_text("still editing\n", encoding="utf-8")  # tracked, uncommitted
+        (self.laptop / "memory/from-laptop.md").write_text("l\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         tree = bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD")
         self.assertIn("memory/from-laptop.md", tree)
         self.assertIn("memory/from-desktop.md", tree)
-        self.assertEqual((self.laptop / "notes/draft.md").read_text(), "still editing\n")
+        self.assertEqual((self.laptop / "notes/draft.md").read_text(encoding="utf-8"), "still editing\n")
         self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
 
     # Being offline is normal; flagging it at every session start would teach people to ignore the real ones.
@@ -2245,14 +2245,14 @@ class SyncTest(BindleTest):
         if os.name == "nt":
             self.skipTest("POSIX process groups")
         pidfile, script = self.tmp / "ssh.pid", self.tmp / "slow-ssh.sh"
-        script.write_text(f"#!/bin/sh\necho $$ > '{pidfile.as_posix()}'\nsleep 30\n")
+        script.write_text(f"#!/bin/sh\necho $$ > '{pidfile.as_posix()}'\nsleep 30\n", encoding="utf-8")
         script.chmod(0o755)
         subprocess.run(["git", "-C", str(self.laptop), "config", "core.sshCommand", f"sh '{script.as_posix()}'"], check=True)
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "ssh://nobody@127.0.0.1/remote.git"], check=True)
         hook = bindle.core.hooks()
         r = hook.git(self.laptop, "pull", "-q", "--ff-only", network=True)
         self.assertEqual(r.returncode, 124)
-        pid = int(pidfile.read_text())
+        pid = int(pidfile.read_text(encoding="utf-8"))
         import time
         time.sleep(0.5)
         with self.assertRaises(OSError):
@@ -2260,16 +2260,16 @@ class SyncTest(BindleTest):
 
     # Autostash once left conflict markers in an uncommitted note and stalled sync for good, silently.
     def test_never_rebases_over_uncommitted_notes_and_says_why_it_stopped(self):
-        (self.laptop / "notes/plan.md").write_text("v1\n")
+        (self.laptop / "notes/plan.md").write_text("v1\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "plan")
         bindle.git(self.laptop, "push", "-q")
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
-        (self.desktop / "notes/plan.md").write_text("desktop\n")
+        (self.desktop / "notes/plan.md").write_text("desktop\n", encoding="utf-8")
         bindle.git(self.desktop, "commit", "-qam", "desktop plan"); bindle.git(self.desktop, "push", "-q")
-        (self.laptop / "notes/plan.md").write_text("laptop\n")  # uncommitted
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "notes/plan.md").write_text("laptop\n", encoding="utf-8")  # uncommitted
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
-        self.assertEqual((self.laptop / "notes/plan.md").read_text(), "laptop\n")
+        self.assertEqual((self.laptop / "notes/plan.md").read_text(encoding="utf-8"), "laptop\n")
         self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
         code, out = self.run_cli("doctor", self.laptop_folder)
         self.assertEqual(code, 1)
@@ -2279,7 +2279,7 @@ class SyncTest(BindleTest):
     def test_a_read_only_bindle_is_pulled_but_never_pushed(self):
         f = self.folder("work")
         self.run_cli("attach", self.desktop, f)
-        (self.desktop / "skills/wip.md").write_text("do not push\n")
+        (self.desktop / "skills/wip.md").write_text("do not push\n", encoding="utf-8")
         bindle.git(self.desktop, "add", "-A"); bindle.git(self.desktop, "commit", "-qm", "WIP")
         head = bindle.git(self.remote, "rev-parse", "HEAD")
         self.hook(self.desktop, f, "session-start.sh")
@@ -2290,7 +2290,7 @@ class SyncTest(BindleTest):
     # Session end can't show anything, so the next session start does.
     def test_a_missing_remote_is_a_problem_shown_at_the_next_start_not_a_conflict(self):
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", str(self.tmp / "gone.git")], check=True)
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         last = bindle.core.last_sync(self.laptop)
         self.assertIn("problem:", last)
@@ -2300,9 +2300,9 @@ class SyncTest(BindleTest):
 
     # A rebase at session end can bring in someone's hook change; session end can't say so, so the next start must.
     def test_code_a_session_end_brought_in_is_shown_at_the_next_start(self):
-        (self.desktop / "hooks/extra.sh").write_text("echo hi\n")
+        (self.desktop / "hooks/extra.sh").write_text("echo hi\n", encoding="utf-8")
         bindle.git(self.desktop, "add", "-A"); bindle.git(self.desktop, "commit", "-qm", "hook"); bindle.git(self.desktop, "push", "-q")
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertTrue((self.laptop / "hooks/extra.sh").exists())  # the rebase brought it in
         start = json.loads(self.hook(self.laptop, self.laptop_folder, "session-start.sh").stdout)
@@ -2312,11 +2312,11 @@ class SyncTest(BindleTest):
     # A revoked key says "Could not read from remote" too; filing it as offline hid it for good.
     def test_a_rejected_key_is_a_problem_not_offline(self):
         script = self.tmp / "denied-ssh.sh"
-        script.write_text("#!/bin/sh\necho 'git@host: Permission denied (publickey).' >&2\nexit 255\n")
+        script.write_text("#!/bin/sh\necho 'git@host: Permission denied (publickey).' >&2\nexit 255\n", encoding="utf-8")
         script.chmod(0o755)
         subprocess.run(["git", "-C", str(self.laptop), "config", "core.sshCommand", f"sh '{script.as_posix()}'"], check=True)
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "ssh://git@127.0.0.1/remote.git"], check=True)
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("problem:", bindle.core.last_sync(self.laptop))
 
@@ -2337,20 +2337,20 @@ class SyncTest(BindleTest):
             self.assertEqual(hook.outgoing_secret_hits(self.laptop), [rel], rel)
             bindle.git(self.laptop, "reset", "-q", "--hard", head)
         bindle.git(self.laptop, "checkout", "-qb", "side")
-        (self.laptop / "memory/side.md").write_text("fine\n")
+        (self.laptop / "memory/side.md").write_text("fine\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "side")
         bindle.git(self.laptop, "checkout", "-q", "-")
         bindle.git(self.laptop, "merge", "-q", "--no-commit", "--no-ff", "side")
-        (self.laptop / "memory/merged.md").write_text(secret)
+        (self.laptop / "memory/merged.md").write_text(secret, encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "merge")
         self.assertIn("memory/merged.md", hook.outgoing_secret_hits(self.laptop))
 
     # The hook's own pattern list once looked like a credential, so every upgrade blocked all memory sync.
     def test_an_upgrade_then_a_session_end_still_pushes_memories(self):
-        (self.laptop / "hooks/bindle_hook.py").write_text("# an older hook\n")
+        (self.laptop / "hooks/bindle_hook.py").write_text("# an older hook\n", encoding="utf-8")
         bindle.git(self.laptop, "commit", "-qam", "older hook"); bindle.git(self.laptop, "push", "-q")
         self.run_cli("upgrade", self.laptop)
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("memory/fact.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"))
 
@@ -2358,14 +2358,14 @@ class SyncTest(BindleTest):
     # new; blocking the push for it would stop every memory over something already there.
     def test_only_content_the_remote_doesnt_have_is_checked(self):
         hook = bindle.core.hooks()
-        (self.desktop / "notes/example.md").write_text("example token = abcdefghijklmnop1234\n")
+        (self.desktop / "notes/example.md").write_text("example token = abcdefghijklmnop1234\n", encoding="utf-8")
         bindle.git(self.desktop, "add", "-A"); bindle.git(self.desktop, "commit", "-qm", "example"); bindle.git(self.desktop, "push", "-q")
-        (self.laptop / "memory/local.md").write_text("local\n")
+        (self.laptop / "memory/local.md").write_text("local\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "local")
         bindle.git(self.laptop, "pull", "-q", "--no-rebase", "--no-edit")  # a merge commit bringing the remote's file in
         self.assertEqual(hook.outgoing_secret_hits(self.laptop), [])
         bindle.git(self.laptop, "push", "-q")
-        with open(self.laptop / "notes/example.md", "a") as f:
+        with open(self.laptop / "notes/example.md", "a", encoding="utf-8") as f:
             f.write("a harmless second line\n")
         bindle.git(self.laptop, "commit", "-qam", "edit")
         self.assertEqual(hook.outgoing_secret_hits(self.laptop), [])
@@ -2373,12 +2373,12 @@ class SyncTest(BindleTest):
     # Rewriting the remote's history is how a leaked secret is removed; another machine's sync must not replay
     # the old commits onto it and push the secret back.
     def test_a_rewritten_remote_doesnt_get_old_commits_replayed(self):
-        (self.laptop / "notes/leak.md").write_text("pasted by mistake\n")
+        (self.laptop / "notes/leak.md").write_text("pasted by mistake\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "oops"); bindle.git(self.laptop, "push", "-q")
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
         self.assertTrue((self.desktop / "notes/leak.md").exists())
         bindle.git(self.laptop, "reset", "-q", "--hard", "HEAD~1"); bindle.git(self.laptop, "push", "-q", "--force")
-        (self.desktop / "memory/fact.md").write_text("x\n")
+        (self.desktop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         for step in ("session-end.sh", "session-start.sh", "session-end.sh", "session-start.sh"):  # not just once
             self.hook(self.desktop, self.desktop_folder, step)
             self.assertNotIn("leak.md", bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD"), step)
@@ -2386,7 +2386,7 @@ class SyncTest(BindleTest):
 
     # The same with nothing of this copy's own to push: the removed commit mustn't pass as local work.
     def test_a_rewritten_remote_stays_clean_when_this_copy_has_nothing_to_push(self):
-        (self.laptop / "notes/leak.md").write_text("pasted by mistake\n")
+        (self.laptop / "notes/leak.md").write_text("pasted by mistake\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "oops"); bindle.git(self.laptop, "push", "-q")
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
         bindle.git(self.laptop, "reset", "-q", "--hard", "HEAD~1"); bindle.git(self.laptop, "push", "-q", "--force")
@@ -2398,7 +2398,7 @@ class SyncTest(BindleTest):
     # "Offline" that lasts (a blocked port, a broken proxy) would otherwise keep memories on one machine silently.
     def test_doctor_warns_when_commits_havent_left_for_a_day(self):
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "http://127.0.0.1:9/remote.git"], check=True)
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A")
         subprocess.run(["git", "-C", str(self.laptop), "commit", "-qm", "old"], check=True,
                        env={**os.environ, "GIT_COMMITTER_DATE": "2000-01-01T00:00:00"})
@@ -2407,18 +2407,18 @@ class SyncTest(BindleTest):
 
     # A rename by the remote once hid an overlap, so autostash left conflict markers in a note.
     def test_an_uncommitted_edit_to_a_file_the_remote_renamed_stops_sync_cleanly(self):
-        (self.laptop / "notes/a.md").write_text("one\ntwo\nthree\nfour\n")
+        (self.laptop / "notes/a.md").write_text("one\ntwo\nthree\nfour\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "a"); bindle.git(self.laptop, "push", "-q")
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
         bindle.git(self.desktop, "mv", "notes/a.md", "notes/b.md")
-        (self.desktop / "notes/b.md").write_text("one\nTWO desktop\nthree\nfour\n")
+        (self.desktop / "notes/b.md").write_text("one\nTWO desktop\nthree\nfour\n", encoding="utf-8")
         bindle.git(self.desktop, "commit", "-qam", "rename"); bindle.git(self.desktop, "push", "-q")
-        (self.laptop / "notes/a.md").write_text("one\nTWO laptop\nthree\nfour\n")  # uncommitted
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "notes/a.md").write_text("one\nTWO laptop\nthree\nfour\n", encoding="utf-8")  # uncommitted
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
-        self.assertFalse((self.laptop / "notes/b.md").exists() and "<<<<<<<" in (self.laptop / "notes/b.md").read_text())
-        self.assertEqual((self.laptop / "notes/a.md").read_text(), "one\nTWO laptop\nthree\nfour\n")
+        self.assertFalse((self.laptop / "notes/b.md").exists() and "<<<<<<<" in (self.laptop / "notes/b.md").read_text(encoding="utf-8"))
+        self.assertEqual((self.laptop / "notes/a.md").read_text(encoding="utf-8"), "one\nTWO laptop\nthree\nfour\n")
         self.assertIn("problem:", bindle.core.last_sync(self.laptop))
 
     # A hook error once started a fresh log run, hiding that run's earlier problems from doctor.
@@ -2466,11 +2466,11 @@ class SyncTest(BindleTest):
     # Two accounts on one machine is usually a per-repo core.sshCommand; overriding it makes sync fail.
     def test_a_repos_own_ssh_command_is_used(self):
         marker, script = self.tmp / "ssh-used", self.tmp / "fake-ssh.sh"
-        script.write_text(f"#!/bin/sh\ntouch '{marker.as_posix()}'\nexit 1\n")
+        script.write_text(f"#!/bin/sh\ntouch '{marker.as_posix()}'\nexit 1\n", encoding="utf-8")
         script.chmod(0o755)
         subprocess.run(["git", "-C", str(self.laptop), "config", "core.sshCommand", f"sh '{script.as_posix()}'"], check=True)
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", "ssh://nobody@127.0.0.1/remote.git"], check=True)
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         env = {k: v for k, v in os.environ.items() if k != "GIT_SSH_COMMAND"}
         subprocess.run([sys.executable, str(self.laptop / "hooks/bindle_hook.py"), "session-end"], capture_output=True,
                        env={**env, "CLAUDE_PLUGIN_ROOT": str(self.laptop), "CLAUDE_PROJECT_DIR": str(self.laptop_folder)})
@@ -2479,7 +2479,7 @@ class SyncTest(BindleTest):
     # The outbox syncs too, so items prepared on one machine can be collected on another.
     def test_outbox_changes_sync_with_memories(self):
         (self.laptop / "outbox/item").mkdir(parents=True)
-        (self.laptop / "outbox/item/memory.md").write_text("general lesson\n")
+        (self.laptop / "outbox/item/memory.md").write_text("general lesson\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("outbox/item/memory.md", bindle.git(self.remote, "log", "--name-only", "--format="))
 
@@ -2487,21 +2487,21 @@ class SyncTest(BindleTest):
     # instead of stopping the rebase and leaving one machine's memory unpushed.
     def test_index_lines_added_on_two_machines_both_survive(self):
         for root, folder, n in ((self.laptop, self.laptop_folder, "a"), (self.desktop, self.desktop_folder, "b")):
-            (root / f"memory/{n}.md").write_text(f"{n}\n")
-            with open(root / "memory/MEMORY.md", "a") as f:
+            (root / f"memory/{n}.md").write_text(f"{n}\n", encoding="utf-8")
+            with open(root / "memory/MEMORY.md", "a", encoding="utf-8") as f:
                 f.write(f"- [{n}]({n}.md) — from {n}\n")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.hook(self.desktop, self.desktop_folder, "session-end.sh")
         self.hook(self.laptop, self.laptop_folder, "session-start.sh")
-        index = (self.laptop / "memory/MEMORY.md").read_text()
+        index = (self.laptop / "memory/MEMORY.md").read_text(encoding="utf-8")
         self.assertIn("from a", index)
         self.assertIn("from b", index)
         self.assertEqual(bindle.git(self.desktop, "rev-list", "--count", "@{upstream}..HEAD"), "0")
 
     # Skills and rules are deliberate commits; auto-sync must not ship half-finished work.
     def test_commits_only_memory(self):
-        (self.laptop / "memory/fact.md").write_text("x\n")
-        (self.laptop / "skills/draft.md").write_text("half done\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
+        (self.laptop / "skills/draft.md").write_text("half done\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("skills/draft.md", bindle.git(self.laptop, "status", "--porcelain"))
         self.assertNotIn("draft.md", bindle.git(self.remote, "log", "--name-only", "--format="))
@@ -2510,22 +2510,22 @@ class SyncTest(BindleTest):
     def test_session_end_does_nothing_where_the_bindle_is_read_only(self):
         f = self.folder("elsewhere")
         self.run_cli("attach", self.laptop, f)
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, f, "session-end.sh")
         self.assertIn("memory/fact.md", bindle.git(self.laptop, "status", "--porcelain"))
 
     def test_does_nothing_when_sync_is_off(self):
-        meta = json.loads((self.laptop / "bindle.json").read_text())
+        meta = json.loads((self.laptop / "bindle.json").read_text(encoding="utf-8"))
         meta["sync"] = False
-        (self.laptop / "bindle.json").write_text(json.dumps(meta))
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "bindle.json").write_text(json.dumps(meta), encoding="utf-8")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("memory/fact.md", bindle.git(self.laptop, "status", "--porcelain"))
 
     # Offline or unreachable remotes must never fail or block a session.
     def test_an_unreachable_remote_never_fails_the_hooks(self):
         subprocess.run(["git", "-C", str(self.laptop), "remote", "set-url", "origin", str(self.tmp / "gone.git")], check=True)
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         end = self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         start = self.hook(self.laptop, self.laptop_folder, "session-start.sh")
         self.assertEqual((end.returncode, start.returncode), (0, 0))
@@ -2534,7 +2534,7 @@ class SyncTest(BindleTest):
 
     # A session killed before SessionEnd leaves commits behind; the next start pushes them.
     def test_session_start_pushes_leftover_commits(self):
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A")
         bindle.git(self.laptop, "commit", "-q", "-m", "left behind")
         self.hook(self.laptop, self.laptop_folder, "session-start.sh")
@@ -2542,17 +2542,17 @@ class SyncTest(BindleTest):
 
     # Closing the Claude app can skip SessionEnd; the next session start must not leave those memories behind.
     def test_session_start_commits_memories_a_skipped_session_end_left(self):
-        (self.laptop / "memory/loose.md").write_text("written, never committed\n")
+        (self.laptop / "memory/loose.md").write_text("written, never committed\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-start.sh")
         self.assertEqual(bindle.git(self.laptop, "status", "--porcelain"), "")
         self.assertIn("memory/loose.md", bindle.git(self.remote, "log", "--name-only", "--format="))
 
     def test_bindle_sync_does_the_same_by_hand_even_with_sync_off(self):
-        meta = json.loads((self.laptop / "bindle.json").read_text())
+        meta = json.loads((self.laptop / "bindle.json").read_text(encoding="utf-8"))
         meta["sync"] = False
-        (self.laptop / "bindle.json").write_text(json.dumps(meta))
+        (self.laptop / "bindle.json").write_text(json.dumps(meta), encoding="utf-8")
         bindle.git(self.laptop, "commit", "-qam", "sync off")
-        (self.laptop / "memory/fact.md").write_text("x\n")
+        (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         code, out = self.run_cli("sync", self.laptop_folder)
         self.assertEqual(code, 0)
         self.assertIn("pushed", out)
@@ -2567,7 +2567,7 @@ class GlobalRulesTest(BindleTest):
     def setUp(self):
         super().setUp()
         self.craft = self.make_bindle("craft")
-        (self.craft / "rules.md").write_text("Prefer small PRs.\n")
+        (self.craft / "rules.md").write_text("Prefer small PRs.\n", encoding="utf-8")
         self.md = self.tmp / "claude-config" / "CLAUDE.md"
 
     def imports(self):
@@ -2602,7 +2602,7 @@ class GlobalRulesTest(BindleTest):
     # People run setup steps again on each machine; a second run must not add a second import or touch the file.
     def test_running_it_twice_changes_nothing(self):
         self.md.parent.mkdir()
-        self.md.write_text("mine\n")
+        self.md.write_text("mine\n", encoding="utf-8")
         self.run_cli("global", "craft")
         once = self.md.read_bytes()
         code, out = self.run_cli("global", "craft")
@@ -2615,7 +2615,7 @@ class GlobalRulesTest(BindleTest):
         self.run_cli("global", "craft")
         self.run_cli("global", personal)
         self.assertEqual(self.roots(), [self.craft, personal])
-        self.assertEqual(self.md.read_text().count("bindle global: start"), 1)
+        self.assertEqual(self.md.read_text(encoding="utf-8").count("bindle global: start"), 1)
         self.run_cli("global", "craft", "--off")
         self.assertEqual(self.roots(), [personal])
 
@@ -2654,7 +2654,7 @@ class GlobalRulesTest(BindleTest):
     def test_writes_through_a_linked_claude_md(self):
         real_file = self.tmp / "dotfiles" / "CLAUDE.md"
         real_file.parent.mkdir()
-        real_file.write_text("mine\n")
+        real_file.write_text("mine\n", encoding="utf-8")
         self.md.parent.mkdir()
         try:
             self.md.symlink_to(real_file)
@@ -2662,14 +2662,14 @@ class GlobalRulesTest(BindleTest):
             self.skipTest("symlinks need extra rights here")
         self.run_cli("global", "craft")
         self.assertTrue(self.md.is_symlink())
-        self.assertIn("craft", real_file.read_text())
+        self.assertIn("craft", real_file.read_text(encoding="utf-8"))
 
     # A user name with a space (common on Windows) must still give an import Claude Code reads as one path.
     def test_a_path_with_a_space_round_trips(self):
         code, out = self.run_cli("new", "spaced", "--at", self.tmp / "my bindles" / "spaced")
         self.assertEqual(code, 0, out)
         self.run_cli("global", self.tmp / "my bindles" / "spaced")
-        self.assertIn("my\\ bindles", self.md.read_text())
+        self.assertIn("my\\ bindles", self.md.read_text(encoding="utf-8"))
         self.assertTrue(bindle.core.hooks().imported_globally(self.tmp / "my bindles" / "spaced"))
 
     # Claude Code reads the user CLAUDE.md from $CLAUDE_CONFIG_DIR when it's set, else ~/.claude; writing anywhere
@@ -2707,7 +2707,7 @@ class GlobalRulesTest(BindleTest):
     # Where a global bindle is attached read-only, its hook showing the memory index too would load it twice.
     def test_the_hook_skips_a_memory_index_a_global_import_already_loads(self):
         f = self.folder()
-        (self.craft / "memory" / "MEMORY.md").write_text("- [small-prs](small-prs.md) — keep PRs small\n")
+        (self.craft / "memory" / "MEMORY.md").write_text("- [small-prs](small-prs.md) — keep PRs small\n", encoding="utf-8")
         self.run_cli("attach", "craft", f)
         env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(self.craft), "CLAUDE_PROJECT_DIR": str(f)}
         start = lambda: subprocess.run([sys.executable, str(self.craft / "hooks/bindle_hook.py"), "session-start"],
@@ -2720,13 +2720,13 @@ class GlobalRulesTest(BindleTest):
     def test_doctor_flags_a_block_from_an_older_bindle_and_running_global_again_fixes_it(self):
         self.md.parent.mkdir()
         self.md.write_text(f"mine\n\n{bindle.global_rules.HEADER}\n{bindle.core.hooks().import_line(self.craft / 'rules.md')}\n"
-                           f"{bindle.core.hooks().GLOBAL_END}\n")
+                           f"{bindle.core.hooks().GLOBAL_END}\n", encoding="utf-8")
         code, out = self.run_cli("doctor", self.folder())
         self.assertEqual(code, 1)
         self.assertIn("bindle global craft", out)
         self.run_cli("global", "craft")
         self.assertEqual(len(self.imports()), 2)
-        self.assertTrue(self.md.read_text().startswith("mine\n\n"))
+        self.assertTrue(self.md.read_text(encoding="utf-8").startswith("mine\n\n"))
         self.assertNotIn("isn't what this bindle writes", self.run_cli("doctor", self.folder())[1])
 
     # Global rules load into every session and subagent, so their size is paid many times over; but the hook's
@@ -2734,7 +2734,7 @@ class GlobalRulesTest(BindleTest):
     def test_doctor_warns_about_a_large_global_rules_md_instead_of_the_hook_cap(self):
         f = self.folder()
         self.run_cli("attach", "craft", f)
-        (self.craft / "rules.md").write_text("x" * (bindle.global_rules.GLOBAL_RULES_WARN + 1))
+        (self.craft / "rules.md").write_text("x" * (bindle.global_rules.GLOBAL_RULES_WARN + 1), encoding="utf-8")
         self.run_cli("global", "craft")
         out = self.run_cli("doctor", f)[1]
         self.assertIn("every session and subagent loads them", out)
@@ -2762,7 +2762,7 @@ class GlobalSyncTest(BindleTest):
         self.elsewhere = self.folder("elsewhere")
 
     def push_rule_from_the_other_machine(self, text):
-        (self.other / "rules.md").write_text(text)
+        (self.other / "rules.md").write_text(text, encoding="utf-8")
         bindle.git(self.other, "commit", "-qam", "new rule")
         bindle.git(self.other, "push", "-q")
 
@@ -2770,12 +2770,12 @@ class GlobalSyncTest(BindleTest):
     def test_a_session_anywhere_pulls_a_global_bindle(self):
         self.push_rule_from_the_other_machine("Write tests first.\n")
         self.run_cli("session-check", self.elsewhere)
-        self.assertEqual((self.craft / "rules.md").read_text(), "Write tests first.\n")
+        self.assertEqual((self.craft / "rules.md").read_text(encoding="utf-8"), "Write tests first.\n")
 
     # An explicit-writes bindle is never anyone's writable bindle: the session check must not commit or push to it.
     def test_the_pull_never_commits_or_pushes(self):
         head, remote_head = bindle.git(self.craft, "rev-parse", "HEAD"), bindle.git(self.remote, "rev-parse", "HEAD")
-        (self.craft / "memory" / "draft.md").write_text("half done\n")
+        (self.craft / "memory" / "draft.md").write_text("half done\n", encoding="utf-8")
         self.run_cli("session-check", self.elsewhere)
         self.assertEqual(bindle.git(self.craft, "rev-parse", "HEAD"), head)
         self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), remote_head)
@@ -2783,16 +2783,16 @@ class GlobalSyncTest(BindleTest):
     # A pull that fails leaves old rules in every session; the person must see it in the terminal.
     def test_a_failed_pull_is_shown(self):
         self.push_rule_from_the_other_machine("Remote rule.\n")
-        (self.craft / "rules.md").write_text("Local rule.\n")
+        (self.craft / "rules.md").write_text("Local rule.\n", encoding="utf-8")
         bindle.git(self.craft, "commit", "-qam", "local")  # diverged: a fast-forward is impossible
         out = self.run_cli("session-check", self.elsewhere)[1]
         self.assertIn("craft (global) sync problem", out)
 
     # With sync off nothing pulls it, so the person has to hear that the rules every session follows are stale.
     def test_a_global_bindle_with_sync_off_that_is_behind_is_named(self):
-        meta = json.loads((self.craft / "bindle.json").read_text())
+        meta = json.loads((self.craft / "bindle.json").read_text(encoding="utf-8"))
         meta["sync"] = False
-        (self.craft / "bindle.json").write_text(json.dumps(meta))
+        (self.craft / "bindle.json").write_text(json.dumps(meta), encoding="utf-8")
         bindle.git(self.craft, "commit", "-qam", "sync off")
         bindle.git(self.craft, "push", "-q")
         bindle.git(self.other, "pull", "-q")
@@ -2807,7 +2807,7 @@ class GlobalSyncTest(BindleTest):
         self.run_cli("attach", "craft", self.elsewhere)
         self.push_rule_from_the_other_machine("Not yet.\n")
         self.run_cli("session-check", self.elsewhere)
-        self.assertNotEqual((self.craft / "rules.md").read_text(), "Not yet.\n")
+        self.assertNotEqual((self.craft / "rules.md").read_text(encoding="utf-8"), "Not yet.\n")
 
 
 if __name__ == "__main__":
