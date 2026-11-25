@@ -2,9 +2,9 @@
 
 **Git-portable, domain-scoped Claude Code context.**
 
-bindle carries your Claude Code setup (skills, hooks, memory, notes and rules) between machines in git, while keeping each part of your life, such as personal projects, an employer or each client, in its own repo that never mixes with the others.
+Claude Code keeps context at two main levels: you (everything in `~/.claude`, on one machine) and each project. bindle adds a level between them, the **domain**: your personal projects, an employer, or one client, covering every project in it, and carried between machines in git.
 
-You keep one repo per domain, called a **bindle**. Each folder you launch Claude Code from turns on the bindles it needs. A work session can use your general tooling, but it can't write work context into your personal repo, and a client's knowledge never reaches another client's folder.
+Each domain's setup (skills, hooks, memory, notes and rules) lives in its own git repo, called a **bindle**, and the domains never mix. Each folder you launch Claude Code from turns on the bindles it needs. A work session can use your general tooling, but it can't write work context into your personal repo, and a client's knowledge never reaches another client's folder.
 
 Contents: [Install](#install) · [Getting started](#getting-started) · [How it works](#how-it-works) · [Everyday use](#everyday-use) · [Scenarios](#scenarios) · [Using the terminal](#using-the-terminal) · [Configuration](#configuration) · [Safety](#safety-and-boundaries) · [Updating](#updating) · [Troubleshooting](#troubleshooting) · [Limits](#limits)
 
