@@ -19,7 +19,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.32.0"
+VERSION = "0.32.1"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]

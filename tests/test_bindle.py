@@ -710,6 +710,29 @@ class NewerFilesTest(BindleTest):
         self.assertEqual(json.loads((b / "bindle.json").read_text())["bindle_version"], bindle.core.VERSION)
 
 
+class McpLaunchTest(unittest.TestCase):
+    # Claude Code starts MCP servers from the system PATH (cmd.exe on Windows), not Git Bash, and Git for
+    # Windows doesn't put bash on PATH: a command of "bash" there means the bindle tools never load and
+    # /bindle:onboard can't call them. bin/py must run on its own (shebang, exec bit) and have a Windows twin.
+    def test_mcp_server_starts_without_bash_on_path(self):
+        cfg = json.loads((bindle.BASE / ".mcp.json").read_text(encoding="utf-8"))["mcpServers"]["bindle"]
+        self.assertEqual(cfg["command"], "${CLAUDE_PLUGIN_ROOT}/bin/py")
+        self.assertTrue((bindle.BASE / "bin" / "py.cmd").is_file(), "no bin/py.cmd for Windows to find through PATHEXT")
+        self.assertTrue((bindle.BASE / "bin" / "py").read_text(encoding="utf-8").startswith("#!"))
+        mode = subprocess.run(["git", "-C", str(bindle.BASE), "ls-files", "-s", "bin/py"],
+                              capture_output=True, text=True).stdout.split()
+        if mode:  # in a git checkout: the exec bit is what lets macOS and Linux run bin/py directly
+            self.assertEqual(mode[0], "100755")
+
+    @unittest.skipUnless(os.name == "nt", "cmd.exe only")
+    def test_mcp_server_answers_initialize_through_cmd(self):
+        init = json.dumps({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+            "protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "t", "version": "0"}}})
+        root = str(bindle.BASE)
+        out = subprocess.run(f'cmd /d /s /c "{root}/bin/py {root}/bin/bindle-server"', input=init + "\n",
+                             capture_output=True, text=True, timeout=30).stdout
+        self.assertIn('"serverInfo"', out)
+
 class SecretShapesTest(unittest.TestCase):
     # The check runs in a 20s session-start hook; one long line (a hash, a minified blob) once took 40s.
     def test_a_long_line_is_checked_quickly(self):

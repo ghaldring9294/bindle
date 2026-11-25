@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-24, v0.32.0)
+## Where it stands (2026-11-24, v0.32.1)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -96,5 +96,6 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-24:** v0.29.0: `bindle global` (always-on rules through a user `CLAUDE.md` import), the hook's skip, the session check's pull, doctor's checks. Probed on macOS; Windows and Linux checks listed under Next steps.
 - **2026-11-24:** v0.31.0: `bindle update` pulls each bindle before upgrading it, so two machines no longer make competing upgrade commits. Actions minutes ran out on the private repo (0.31.0's run never started), so CI now runs on release tags, pull requests (not docs-only ones) and by hand, with one macOS job (3.9) instead of two.
 - **2026-11-24:** v0.30.0: `bindle global` imports the memory index too (probed: an imported index's relative links resolve in the main session and a subagent), so craft's as-needed lessons reach every session.
+- **2026-11-24:** v0.32.1: the MCP server starts on Windows: `.mcp.json` runs `bin/py` without `bash` (not on PATH there), and `bin/py.cmd` is its Windows twin.
 - **2026-11-24:** v0.32.0: `/bindle:onboard` skill and session-check nudge for new users; skills and commands renamed to drop the redundant `bindle-` prefix (`/bindle:promote`, `/bindle:onboard`, `/bindle:docs` instead of `bindle:bindle-promote`, etc.).
 - **2026-11-24:** v0.29.1: two Windows-only test failures fixed (present since before 0.28.0, found checking CI for 0.29.0).

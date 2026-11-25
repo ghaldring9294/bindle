@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.32.1 (2026-11-24)
+
+No upgrade needed. Run `/plugin update bindle` (or `bindle update`), then restart Claude Code.
+
+- **The MCP server starts on Windows.** The plugin started it as `bash bin/py …`, but Claude Code starts MCP servers from the Windows PATH, where Git for Windows doesn't put `bash`, so the bindle tools never loaded and `/bindle:onboard` couldn't call them. `.mcp.json` now runs `bin/py` directly; on Windows that finds the new `bin/py.cmd`, which picks a working Python the same way (skipping the Microsoft Store `python3` stub).
+
 ## 0.32.0 (2026-11-24)
 
 No upgrade needed.
