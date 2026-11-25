@@ -6,7 +6,7 @@ You (Claude Code) are moving this machine's existing Claude setup into bindles. 
 
 1. **Inventory before action.** Produce an inventory and a proposed mapping table, then wait for approval.
 2. **Nothing is deleted.** The old memory folders stay where they are until the person says they can go.
-3. **Secure-first.** Each item goes to exactly one bindle. When unsure, choose the domain bindle (employer or client), never personal. Personal receives only craft (methods, skills, habits), one item at a time, each the person's explicit call, rewritten without the domain's specifics.
+3. **Secure-first.** Each item goes to exactly one bindle. When unsure, choose the domain's own bindle, never one used in other folders. A bindle used across domains (a craft bindle) receives only general material (methods, skills, habits), one item at a time, each the person's explicit call, rewritten without the domain's specifics.
 4. **Remotes are the person's call.** Never add or push a remote. A work bindle goes only to storage the employer allows.
 5. **Ask choices as a select.** When the person picks from a few options (yes or no, which bindle, which kind, approve or edit or drop), ask with the AskUserQuestion tool so they can arrow through them: recommended option first, and the question names the item, since the dialog can hide what you wrote before it. Answers they have to type (a path, a name, private terms) stay plain questions, as does everything when that tool isn't available.
 
@@ -23,10 +23,10 @@ Then, for the domain:
 - `~/.claude/CLAUDE.md`: global rules, usually universal plus some domain rules
 - files `CLAUDE.md` tells Claude to read or write (a lessons folder, a notes index): they're memory in all but name and need a destination like any memory
 - `~/.claude/skills/`, `commands/`, `agents/`: tooling
-- `~/.claude/settings.json` hooks: note which are personal tools and which are domain ones
+- `~/.claude/settings.json` hooks: note which are general tools and which are domain ones
 - Notes folders the person points to
 
-Record, per item: path, one-line purpose, destination (`<domain bindle>`, `personal`, `stays put`, or `unsure`).
+Record, per item: path, one-line purpose, destination (`<domain bindle>`, `<craft bindle>`, `stays put`, or `unsure`).
 
 ## Step 2: Propose the mapping
 
@@ -39,7 +39,7 @@ Present the table. Flag every `unsure`. Wait for approval.
 2a. If `CLAUDE.md` tells Claude to save lessons or notes somewhere outside the bindles, update that rule to save into the writable bindle instead, or new material keeps landing outside it.
 3. Move tooling into the bindle's `skills/`, `commands/`, `agents/`. Remove the old hand-made link in `~/.claude/skills/` once the bindle is attached, or the skill shows up twice.
 3a. Move an existing notes folder into the bindle's `notes/` and leave a symlink at the old path, so every reference to the old path keeps working. Before committing, ignore anything that shouldn't be in git (query results that may hold real customer data, large exports) in the bindle's `.gitignore`, and run the secret check.
-4. Attach: `bindle attach <bindle> <folder> --writable` for the folder's own domain. Don't attach personal to an employer's or client's folder: its rules and memory index would show in that domain's sessions (README, "A read-only bindle is visible, not sealed"); a folder that's the person's own can have it read-only (`bindle attach <personal bindle> <folder>`). Also attach the domain's bindle, writable, to each repo inside it that the person starts sessions from (`bindle attach <bindle> <folder> --writable --repos` does the folder and every repo directly inside it). Recommend `bindle install --session-check`, which warns when a later session starts in a repo that was missed: a session started in a repo reads that repo's settings, not the domain folder's, so without this it gets none of the bindle and keeps writing to the old memory folder.
+4. Attach: `bindle attach <bindle> <folder> --writable` for the folder's own domain. Don't attach one domain's bindle to another domain's folder: its rules and memory index would show in that domain's sessions (README, "A read-only bindle is visible, not sealed"). A craft bindle, holding only general material, can be on read-only anywhere (`bindle attach <craft bindle> <folder>`), or everywhere with `bindle global <craft bindle>`. Also attach the domain's bindle, writable, to each repo inside it that the person starts sessions from (`bindle attach <bindle> <folder> --writable --repos` does the folder and every repo directly inside it). Recommend `bindle install --session-check`, which warns when a later session starts in a repo that was missed: a session started in a repo reads that repo's settings, not the domain folder's, so without this it gets none of the bindle and keeps writing to the old memory folder.
 5. Commit each bindle separately with a summary of what moved.
 
 ## Step 4: Verify
@@ -47,6 +47,6 @@ Present the table. Flag every `unsure`. Wait for approval.
 - `bindle doctor <folder>`: the right bindles are on, the right one is writable, no problems.
 - A fresh session started from the folder recalls a known memory and lists the bindle's skills (`<bindle>:<skill>`). So does one started from a repo inside it, if the person starts sessions there.
 - Every old memory folder found in step 1 is accounted for in the mapping: moved, merged into an existing memory, or left out on purpose.
-- The personal bindle contains nothing domain-specific.
+- The craft bindle contains nothing domain-specific.
 
 Report results and anything you couldn't classify.
