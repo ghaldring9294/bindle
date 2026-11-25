@@ -506,11 +506,13 @@ def cmd_sync(args):
     h = hooks()
     for b in bindles:
         # The same steps as the hooks, by hand and whether or not sync is on: commit and push the writable
-        # one, then pull every bindle that's on.
+        # one, push an explicit-writes one's commits, then pull every bindle that's on.
         print(f"{b['name']}:")
         log = h.Log(b["root"], echo=False)
         if is_writable(settings, b):
             h.sync_push(b["root"], log)
+        else:
+            h.push_explicit(b["root"], log)
         h.sync_pull(b["root"], log)
         for line in log.lines:
             print(f"  {line}")
@@ -518,8 +520,9 @@ def cmd_sync(args):
 
 
 def sync_all():
-    """Every bindle bindle can find: pull each; commit and push memory/, projects/ and outbox/ in those that can be a
-    folder's writable bindle. Explicit-writes bindles get no session writes (collect commits for them)."""
+    """Every bindle bindle can find: pull each; commit and push memory/, projects/, outbox/ and notes/ in those that
+    can be a folder's writable bindle. Explicit-writes bindles are never committed (promotion commits for them); their
+    commits are pushed."""
     found, missing = known_bindles()
     for name, path in missing:
         print(f"{name}: skipped, registered at {path} but nothing is there now")
@@ -531,6 +534,8 @@ def sync_all():
         log = h.Log(b["root"], echo=False)
         if b["writes"] == "implicit":
             h.sync_push(b["root"], log)
+        else:
+            h.push_explicit(b["root"], log)
         h.sync_pull(b["root"], log)
         for line in log.lines or ["up to date"]:
             print(f"  {line}")
@@ -601,7 +606,8 @@ def cmd_doctor(args):
         ahead = git(b["root"], "rev-list", "--count", "@{upstream}..HEAD")
         if ahead and ahead != "0":
             oldest = (git(b["root"], "log", "--reverse", "--format=%ct", "@{upstream}..HEAD") or "0").splitlines()[0]
-            if b["writes"] == "explicit" or b["name"] not in domains().values():  # a promotion into craft, say
+            # Craft with sync on is pushed by sessions; otherwise nothing pushes a bindle no folder writes to.
+            if (b["writes"] == "explicit" and not b["sync"]) or (b["writes"] != "explicit" and b["name"] not in domains().values()):
                 warnings.append(f"{b['name']} has {ahead} commit(s) not pushed, and it isn't writable in any folder, so "
                                 f"no session pushes it: git -C {quote(str(b['root']))} push")
             elif time.time() - int(oldest) > 86400:  # "offline" that lasts a day is likely a blocked port or a proxy

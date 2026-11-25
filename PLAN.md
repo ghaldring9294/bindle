@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-25, v0.34.0)
+## Where it stands (2026-11-25, v0.35.0)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -52,8 +52,8 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **Not planned:** a `machine:` frontmatter filter. With the machine named and detected, Claude judges whether a memory applies; revisit only if that proves unreliable.
 - Cross-platform: detection unit-tested on all three OSes; manual check that the line reaches a subagent on Windows and Linux. Contract-test assumption: the user `CLAUDE.md` block's plain text reaches the main session and subagents.
 
-**Planned (2026-11-25): sync pushes craft, never commits it.** Found in real use: a spec file was written into craft from a folder where only personal was writable and committed by hand; `sync --all` said only "craft: pulled", which hid the uncommitted edits. Decided (David, 2026-11-25): craft is the toolset he carries everywhere, so committing to it stays deliberate, but sync should push what was committed.
-- **Push existing commits:** for an `explicit`-writes bindle, sync pushes local commits (through `push_leftovers`, with its secret check) and never runs `git add` or `git commit`. Today `sync_pull` never pushes a read-only bindle; it only warns when the remote has diverged. This changes the "pull only" line under `bindle global` above and the matching text in docs/design.md.
+**Done (2026-11-25, v0.35.0): sync pushes craft, never commits it.** Found in real use: a spec file was written into craft from a folder where only personal was writable and committed by hand; `sync --all` said only "craft: pulled", which hid the uncommitted edits. Decided (David, 2026-11-25): craft is the toolset he carries everywhere, so committing to it stays deliberate, but sync should push what was committed.
+- **Push existing commits:** for an `explicit`-writes bindle, sync pushes local commits (through `push_leftovers`, with its secret check) and never runs `git add` or `git commit`. Before, `sync_pull` never pushed a read-only bindle. Built as `push_explicit` in the hook, called by `bindle sync`, `sync --all`, the hook's session start and the global session check; the "pull only" line under `bindle global` above is superseded.
 - **Warn on uncommitted edits:** sync and the session check say "craft: N uncommitted change(s), not committed by sync; commit them on purpose" instead of a bare "pulled".
 - Unit-tested on all three OSes: pushes commits, leaves the working tree uncommitted, and the warning names the count.
 
@@ -140,3 +140,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-25:** v0.32.2: the bindle-demo repo retired (onboarding supersedes it); doctor's `"demo": true` exemption from the tracked-by-repo check removed with it. Machine awareness planned.
 - **2026-11-25:** v0.33.0: promotion reaches anything in a bindle (`--kind file`, `--remove`), and Claude reaches for it by the target (any change to a read-only bindle such as craft). Found when machine specs were written straight into craft. Planned: sync pushes craft's commits and warns about uncommitted edits.
 - **2026-11-25:** v0.34.0: sync commits `notes/` (scratch stays local; a secret-looking note is held back like a memory). The v0.33.0 promotion measure passed (2/2 runs).
+- **2026-11-25:** v0.35.0: sync pushes an explicit-writes bindle's commits (craft) and names its uncommitted edits; never commits there.

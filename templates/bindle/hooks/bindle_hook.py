@@ -59,6 +59,10 @@ def sync_enabled(root):
     return read_json(Path(root) / "bindle.json").get("sync") is True
 
 
+def explicit_writes(root):
+    return read_json(Path(root) / "bindle.json").get("writes") == "explicit"
+
+
 def writable_here(root, project_dir):
     """True when the folder the session started in writes its memories into this bindle."""
     memory_dir = read_json(Path(project_dir) / ".claude" / "settings.local.json").get("autoMemoryDirectory")
@@ -290,7 +294,7 @@ class Log:
 
 
 def sync_pull(root, log):
-    """Pull the bindle's latest, fast-forward only; never push (only sync_push does, in the writable bindle)."""
+    """Pull the bindle's latest, fast-forward only; never push (sync_push and push_explicit do)."""
     if operation_in_progress(root):
         return log.say("pull: a merge or rebase is in progress; skipped", problem=True)
     if not has_upstream(root):
@@ -333,6 +337,19 @@ def sync_push(root, log):
         if git(root, "add", "-A", "--", *ready).returncode != 0 or git(root, "commit", "-q", "-m", message, "--", *ready).returncode != 0:
             return log.say("commit failed", problem=True)
         log.say("committed memory and note changes")
+    push_leftovers(root, log)
+
+
+def push_explicit(root, log):
+    """An explicit-writes bindle (craft) is committed only on purpose (a promotion, by hand) and no folder writes to
+    it, so nothing else pushes its commits; sync pushes them but never commits. Uncommitted edits are named, so a
+    half-done change isn't mistaken for synced."""
+    if not explicit_writes(root) or operation_in_progress(root):  # sync_pull reports an operation in progress
+        return
+    pending = changed_paths(root)
+    if pending:
+        log.say(f"{len(pending)} uncommitted change(s), not committed by sync; commit them on purpose "
+                f"(git -C {root} status)", problem=True)
     push_leftovers(root, log)
 
 
@@ -584,6 +601,8 @@ def main(argv):
                     # A session that ended without SessionEnd (a closed app, a killed terminal) leaves memories
                     # uncommitted; commit and push them before anything else.
                     sync_push(root, log)
+                else:
+                    push_explicit(root, log)
                 sync_pull(root, log)
             after = git_out(root, "rev-parse", "HEAD")
             if before and after and before != after:  # code the remote brought in, by a pull or a rebase

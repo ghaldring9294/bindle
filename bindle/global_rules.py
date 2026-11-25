@@ -186,8 +186,8 @@ def doctor_report():
 
 
 def session_lines(root):
-    """What the session check says about global bindles, after pulling each that has sync on (pull only: nothing is
-    committed or pushed). A global bindle's own hook runs only where it's attached, so nothing else keeps it current.
+    """What the session check says about global bindles, after pulling each that has sync on (nothing is committed;
+    an explicit-writes one's commits are pushed). A global bindle's own hook runs only where it's attached, so nothing else keeps it current.
     One attached in this session's folder is left to its own hook, which pulls it now too."""
     h, out = hooks(), []
     settings = read_json(settings_path(root))
@@ -209,6 +209,7 @@ def session_lines(root):
         log = h.Log(b["root"])
         log.path = None  # keep the bindle's sync log for its own hooks' runs, whose problems it reports
         before = h.git_out(b["root"], "rev-parse", "HEAD")
+        h.push_explicit(b["root"], log)
         h.sync_pull(b["root"], log)
         after = h.git_out(b["root"], "rev-parse", "HEAD")
         out += [f"bindle: {name} sync problem: {l[len('problem: '):]}" for l in log.lines if l.startswith("problem: ")]

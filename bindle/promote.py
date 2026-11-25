@@ -310,10 +310,11 @@ def remove_from(source, target, args):
 
 
 def push_hint(target):
-    """Sync pushes a bindle only from a session where it's writable; a promotion into one that's read-only
-    everywhere (craft, say) waits until someone pushes it."""
-    return (f"Push {target['name']} when ready so other machines get it: git -C {quote(str(target['root']))} push "
-            f"(sync pushes it only from a session where it's writable).")
+    """Sync pushes an explicit-writes bindle's commits (craft, say) when sync is on; otherwise only from a session
+    where it's writable."""
+    when = ("the next session start pushes it, since it takes explicit writes and has sync on"
+            if target["writes"] == "explicit" and target["sync"] else "sync pushes it only from a session where it's writable")
+    return f"Push {target['name']} when ready so other machines get it: git -C {quote(str(target['root']))} push ({when})."
 
 
 def show_change(target, slug, kind, src):

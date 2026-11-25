@@ -2,6 +2,14 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.35.0 (2026-11-25)
+
+Run `bindle upgrade` (the managed hook changed), then `/plugin update bindle` (or `bindle update`) and restart Claude Code.
+
+- **Sync pushes craft, never commits it.** For a bindle that takes explicit writes (craft), sync now pushes commits already made there (a promotion, a hand commit), with the usual fetch and secret check: `bindle sync`, `sync --all`, its hook where it's attached, and the session check where it's global. Before, a promotion into craft reached no other machine until pushed by hand. Sync still never commits there.
+- **Uncommitted edits in craft are named.** Instead of a bare "pulled", sync says "N uncommitted change(s), not committed by sync; commit them on purpose", in the terminal at session start too.
+- `doctor` no longer calls a fresh promotion into craft stranded when sync is on, and promotion's push hint says the next session start pushes it.
+
 ## 0.34.0 (2026-11-25)
 
 Run `bindle upgrade` (the managed hook changed), then `/plugin update bindle` (or `bindle update`) and restart Claude Code.

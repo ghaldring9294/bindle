@@ -1243,6 +1243,25 @@ class SyncAllTest(BindleTest):
         self.assertEqual(bindle.git(roots["acme"], "rev-list", "--count", "@{upstream}..HEAD"), "0")  # pushed
         self.assertIn("memory/fact.md", bindle.git(roots["craft"], "status", "--porcelain"))  # explicit: untouched
 
+    # Craft is committed only on purpose (a promotion, a hand commit), and no folder writes to it, so nothing else
+    # pushes it; a bare "pulled" once hid uncommitted edits there, so sync names them instead.
+    def test_all_pushes_an_explicit_bindles_commits_and_names_its_uncommitted_edits(self):
+        root = self.tmp / "bindles" / "craft"
+        self.run_cli("new", "craft", "--at", root, "--writes", "explicit")
+        remote = self.tmp / "craft-remote.git"
+        bindle.git(self.tmp, "clone", "-q", "--bare", str(root), str(remote))
+        bindle.git(root, "remote", "add", "origin", str(remote))
+        bindle.git(root, "fetch", "-q", "origin")
+        bindle.git(root, "branch", "-q", "-u", "origin/" + bindle.git(root, "rev-parse", "--abbrev-ref", "HEAD"))
+        (root / "rules.md").write_text("Promoted rule.\n", encoding="utf-8")
+        bindle.git(root, "commit", "-qam", "promoted")
+        (root / "notes" / "spec.md").write_text("half done\n", encoding="utf-8")
+        code, out = self.run_cli("sync", "--all")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(bindle.git(root, "rev-list", "--count", "@{upstream}..HEAD"), "0")  # pushed
+        self.assertIn("notes/spec.md", bindle.git(root, "status", "--porcelain"))  # never committed by sync
+        self.assertIn("1 uncommitted change(s), not committed by sync; commit them on purpose", out)
+
     def test_all_and_a_folder_together_is_refused(self):
         self.assertEqual(self.run_cli("sync", "--all", self.folder())[0], 1)
 
@@ -2827,7 +2846,8 @@ class GlobalRulesTest(BindleTest):
 
 class GlobalSyncTest(BindleTest):
     """A global bindle's rules load in every folder, but its own hook (and so its pull) runs only where it's
-    attached. The session check, which runs in every session, keeps it current, and never writes to it."""
+    attached. The session check, which runs in every session, keeps it current and pushes its commits, but never
+    commits to it."""
 
     def setUp(self):
         super().setUp()
@@ -2856,13 +2876,22 @@ class GlobalSyncTest(BindleTest):
         self.run_cli("session-check", self.elsewhere)
         self.assertEqual((self.craft / "rules.md").read_text(encoding="utf-8"), "Write tests first.\n")
 
-    # An explicit-writes bindle is never anyone's writable bindle: the session check must not commit or push to it.
-    def test_the_pull_never_commits_or_pushes(self):
+    # An explicit-writes bindle is never anyone's writable bindle: the session check must never commit to it,
+    # and must say so in the terminal, so a half-done edit isn't mistaken for synced.
+    def test_the_session_check_never_commits_and_names_uncommitted_edits(self):
         head, remote_head = bindle.git(self.craft, "rev-parse", "HEAD"), bindle.git(self.remote, "rev-parse", "HEAD")
         (self.craft / "memory" / "draft.md").write_text("half done\n", encoding="utf-8")
-        self.run_cli("session-check", self.elsewhere)
+        out = self.run_cli("session-check", self.elsewhere)[1]
         self.assertEqual(bindle.git(self.craft, "rev-parse", "HEAD"), head)
         self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), remote_head)
+        self.assertIn("craft (global) sync problem: 1 uncommitted change(s), not committed by sync", out)
+
+    # A promotion into craft commits but can't push; without this it reaches no other machine until pushed by hand.
+    def test_the_session_check_pushes_commits_already_made(self):
+        (self.craft / "rules.md").write_text("Promoted rule.\n", encoding="utf-8")
+        bindle.git(self.craft, "commit", "-qam", "promoted")
+        self.run_cli("session-check", self.elsewhere)
+        self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), bindle.git(self.craft, "rev-parse", "HEAD"))
 
     # A pull that fails leaves old rules in every session; the person must see it in the terminal.
     def test_a_failed_pull_is_shown(self):
@@ -2885,6 +2914,22 @@ class GlobalSyncTest(BindleTest):
         out = self.run_cli("session-check", self.elsewhere)[1]
         self.assertIn("craft (global) is 1 commit(s) behind", out)
         self.assertIn("behind its remote", self.run_cli("doctor", self.elsewhere)[1])
+
+    # The next session start pushes it, so "nothing pushes it" would send the person to push by hand for no reason.
+    def test_doctor_doesnt_call_a_fresh_promotion_stranded(self):
+        (self.craft / "rules.md").write_text("Promoted rule.\n", encoding="utf-8")
+        bindle.git(self.craft, "commit", "-qam", "promoted")
+        self.assertNotIn("no session pushes it", self.run_cli("doctor", self.elsewhere)[1])
+
+    # Where it's attached, the session check leaves it to its own hook, which must push promoted commits too.
+    def test_its_own_hook_pushes_commits_where_it_is_attached(self):
+        self.run_cli("attach", "craft", self.elsewhere)
+        (self.craft / "rules.md").write_text("Promoted rule.\n", encoding="utf-8")
+        bindle.git(self.craft, "commit", "-qam", "promoted")
+        env = {**os.environ, "CLAUDE_PLUGIN_ROOT": str(self.craft), "CLAUDE_PROJECT_DIR": str(self.elsewhere)}
+        subprocess.run([sys.executable, str(self.craft / "hooks/bindle_hook.py"), "session-start"], env=env,
+                       capture_output=True, text=True)
+        self.assertEqual(bindle.git(self.remote, "rev-parse", "HEAD"), bindle.git(self.craft, "rev-parse", "HEAD"))
 
     # Where it's attached, its own hook pulls it in the same session; two pulls at once would fight over git's lock.
     def test_a_global_bindle_attached_here_is_left_to_its_own_hook(self):
