@@ -13,11 +13,15 @@ Walk the person through their first bindle setup. They should never need to type
 
 Ask first: "Do you already have bindles on another machine, or is this a fresh start?"
 
-- **Clone flow:** for each bindle they name, have them give the git URL and where it should live (`~/bindles/<name>` for one used in many folders; `<domain folder>/.bindle` for a domain bindle). Clone it:
+- **Clone flow:** for each bindle they name, get its git URL and ask which kind it is (Options: **Craft**: rules and skills that follow them everywhere; **Domain**: one context kept to its own folder, such as a job, a client, or their personal projects). Clone it to where that kind lives (`~/bindles/<name>` for craft; `<domain folder>/.bindle` for a domain, asking which folder):
   ```
   git clone <url> <destination>
   ```
-  Then `attach` it (writable if it's their personal or craft bindle, read-only for a shared one). If it should load everywhere, call `global`. Call `doctor` at the end. Done — skip to step 6 (remotes are already set by the clone).
+  Then attach it by kind:
+  - **Craft:** call `global` so its rules load everywhere, and `attach` it read-only to the folders they work in. Read its `bindle.json` first: one with `"writes": "explicit"` only takes promoted material and can't be writable anywhere.
+  - **Domain:** `attach` it writable to the domain folder with repos=true, since a session started in a repo inside the folder reads only that repo's settings.
+
+  Call `doctor` at the end. Done — skip to step 6 (remotes are already set by the clone).
 
 - **Fresh start:** continue to step 2.
 
