@@ -53,7 +53,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
    - docs/design.md "Claude Code constraints": link each assumption to its check.
    - Later, once public: a scheduled run (needs an API key as a repo secret; the owner's call).
 2. **A fresh-user test:** someone follows only the README on a clean machine or account; fix what they trip on.
-3. **Go public** (or add collaborators): the owner's step on GitHub. Then tag 1.0.
+3. **Go public:** the owner's step on GitHub, after friends have used it for a while and their feedback is addressed. Then tag 1.0.
 
 **Gaps found migrating a real setup (fix before 1.0):**
 - Claude Code keeps one memory folder per launch folder, and on macOS each git repo is its own launch root. A domain folder holding several repos therefore has several old memory folders, and the domain-level attach doesn't reach sessions launched inside a repo. Done (2026-11-22): MIGRATION.md inventories every memory folder under the domain, maps per-repo memories to `projects/<repo>/`, treats files CLAUDE.md points Claude at (a lessons folder) as memory, and attaches the bindle to each repo the person launches from; the README explains launching from a repo. v0.18.0: `attach --repos` and `detach --repos` cover the domain folder and every repo directly inside it. v0.19.0: `doctor` warns about repos whose sessions would miss the domain's writable bindle. v0.20.0: the opt-in session check, recommended in the README's install section. All three sides of the gap are done.
