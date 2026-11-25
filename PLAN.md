@@ -6,6 +6,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
+- **Public repo (2026-11-25):** repo is public on GitHub. Main branch is protected: PRs required, no direct pushes. 0 approving reviews (owner can merge own PRs); enforce-admins off for emergency bypass; force pushes blocked. Friends contribute via fork + PR.
 - **Docs:** README (usage), docs/design.md (design), `/bindle` (how Claude in any session operates bindle), MIGRATION.md (what Claude follows to move a setup in), AGENTS.md (orientation for agents, including the rule that docs ship with each change), CHANGELOG.md.
 
 ## Next steps
