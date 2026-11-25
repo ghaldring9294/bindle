@@ -598,9 +598,11 @@ class InstallTest(BindleTest):
         super().setUp()
         self.home = self.tmp / "home"
         self.home.mkdir()
-        self.saved_home = {k: os.environ.get(k) for k in ("HOME", "USERPROFILE")}
-        for k in self.saved_home:  # Path.home() reads USERPROFILE on Windows, HOME elsewhere
+        self.saved_home = {k: os.environ.get(k) for k in ("HOME", "USERPROFILE", "CLAUDE_CONFIG_DIR")}
+        for k in ("HOME", "USERPROFILE"):  # Path.home() reads USERPROFILE on Windows, HOME elsewhere
             os.environ[k] = str(self.home)
+        # A person without CLAUDE_CONFIG_DIR: the user settings and CLAUDE.md are in the fake home's .claude.
+        os.environ.pop("CLAUDE_CONFIG_DIR", None)
 
     def tearDown(self):
         for k, v in self.saved_home.items():
