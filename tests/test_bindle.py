@@ -854,6 +854,23 @@ class UpdatePullsFirstTest(InstallTest):
         finally:
             os.environ["BINDLE_HOME"] = self.env["BINDLE_HOME"]
 
+    # One command should leave everything current: the plugin and a global bindle's user-scope install live in
+    # Claude Code, not git, and were separate steps people forgot on their other machines.
+    def test_update_also_updates_the_plugin_and_installs_a_global_bindles_plugin(self):
+        craft = self.make_bindle("craft")
+        (craft / "rules.md").write_text("A rule.\n", encoding="utf-8")
+        self.run_cli("global", "craft")
+        settings_file = self.home / ".claude" / "settings.json"
+        settings = json.loads(settings_file.read_text(encoding="utf-8"))
+        settings["enabledPlugins"].pop("craft@bindle-craft")  # as global left it before 0.37.0
+        settings["enabledPlugins"]["bindle@bindle"] = True
+        settings_file.write_text(json.dumps(settings), encoding="utf-8")
+        code, out = self.run_cli("update", "--after-pull")
+        self.assertEqual(code, 0, out)
+        self.assertIn("plugin update bindle@bindle", self.log.read_text(encoding="utf-8"))
+        self.assertTrue(json.loads(settings_file.read_text(encoding="utf-8"))["enabledPlugins"]["craft@bindle-craft"])
+        self.assertIn("bindle machine", out)  # unnamed: update says how, since it can't pick a name
+
     def test_a_second_machine_takes_the_upgrade_instead_of_making_its_own(self):
         self.assertEqual(self.run_cli("update", "--after-pull", "--push")[0], 0)
         upgraded = bindle.git(self.remote, "rev-parse", "HEAD")

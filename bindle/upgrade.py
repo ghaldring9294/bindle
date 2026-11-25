@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 from .core import (BASE, from_newer_bindle, hooks, LAYOUT, MANAGED, OBSOLETE, TEMPLATE, VERSION, BindleError, declared_bindles, find_bindle, git, known_bindles, load_bindle,
-                   read_json, real, settings_path, write_json, write_text)
+                   claude, read_json, real, settings_path, user_settings_path, write_json, write_text)
 
 # A bindle's .gitignore and .gitattributes are its own, so upgrade only appends template lines they lack.
 LINE_MERGED = [".gitignore", ".gitattributes"]
@@ -127,8 +127,9 @@ def cmd_upgrade(args):
         # Commit only what upgrade touched, so a person's own uncommitted work stays theirs.
         git(b["root"], "add", "-A", "--", *touched)
         if git(b["root"], "commit", "-q", "-m", f"Upgrade bindle files to bindle {VERSION}", "--", *touched) is not None:
-            print(f"  committed; push it so other machines get it: git -C {b['root']} push (sync pushes it from the "
-                  f"next session where this bindle is writable)")
+            when = ("the next session start pushes it, since it takes explicit writes and has sync on"
+                    if b["writes"] == "explicit" and b["sync"] else "sync pushes it from the next session where this bindle is writable")
+            print(f"  committed; push it so other machines get it: git -C {b['root']} push ({when})")
         else:
             print("  changed, not committed (no git identity here?)")
     return 1 if skipped else 0
@@ -180,8 +181,7 @@ def cmd_update(args):
             return subprocess.call([sys.executable, str(BASE / "bin" / "bindle"), "update", "--after-pull"]
                                    + (["--push"] if args.push else []))
         else:
-            print(f"bindle {VERSION} (installed as a plugin). To update bindle itself, use Claude Code: "
-                  "/plugin → Installed → bindle → Update, or: claude plugin update bindle@bindle")
+            print(f"bindle {VERSION} (installed as a plugin)")
             args.after_pull = True
     if is_git_clone:
         from .commands import cmd_install  # commands imports this module
@@ -208,4 +208,36 @@ def cmd_update(args):
         else:
             print(f"{b['name']}: push failed (see above); push it by hand: git -C {b['root']} push")
             code = 1
-    return code
+    return code if refresh_claude_setup() else 1
+
+
+def refresh_claude_setup():
+    """The parts of an update that live in Claude Code, not git, so one `bindle update` covers everything: bindle's
+    own plugin, each global bindle's plugin and lock (what a newer bindle's global installs), and the machine line.
+    Returns False when a step failed."""
+    from . import global_rules, machine  # global_rules imports commands, which imports this module
+    ok = True
+    plugins = read_json(user_settings_path()).get("enabledPlugins", {})
+    for pid in sorted(p for p, on in plugins.items() if on and p.startswith("bindle@")):
+        try:
+            out = claude(Path.home(), "plugin", "update", pid).strip().splitlines()
+            print(f"bindle plugin: {out[-1] if out else 'updated'} (restart Claude Code to use it)")
+        except BindleError as e:
+            print(f"bindle plugin: couldn't update ({str(e).splitlines()[-1]}); run: claude plugin update {pid}")
+            ok = False
+    for root, b in global_rules.global_bindles():
+        if b is None:
+            continue  # doctor reports an import whose bindle is gone
+        try:
+            if global_rules.install_everywhere(b):
+                print(f"{b['name']}: global, so its plugin is now on in every folder (user scope)")
+        except BindleError as e:
+            print(f"{b['name']}: couldn't install its plugin at user scope ({str(e).splitlines()[-1]}); run: bindle global {b['name']}")
+            ok = False
+    try:
+        global_rules.refresh_machine_line()
+    except BindleError as e:
+        print(f"machine line not updated: {e}")
+    if not machine.name():
+        print(f"This machine has no name yet, so sessions don't know which machine they're on: bindle machine {machine.suggest_name()}")
+    return ok

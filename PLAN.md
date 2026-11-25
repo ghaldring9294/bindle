@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-25, v0.37.0)
+## Where it stands (2026-11-25, v0.37.1)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -144,3 +144,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-25:** v0.36.0: `bindle machine` (machine name in the registry, detected hardware, one line in the user `CLAUDE.md` block, refreshed by the session check).
 - **2026-11-25:** v0.36.1: `/bindle` explains the four parts (git-portable, domain-scoped, guarded boundaries, intentional movement), matching the README; measured before and after.
 - **2026-11-25:** v0.37.0: `bindle global` installs the bindle's plugin at user scope (agents, skills, commands, hooks everywhere) and locks an explicit-writes one everywhere; probed that a plugin on at both scopes loads once.
+- **2026-11-25:** v0.37.1: `bindle update` also updates bindle's plugin, each global bindle's user-scope plugin and the machine line (asked for: one command that updates everything).

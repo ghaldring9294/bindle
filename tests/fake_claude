@@ -23,6 +23,9 @@ elif a[:2] == ["plugin", "install"]:
     if not (Path(source) / ".claude-plugin" / "marketplace.json").exists():
         sys.exit(f'Failed to install plugin "{a[2]}": not found in marketplace "{market}"')
     s.setdefault("enabledPlugins", {})[a[2]] = True
+elif a[:2] == ["plugin", "update"]:
+    print(f"Plugin {a[2]} is already at the latest version")
+    sys.exit(0)
 elif a[:2] == ["plugin", "uninstall"]:
     s.get("enabledPlugins", {}).pop(a[2], None)
 else:

@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.37.1 (2026-11-25)
+
+No upgrade needed. Run `bindle update --push`, then restart Claude Code.
+
+- **`bindle update` updates everything.** It now also updates bindle's plugin, installs each global bindle's plugin at user scope when it's missing (so 0.37.0's `bindle global <name>` rerun isn't needed), and refreshes the machine line, saying when the machine has no name. One command per machine, then a restart.
+- `upgrade`'s push hint says the next session start pushes a bindle that takes explicit writes and has sync on (since 0.35.0).
+
 ## 0.37.0 (2026-11-25)
 
 No upgrade needed. Run `/plugin update bindle` (or `bindle update`), then `bindle global <name>` again for each global bindle (`doctor` names them), and restart Claude Code.

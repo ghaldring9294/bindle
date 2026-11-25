@@ -153,9 +153,9 @@ TOOLS = [
     {
         "name": "update",
         "description": (
-            "Update bindle itself and upgrade every bindle's managed files. When bindle "
-            "is a plugin, the plugin is updated through Claude Code; this upgrades the "
-            "bindles."
+            "Update everything: bindle itself and its plugin, every bindle's managed files, "
+            "each global bindle's user-scope plugin, and the machine line. Restart Claude "
+            "Code afterwards."
         ),
         "inputSchema": {
             "type": "object",
