@@ -9,7 +9,7 @@ import sys
 import time
 from pathlib import Path
 
-from . import global_rules
+from . import global_rules, machine
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, VERSION, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
@@ -214,9 +214,15 @@ def cmd_session_check(args):
             start = (json.loads(sys.stdin.read() or "{}").get("cwd")
                      or os.environ.get("CLAUDE_PROJECT_DIR") or os.getcwd())
         start = start or Path.cwd()
+        try:
+            global_rules.refresh_machine_line()
+        except BindleError:  # an unreadable CLAUDE.md: doctor reports it, the rest of the check still runs
+            pass
         lines = [w for w in [session_warning(start)] if w] + global_rules.session_lines(settings_root(start)) + update_notes()
-        if not lines and not known_bindles()[0]:
-            lines = ["bindle: no bindles set up yet — type /bindle:onboard to get started"]
+        if not known_bindles()[0]:
+            lines = lines or ["bindle: no bindles set up yet — type /bindle:onboard to get started"]
+        else:
+            lines += [l for l in [machine.ask_once()] if l]
     except Exception as e:  # noqa: BLE001 (a hook must never stop a session)
         if not args.hook:
             raise

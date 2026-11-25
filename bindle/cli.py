@@ -5,6 +5,7 @@ import sys
 from .commands import cmd_attach, cmd_detach, cmd_doctor, cmd_install, cmd_list, cmd_new, cmd_session_check, cmd_sync
 from .core import VERSION, BindleError
 from .global_rules import cmd_global
+from .machine import cmd_machine
 from .promote import KINDS, PROMOTE_KINDS, cmd_collect, cmd_outbox_add, cmd_outbox_clean, cmd_outbox_list, cmd_outbox_remove, cmd_promote, cmd_terms
 from .upgrade import cmd_update, cmd_upgrade
 
@@ -59,6 +60,14 @@ def build_parser():
     s.add_argument("bindle", help="the bindle's name or path (with --off, also the path doctor shows for one that moved)")
     s.add_argument("--off", action="store_true", help="stop loading it everywhere (remove its import)")
     s.set_defaults(fn=cmd_global)
+
+    s = sub.add_parser("machine", help="show or set this machine's name, which every session and subagent sees",
+                       description="Name this machine (kept in ~/bindles/registry.json, never in a bindle). bindle "
+                                   "writes it with the detected model, architecture and OS into its block in your user "
+                                   "CLAUDE.md, so Claude can tell whether a synced memory applies here. Without a name, "
+                                   "shows the current one and what's detected.")
+    s.add_argument("name", nargs="?", help="a short name, such as work-mac")
+    s.set_defaults(fn=cmd_machine)
 
     s = sub.add_parser("list", help="list your bindles: those in $BINDLE_HOME (default ~/bindles) and those on in a folder")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)

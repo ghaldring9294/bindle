@@ -8,7 +8,7 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 
 ## Layout
 
-- `bin/bindle`: the CLI entry point (`bin/py` finds a working Python for hooks and the MCP server; `bin/py.cmd` is its Windows twin, so `.mcp.json` runs without `bash` on PATH); the CLI is the `bindle/` package (`core.py` shared helpers, `commands.py`, `upgrade.py`, `promote.py`, `global_rules.py` for `bindle global`, `cli.py`). Python standard library only; must run on 3.9.
+- `bin/bindle`: the CLI entry point (`bin/py` finds a working Python for hooks and the MCP server; `bin/py.cmd` is its Windows twin, so `.mcp.json` runs without `bash` on PATH); the CLI is the `bindle/` package (`core.py` shared helpers, `commands.py`, `upgrade.py`, `promote.py`, `global_rules.py` for `bindle global`, `machine.py` for `bindle machine`, `cli.py`). Python standard library only; must run on 3.9.
 - `bin/bindle-server`: the MCP server; exposes bindle operations as tools over JSON-RPC 2.0 / stdio. The plugin's `.mcp.json` starts it; Claude Code calls the tools directly instead of running CLI commands.
 - `templates/bindle/`: what `bindle new` copies. Files listed in `MANAGED` (in `bindle/core.py`) are copied byte for byte into every bindle and `bindle doctor` flags drift, so change them only here, deliberately, then update existing bindles.
 - `templates/bindle/hooks/bindle_hook.py`: the one implementation of the hooks, sync, the writable check, the secret check and reading the `bindle global` block. The CLI imports it from the template (`core.hooks()`), so never reimplement that logic in the CLI.

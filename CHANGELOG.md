@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.36.0 (2026-11-25)
+
+No upgrade needed. Run `/plugin update bindle` (or `bindle update`), restart Claude Code, then `bindle machine <name>` on each machine. For an existing bindle, add this line to its `AGENTS.md` by hand (`upgrade` doesn't touch that file): "Memories sync to every machine: save what's true everywhere, and name the machine (the user `CLAUDE.md` says which one this is) for a fact true on only one."
+
+- **`bindle machine [<name>]`** names this machine. bindle writes `This machine: <name> (<model>, <arch>, <OS>)` into its block in your user `CLAUDE.md`, so every session and subagent knows which machine it's on and can tell whether a synced memory applies there. The name is kept in `~/bindles/registry.json`, never in a bindle; the hardware is detected, and the session check updates the line when it changes. Also an MCP tool (`machine`).
+- Onboarding asks for a machine name; the session check asks once when none is set; `doctor` shows it.
+
 ## 0.35.0 (2026-11-25)
 
 Run `bindle upgrade` (the managed hook changed), then `/plugin update bindle` (or `bindle update`) and restart Claude Code.

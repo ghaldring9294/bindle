@@ -102,6 +102,13 @@ bindle global craft --off  # back to loading only where it's attached
 ```
 This adds imports of the bindle's `rules.md` and its memory index (`memory/MEMORY.md`) to a marked block in your user `CLAUDE.md` (`~/.claude/CLAUDE.md`, or in `$CLAUDE_CONFIG_DIR` when that's set), which Claude Code reads in every session and passes to subagents. Everything else in that file stays exactly as it was, including its line endings; running it twice changes nothing. So a global craft works as a portable `CLAUDE.md`: its rules always load, and its memories load when their index line is relevant. Where a global bindle is also attached, its hook stops showing `rules.md` and the index, so they don't load twice. Changes apply from the next session. Since a global bindle's own hooks run only where it's attached, the session check pulls each global bindle with sync on at every session start (never a commit; for one that takes explicit writes, it pushes commits already made and names uncommitted edits), and says in the terminal when one is behind its remote or the pull fails. `doctor` flags an import whose bindle moved or was renamed, a global `rules.md` and index together over 12,000 characters (every session and subagent pays for them), and a block written by an older bindle (run `bindle global <name>` again). If you set `CLAUDE_CONFIG_DIR` in a settings file's `env` rather than your shell, set it in your shell too, so bindle finds the same file.
 
+**Which machine (`bindle machine`).** Memories reach every machine, but some facts hold on only one ("this laptop is slow; use pre-built tools"). Name each machine once, and every session and subagent knows where it runs:
+```
+bindle machine work-mac    # writes "This machine: work-mac (MacBookPro18,3, arm64, macOS 26.3)" into the block
+bindle machine             # shows the name and what's detected
+```
+The name stays on this machine (in `~/bindles/registry.json`); model, architecture and OS are detected, and the session check updates the line when they change. Onboarding asks for a name, and the session check asks once if none is set. Claude then saves what's true everywhere as is, and names the machine in a memory that holds on only one.
+
 ## Scenarios
 
 Each scenario uses made-up names; replace the paths with your own. Each one gives what you'd ask Claude, then the commands it runs, in case you'd rather run them yourself (see [Using the terminal](#using-the-terminal)).
@@ -244,6 +251,7 @@ On another machine: install the plugin (`/plugin marketplace add <bindle-repo-ur
 | `bindle attach <bindle> [<folder>] [--writable] [--repos]` | Turn a bindle on for a folder; `--writable` makes it the one new memories go to; `--repos` also does each git repo directly inside the folder |
 | `bindle detach <name-or-path> [<folder>] [--repos]` | Turn a bindle off for a folder; `--repos` also each git repo directly inside it that has it |
 | `bindle terms <bindle> [<folder>]` | Suggest private terms from the domain folder's repos, for you to pick from |
+| `bindle machine [<name>]` | Show or set this machine's name; bindle writes it with the detected model, architecture and OS into its block in your user `CLAUDE.md` |
 | `bindle global <bindle> [--off]` | Load a bindle's `rules.md` and memory index in every session and subagent, in every folder (imports in your user `CLAUDE.md`); `--off` removes it, by name or by the path `doctor` shows for one that moved |
 | `bindle list [<folder>]` | List your bindles: those in `~/bindles`, those in its registry and those on in the folder, with whether each is writable, read-only or not attached there |
 | `bindle doctor [<folder>]` | Show what's on, what's writable, unsaved work, warnings and problems, with the command that fixes each problem |

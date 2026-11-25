@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-25, v0.35.0)
+## Where it stands (2026-11-25, v0.36.0)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -44,7 +44,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - `doctor` reports a global bindle whose plugin isn't installed at user scope.
 - Cross-platform: manual check that a user-scope plugin's agents and skills load in a subagent-capable session on macOS, Windows and Linux. Contract-test assumption: a user-scope plugin's agents are available in every folder.
 
-**Planned (2026-11-25): machine awareness.** Memories sync to every machine, but some are true on only one: found in real use, where a "dev machine is a 2015 MacBook, avoid source builds" memory reached an M1 machine and would have steered Claude wrong. Claude can't judge whether a memory applies without knowing which machine it's on.
+**Done (2026-11-25, v0.36.0): machine awareness.** Open questions decided (David, 2026-11-25): a named machine gets the block even with no global bindle; the session check rewrites a stale line (doctor compares with the line as written); `bindle machine [<name>]` plus a one-time ask from the session check. Still to do: the manual Windows and Linux checks below. Memories sync to every machine, but some are true on only one: found in real use, where a "dev machine is a 2015 MacBook, avoid source builds" memory reached an M1 machine and would have steered Claude wrong. Claude can't judge whether a memory applies without knowing which machine it's on.
 - **A machine name, per machine:** stored in `~/bindles/registry.json` (bindle's only per-machine state; never in a bindle, which would sync it everywhere). Asked in `/bindle:onboard`; when unset, the session check asks once. Suggest a short default from the hostname ("work-mac"), not the raw hostname (ugly, and it changes).
 - **Hardware detected by code, not asked:** model, architecture and OS (`sysctl`/`uname` on macOS and Linux, the Windows equivalents). Only the name needs a person.
 - **Delivered through the user `CLAUDE.md`, not hook output:** the session check is silent unless something's wrong, its `systemMessage` would show the line in the terminal every session, and hook output doesn't reach subagents. The user `CLAUDE.md` is per-machine and reaches every session and subagent, so bindle writes one line into its marked block: `This machine: work-mac (MacBookPro18,3, arm64, macOS 26.3)`, refreshed by the session check when the hardware or OS changes. Open: whether to write the block when no bindle is global, and how the "block isn't what this bindle writes" check treats the new line.
@@ -141,3 +141,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-25:** v0.33.0: promotion reaches anything in a bindle (`--kind file`, `--remove`), and Claude reaches for it by the target (any change to a read-only bindle such as craft). Found when machine specs were written straight into craft. Planned: sync pushes craft's commits and warns about uncommitted edits.
 - **2026-11-25:** v0.34.0: sync commits `notes/` (scratch stays local; a secret-looking note is held back like a memory). The v0.33.0 promotion measure passed (2/2 runs).
 - **2026-11-25:** v0.35.0: sync pushes an explicit-writes bindle's commits (craft) and names its uncommitted edits; never commits there.
+- **2026-11-25:** v0.36.0: `bindle machine` (machine name in the registry, detected hardware, one line in the user `CLAUDE.md` block, refreshed by the session check).

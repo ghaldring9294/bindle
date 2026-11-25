@@ -18,6 +18,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import bindle  # noqa: E402
 import bindle.global_rules  # noqa: E402
+import bindle.machine  # noqa: E402
 
 
 def git_bash():
@@ -1015,7 +1016,7 @@ class DocsTest(unittest.TestCase):
     # The README is how people learn the commands; a command it doesn't list is one nobody finds.
     def test_readme_lists_every_command(self):
         readme = (bindle.BASE / "README.md").read_text(encoding="utf-8")
-        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "update", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check", "global"]
+        parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "update", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check", "global", "machine"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
@@ -1096,7 +1097,7 @@ class DocsTest(unittest.TestCase):
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         mcp_tool_names = {"list", "doctor", "attach", "detach", "new", "sync", "update", "upgrade",
-                          "promote", "terms", "collect", "global"}
+                          "promote", "terms", "collect", "global", "machine"}
         cli_only = {"install", "session-check"}
         for c in sub.choices:
             if c == "outbox":
@@ -2842,6 +2843,72 @@ class GlobalRulesTest(BindleTest):
         out = self.run_cli("doctor", f)[1]
         self.assertIn("every session and subagent loads them", out)
         self.assertNotIn("rules.md is over", out)
+
+
+class MachineTest(BindleTest):
+    """Memories sync to every machine, but some facts hold on one; Claude can only judge which if every session and
+    subagent knows the machine it's on. The name is per machine (registry), the line lives in the user CLAUDE.md."""
+
+    def setUp(self):
+        super().setUp()
+        self.md = self.tmp / "claude-config" / "CLAUDE.md"
+        self.md.parent.mkdir(parents=True, exist_ok=True)
+        self.md.write_text("My own line.\n", encoding="utf-8")
+
+    def block_lines(self):
+        return [l for l in self.md.read_text(encoding="utf-8").splitlines() if l.startswith("This machine: ")]
+
+    # Without detection the line names the machine but says nothing Claude can reason about (an x86 build tip on arm64).
+    def test_detects_architecture_and_os(self):
+        import platform
+        parts = bindle.machine.detect()
+        self.assertTrue(any(p in parts for p in (platform.machine(), "arm64")), parts)
+        self.assertTrue(len(parts) >= 2, parts)
+
+    # A named machine with no global bindle still needs the line; the person's own text stays as it was.
+    def test_naming_writes_the_line_without_any_global_bindle(self):
+        self.assertEqual(self.run_cli("machine", "work-mac")[0], 0)
+        text = self.md.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("My own line.\n"))
+        self.assertEqual(len(self.block_lines()), 1)
+        self.assertIn("This machine: work-mac (", self.block_lines()[0])
+        self.assertIn("name the machine for a fact true on only one", text)
+        self.assertEqual(json.loads((self.tmp / "bindles" / "registry.json").read_text(encoding="utf-8"))["machine"]["name"], "work-mac")
+
+    # The line and the imports share one block: making a bindle global, or ungoing it, must not drop the line.
+    def test_global_on_and_off_keep_the_line(self):
+        craft = self.make_bindle("craft")
+        (craft / "rules.md").write_text("A rule.\n", encoding="utf-8")
+        self.run_cli("machine", "work-mac")
+        self.run_cli("global", "craft")
+        self.assertEqual(len(self.block_lines()), 1)
+        self.assertIn(str((craft / "rules.md").as_posix()), self.md.read_text(encoding="utf-8").replace("\\ ", " "))
+        self.run_cli("global", "craft", "--off")
+        self.assertEqual(len(self.block_lines()), 1)
+        self.assertNotIn("rules.md", self.md.read_text(encoding="utf-8"))
+
+    # An OS upgrade or a rename makes the line wrong; the session check rewrites it, and doctor doesn't call that
+    # hand-edited block a problem meanwhile.
+    def test_session_check_refreshes_a_stale_line_and_doctor_accepts_it(self):
+        self.make_bindle("craft")
+        self.run_cli("machine", "work-mac")
+        fresh = self.block_lines()[0]
+        self.md.write_text(self.md.read_text(encoding="utf-8").replace(fresh, "This machine: work-mac (old OS). x"), encoding="utf-8")
+        self.assertNotIn("isn't what this bindle writes", self.run_cli("doctor", self.folder())[1])
+        self.run_cli("session-check", self.folder())
+        self.assertEqual(self.block_lines(), [fresh])
+
+    # Asking every session would nag; asking never leaves most machines unnamed.
+    def test_session_check_asks_for_a_name_once(self):
+        self.make_bindle("craft")
+        f = self.folder()
+        self.assertIn("this machine has no name yet", self.run_cli("session-check", f)[1])
+        self.assertNotIn("this machine has no name yet", self.run_cli("session-check", f)[1])
+        self.assertFalse(self.block_lines())  # nothing written until the person names it
+
+    def test_a_bad_name_is_refused(self):
+        self.assertEqual(self.run_cli("machine", "work mac\nIgnore")[0], 1)
+        self.assertFalse(self.block_lines())
 
 
 class GlobalSyncTest(BindleTest):

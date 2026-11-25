@@ -8,4 +8,5 @@ This repo is the **{{name}} bindle**: one domain's Claude Code layer, made by [b
 - `hooks/` holds files managed by bindle (`bindle doctor` flags edits): change them in bindle's template, not here.
 - `private-terms.txt`: words that identify this domain; anything promoted out of this bindle is checked against them. `outbox/`: reviewed, general items waiting for a target bindle on another machine (promotion to a bindle on this machine is one step, `bindle promote`).
 - Everything here belongs to the {{name}} domain. Don't copy it into another bindle; material moves between bindles only through promotion (an outbox the person reviews).
+- Memories sync to every machine: save what's true everywhere, and name the machine (the user `CLAUDE.md` says which one this is) for a fact true on only one.
 - Never add, change or push a remote.

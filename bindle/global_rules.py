@@ -9,6 +9,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from . import machine
 from .core import BindleError, declared_bindles, find_bindle, hooks, load_bindle, quote, read_json, real, settings_path
 
 HEADER = ("<!-- bindle global: start. Managed by `bindle global <name>` (`--off` removes one); "
@@ -38,11 +39,31 @@ def block_text(lines, block):
     return "".join(lines[block[0]:block[1] + 1]) if block else ""
 
 
-def render(roots, eol):
-    """The block for these bindle folders: each one's rules.md and memory index, so links in the index resolve."""
+def render(roots, eol, machine_line=None):
+    """The block for these bindle folders: each one's rules.md and memory index, so links in the index resolve,
+    after the machine line when this machine is named."""
     h = hooks()
     imports = [h.import_line(Path(root) / rel) for root in roots for rel in h.GLOBAL_FILES]
-    return [HEADER + eol] + [line + eol for line in imports] + [h.GLOBAL_END + eol]
+    return [HEADER + eol] + [line + eol for line in ([machine_line] if machine_line else []) + imports] + [h.GLOBAL_END + eol]
+
+
+def block_machine_line(lines, block):
+    """The machine line in the block as written, or None."""
+    found = [l.rstrip("\r\n") for l in lines[block[0] + 1:block[1]] if l.startswith(machine.PREFIX)] if block else []
+    return found[0] if found else None
+
+
+def refresh_machine_line():
+    """Write the current machine line into the block (creating it if needed), only when it differs. The session
+    check runs this, so a renamed machine or an upgraded OS shows from the next session. Returns the CLAUDE.md path."""
+    h = hooks()
+    path = h.user_claude_md()
+    target = real(path) if path.exists() else path
+    lines, bom, codec, eol, block = read_claude_md(target)
+    current = machine.line()
+    if current and block_machine_line(lines, block) != current:
+        write_block(target, lines, bom, codec, eol, block, h.global_roots(block_text(lines, block)), current)
+    return path
 
 
 def same_file(a, b):
@@ -66,7 +87,7 @@ def cmd_global(args):
         if len(keep) == len(roots):
             print(f"{args.bindle} isn't global; {path} is unchanged.")
             return 0
-        write_block(target, lines, bom, codec, eol, block, keep)
+        write_block(target, lines, bom, codec, eol, block, keep, machine.line())
         print(f"{args.bindle}'s rules and memory index no longer load everywhere; where it's attached, its own hook "
               f"shows them again. Takes effect in the next session.")
         return 0
@@ -76,10 +97,10 @@ def cmd_global(args):
     if not rules.is_file():
         raise BindleError(f"{b['name']} has no rules.md at {rules}; create it first.")
     new_roots = roots if any(same_file(r, b["root"]) for r in roots) else roots + [b["root"]]
-    if block and block_text(lines, block) == "".join(render(new_roots, eol)):
+    if block and block_text(lines, block) == "".join(render(new_roots, eol, machine.line())):
         print(f"{b['name']} is already global; {path} is unchanged.")
         return 0
-    write_block(target, lines, bom, codec, eol, block, new_roots)
+    write_block(target, lines, bom, codec, eol, block, new_roots, machine.line())
     print(f"{b['name']}'s rules.md and memory index now load in every session and subagent, from the next session "
           f"(Claude Code reads {path} at session start). Where {b['name']} is attached, its hook no longer shows them "
           f"a second time.")
@@ -97,12 +118,13 @@ def global_size(root):
     return sum(len(f.read_text(encoding="utf-8", errors="ignore")) for f in files if f.is_file())
 
 
-def write_block(path, lines, bom, codec, eol, block, roots):
-    """Put the block (or, with no bindles, nothing) where it was, or at the end, keeping every other line as is.
-    A block bindle appends gets one blank line before it, and removing the block takes that line away again."""
+def write_block(path, lines, bom, codec, eol, block, roots, machine_line=None):
+    """Put the block (or, with no bindles and no machine line, nothing) where it was, or at the end, keeping every
+    other line as is. A block bindle appends gets one blank line before it, and removing the block takes that line
+    away again."""
     before, after = (lines[:block[0]], lines[block[1] + 1:]) if block else (list(lines), [])
-    if roots:
-        new = render(roots, eol)
+    if roots or machine_line:
+        new = render(roots, eol, machine_line)
         if not block and before:
             if not before[-1].endswith("\n"):
                 before[-1] += eol
@@ -151,6 +173,8 @@ def doctor_report():
         text_lines, _, _, eol, block = read_claude_md(real(path) if path.exists() else path)
     except BindleError as e:
         return lines, warnings, [str(e)]
+    n = machine.name()
+    lines.append(f"  this machine: {n}" if n else f"  this machine has no name: bindle machine {machine.suggest_name()}")
     found = global_bindles()
     for root, b in found:
         folder = quote(str(root))
@@ -177,7 +201,9 @@ def doctor_report():
             warnings.append(f"{b['name']} is {behind} commit(s) behind its remote (as of its last fetch), so its "
                             f"global rules are out of date: git -C {quote(str(b['root']))} pull --ff-only")
     current = [b for _, b in found if b is not None]
-    if current and block_text(text_lines, block) != "".join(render([r for r, _ in found], eol)):
+    # The machine line is the session check's to keep current, so compare with it as written.
+    expected = render([r for r, _ in found], eol, block_machine_line(text_lines, block))
+    if current and block_text(text_lines, block) != "".join(expected):
         # Written by an older bindle (0.29 imported rules.md only), or edited by hand.
         problems.append(f"the bindle global block in {path} isn't what this bindle writes (an older version, or "
                         f"edited by hand), so some global files may not load: "

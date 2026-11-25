@@ -18,6 +18,7 @@ Ask first: "Do you already have bindles on another machine, or is this a fresh s
   git clone <url> <destination>
   ```
   Then attach it by kind:
+  - **This machine:** call `machine` with no name for a suggestion, ask them for a short name, and call `machine` with it, so sessions know which machine they're on.
   - **Craft:** call `global` so its rules load everywhere, and `attach` it read-only to the folders they work in. Read its `bindle.json` first: one with `"writes": "explicit"` only takes promoted material and can't be writable anywhere.
   - **Domain:** `attach` it writable to the domain folder with repos=true, since a session started in a repo inside the folder reads only that repo's settings.
 
@@ -33,6 +34,7 @@ Explain what craft is in terms of what it does for them, not the mechanics:
 
 1. Call the `new` tool: name=`craft`, at=`~/bindles/craft`, sync=false (no remote yet).
 2. Call `global` with bindle=`craft` — this imports craft's `rules.md` and memory index into the user `CLAUDE.md`, so they load everywhere.
+3. Name this machine: call `machine` with no name to get a suggestion, ask them for a short name (a select with the suggestion first), then call `machine` with it. Say why in one line: memories reach every machine, and the name lets Claude tell whether one applies here.
 
 Tell them: "Created your craft bindle and set it global. Let's put something in it so you can see it working."
 
