@@ -1,5 +1,7 @@
 # bindle
 
+**Git-portable, domain-scoped Claude Code context.**
+
 bindle carries your Claude Code setup (skills, hooks, memory, notes and rules) between machines in git, while keeping each part of your life, such as personal projects, an employer or each client, in its own repo that never mixes with the others.
 
 You keep one repo per domain, called a **bindle**. Each folder you launch Claude Code from turns on the bindles it needs. A work session can use your general tooling, but it can't write work context into your personal repo, and a client's knowledge never reaches another client's folder.
@@ -101,9 +103,13 @@ This adds imports of the bindle's `rules.md` and its memory index (`memory/MEMOR
 
 ## Scenarios
 
-Each scenario uses made-up names. Replace the paths with your own. The commands show what happens; in Claude Code, ask for it in words and Claude runs them.
+Each scenario uses made-up names; replace the paths with your own. Each one gives what you'd ask Claude, then the commands it runs, in case you'd rather run them yourself (see [Using the terminal](#using-the-terminal)).
 
-**An employee.** Your employer's bindle lives in your work folder and is writable there; your general tooling (a craft bindle) is on read-only.
+**An employee.** Your employer's bindle lives in your work folder and is writable there; your general tooling (a craft bindle) is on read-only. In a session started from `~/acme`, ask:
+
+> "Make a bindle for ~/acme, and attach craft here too."
+
+Claude creates the bindle, suggests private terms (names that must never leave it) for you to pick from, and attaches both:
 ```
 bindle new acme --at ~/acme/.bindle
 bindle terms acme                    # names to keep inside it; add the ones that apply to private-terms.txt
@@ -111,13 +117,20 @@ bindle attach acme ~/acme --writable
 bindle attach craft ~/acme           # craft = ~/bindles/craft
 ```
 
-**Launching from a repo inside the domain folder.** Claude Code treats each git repo as its own starting point: a session started in `~/acme/web` reads `~/acme/web/.claude/settings.local.json`, not `~/acme`'s, and keeps its own memory folder. Either start Claude from `~/acme` (it sees every repo, and the bindle is on), or also attach the bindle to each repo you start from for narrow work. `--repos` does the folder and every git repo directly inside it in one go (run it again after cloning a new repo; `bindle doctor` in the domain folder lists repos still missing it):
+**Launching from a repo inside the domain folder.** Claude Code treats each git repo as its own starting point: a session started in `~/acme/web` reads `~/acme/web/.claude/settings.local.json`, not `~/acme`'s, and keeps its own memory folder. Either start Claude from `~/acme` (it sees every repo, and the bindle is on), or also attach the bindle to each repo you start from for narrow work:
+
+> "Attach acme to every repo in ~/acme too."
+
+`--repos` does the folder and every git repo directly inside it in one go. Ask again after cloning a new repo; `bindle doctor` in the domain folder lists repos still missing it:
 ```
 bindle attach acme ~/acme --writable --repos
 ```
-If you used Claude Code in those repos before bindle, each has its own old memory folder under `~/.claude/projects/`; migrate those too (MIGRATION.md).
+If you used Claude Code in those repos before bindle, each has its own old memory folder under `~/.claude/projects/`; ask Claude to migrate those too (it follows MIGRATION.md).
 
-**A freelancer with two clients.** Each client gets a folder and a bindle. Switching clients means starting Claude Code from the other folder, which also gives you separate session histories and permissions.
+**A freelancer with two clients.** Each client gets a folder and a bindle. Switching clients means starting Claude Code from the other folder, which also gives you separate session histories and permissions. In each client's folder, ask:
+
+> "Attach this client's bindle here as writable, and craft read-only."
+
 ```
 bindle attach ~/clients/acme/.bindle ~/clients/acme --writable
 bindle attach ~/clients/globex/.bindle ~/clients/globex --writable
@@ -125,33 +138,49 @@ bindle attach ~/bindles/craft ~/clients/acme
 bindle attach ~/bindles/craft ~/clients/globex
 ```
 
-**A client that allows no outside tooling.** Attach only that client's bindle to its folder.
+**A client that allows no outside tooling.** Attach only that client's bindle to its folder. If craft is already on there, ask "detach craft here".
 
-**A new machine.** Install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone each bindle into place (a bindle used in many folders to `~/bindles/<name>`, a domain bindle to `<domain folder>/.bindle`), then `bindle attach` once per folder. Use `bindle new` only to create a bindle the first time. A folder's attach settings stay on that machine, so this is the only setup step.
+**A new machine.** Install the plugin (see [Install](#install)), start Claude Code and run `/bindle:onboard`. Say you already have bindles; it asks for each one's git URL and whether it's craft or a domain, clones it into place (a bindle used in many folders to `~/bindles/<name>`, a domain bindle to `<domain folder>/.bindle`) and attaches it. A folder's attach settings stay on that machine, so this is the only setup step. Use `bindle new` only to create a bindle the first time.
 
-**Promoting a lesson.** In the session where you learned it, ask Claude to promote it (the `/bindle:promote` skill). It drafts a general rewrite, asks where it should go, and once you approve, puts it there in one step, after a check against the source bindle's private terms:
+**Promoting a lesson.** In the session where you learned it, ask:
+
+> "Promote this lesson to craft."
+
+Claude (the `/bindle:promote` skill) drafts a general rewrite, asks where it should go, and once you approve, puts it there in one step, after a check against the source bindle's private terms:
 ```
 bindle promote acme draft.md --into craft --name small-prs --description "keep PRs small"
 ```
-The original stays where it was. To send it to a second bindle, promote it again. If a draft names one of the source's private terms, the promotion stops and shows where; that's a prompt to check, not a wall. If the term is fine to share (a public name, or a target that's yours alone), allow it for that promotion (`--allow <term>`). A possible secret is the one hard stop: take it out, and keep it in a password manager or vault. Rules (`rules.md`) aren't promoted; move a rule by hand in a session in the target's folder. To improve something already promoted (say, a craft skill you noticed was wrong while using it at work), ask Claude to update it: you see a diff against the current version, and on approval it's replaced with `--replace` (git history keeps the old one). Nothing is ever replaced without that flag.
+The original stays where it was. To send it to a second bindle, promote it again. If a draft names one of the source's private terms, the promotion stops and shows where; that's a prompt to check, not a wall. If the term is fine to share (a public name, or a target that's yours alone), say so and Claude allows it for that promotion (`--allow <term>`). A possible secret is the one hard stop: take it out, and keep it in a password manager or vault. Rules (`rules.md`) aren't promoted; move a rule by hand in a session in the target's folder. To improve something already promoted (say, a craft skill you noticed was wrong while using it at work), ask "update small-prs in craft": you see a diff against the current version, and on approval it's replaced with `--replace` (git history keeps the old one). Nothing is ever replaced without that flag.
 
-**A reminder for another domain.** Working in one client's folder and remember something for another? Ask Claude to send it ("remind me in globex to send the March invoice"). It's promoted as a note (`--kind note`): checked against this domain's private terms like anything else, then added to the other bindle's `notes/inbox.md` with the date and where it came from. The next session there shows how many notes are waiting as it starts, and Claude brings them up. When the target isn't on this machine (personal, from a work laptop), the approved draft waits in the source's outbox (`bindle outbox add`) until you run `bindle collect` where the target lives.
+**A reminder for another domain.** Working in one client's folder and remember something for another? Ask:
 
-**Sharing your craft.** Keep finished, general skills in a craft bindle that only takes promoted material, and share its repo. Anyone with access can install it as an ordinary plugin, with no bindle needed:
+> "Remind me in globex to send the March invoice."
+
+It's promoted as a note (`--kind note`): checked against this domain's private terms like anything else, then added to the other bindle's `notes/inbox.md` with the date and where it came from. The next session there shows how many notes are waiting as it starts, and Claude brings them up. When the target isn't on this machine (personal, from a work laptop), the approved draft waits in the source's outbox (`bindle outbox add`); on the machine where the target lives, ask "collect what acme has for personal" (`bindle collect`).
+
+**Sharing your craft.** Keep finished, general skills in a craft bindle that only takes promoted material, and share its repo:
+
+> "Make a craft bindle I can share, that only takes promoted material."
+
 ```
 bindle new craft --at ~/bindles/craft --audience shared --writes explicit
 ```
+Anyone with access can install it as an ordinary plugin, with no bindle needed:
 ```
 /plugin marketplace add git@github.com:you/bindle-craft.git
 ```
 
-**Writing craft with real history at hand.** Work on craft in its own folder, where its files are editable. To draw on what actually happened at work while keeping the skills general, attach the work bindle there read-only: its memories are listed at session start and readable, and locked against edits.
+**Writing craft with real history at hand.** Work on craft in its own folder, where its files are editable. To draw on what actually happened at work while keeping the skills general, ask in a session started from `~/bindles/craft`:
+
+> "Attach acme here, read-only."
+
+Its memories are then listed at session start and readable, and locked against edits:
 ```
 bindle attach acme ~/bindles/craft
 ```
 What you write in craft isn't checked against acme's private terms (only promotion is), so keep acme's specifics out of craft's files yourself; craft's `rules.md` is a good place to say so.
 
-**The same tools on every machine.** Put the domain's MCP servers in its bindle's `.mcp.json` (see [Configuration](#configuration)), with secrets as environment variables. On each machine, set the variables once; every folder the bindle is attached to then has the same tools.
+**The same tools on every machine.** Put the domain's MCP servers in its bindle's `.mcp.json` (see [Configuration](#configuration)), with secrets as environment variables; in a session where the bindle is writable, Claude can add them ("add our tracker's MCP server to acme"). On each machine, set the variables once; every folder the bindle is attached to then has the same tools.
 
 **Working with a friend on a project.** You each keep your own bindles. Anything you both need goes into the project's repo itself (its `CLAUDE.md` and docs), where it's reviewed like code.
 

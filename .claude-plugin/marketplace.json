@@ -1,6 +1,6 @@
 {
   "name": "bindle",
-  "description": "Portable, domain-scoped Claude Code context.",
+  "description": "Git-portable, domain-scoped Claude Code context.",
   "owner": { "name": "ghaldring9294" },
   "plugins": [
     { "name": "bindle", "source": "./", "description": "Carry your Claude Code setup between machines in git, with domain separation." }
