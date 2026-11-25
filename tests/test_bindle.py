@@ -164,20 +164,6 @@ class EnclosingRepoTest(BindleTest):
         self.assertEqual(code, 1)
         self.assertIn("tracked by the repo", out)
 
-    # The demo repo folds its bindle in on purpose; doctor must not cry wolf there.
-    def test_a_demo_bindle_may_be_tracked(self):
-        repo = self.project_repo()
-        self.run_cli("new", "demo", "--at", repo / ".bindle")
-        (repo / ".git/info/exclude").write_text("", encoding="utf-8")
-        rmtree(repo / ".bindle/.git")
-        meta = json.loads((repo / ".bindle/bindle.json").read_text(encoding="utf-8"))
-        meta["demo"] = True
-        (repo / ".bindle/bindle.json").write_text(json.dumps(meta), encoding="utf-8")
-        bindle.git(repo, "add", "-A")
-        self.run_cli("attach", repo / ".bindle", repo)
-        code, out = self.run_cli("doctor", repo)
-        self.assertEqual(code, 0, out)
-
 
 class NotesTest(BindleTest):
     def test_scratch_notes_are_ignored_but_their_readme_is_kept(self):

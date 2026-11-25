@@ -19,7 +19,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.32.1"
+VERSION = "0.32.2"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -382,8 +382,6 @@ def enclosing_repo_problems(b):
         return []
     top, rel = found
     if git(top, "ls-files", "--", rel):
-        if read_json(b["root"] / "bindle.json").get("demo") is True:
-            return []  # a demo bindle is folded into its repo on purpose
         return [f"{b['name']}: tracked by the repo {top}, so its memories get pushed with that repo. "
                 f"Remove it from that repo (git rm -r --cached {rel}) and exclude it."]
     if git(top, "check-ignore", "-q", rel + "/") is None:

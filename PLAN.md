@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-24, v0.32.1)
+## Where it stands (2026-11-25, v0.32.2)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -108,3 +108,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-24:** v0.29.1: two Windows-only test failures fixed (present since before 0.28.0, found checking CI for 0.29.0).
 - **2026-11-24:** README reordered for people using bindle through Claude: Install and a new Getting started (onboarding, asks in plain words) first; CLI install, Quick start and Commands grouped under "Using the terminal".
 - **2026-11-24:** README Scenarios rewritten to lead with what you ask Claude, commands kept as detail; tagline "Git-portable, domain-scoped Claude Code context" in the README and plugin manifests.
+- **2026-11-25:** v0.32.2: the bindle-demo repo retired (onboarding supersedes it); doctor's `"demo": true` exemption from the tracked-by-repo check removed with it. Machine awareness planned.
