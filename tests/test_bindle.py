@@ -1024,6 +1024,15 @@ class DocsTest(unittest.TestCase):
         for c in parser_cmds:
             self.assertIn(f"`bindle {c}", readme, c)
 
+    # Asked "what is bindle?", Claude answers from /bindle; if it drifts from the README, people and Claude describe two
+    # different tools, and an answer that stops at "syncs between machines" misses the boundaries that are the point.
+    def test_readme_and_the_bindle_command_both_give_the_four_parts(self):
+        readme = (bindle.BASE / "README.md").read_text(encoding="utf-8").split("Contents:")[0]
+        guide = (bindle.BASE / "commands" / "bindle.md").read_text(encoding="utf-8").split("## The model")[0]
+        for part in ("Git-portable", "Domain-scoped", "Guarded boundaries", "Intentional movement"):
+            self.assertIn(f"**{part}:**", readme, part)
+            self.assertIn(f"**{part}:**", guide, part)
+
     # AGENTS.md is how an agent finds its way around this repo; a module or script it doesn't name gets
     # reimplemented or missed, and a path that no longer exists sends it looking in the wrong place.
     def test_agents_md_names_every_module_and_script_and_only_real_paths(self):

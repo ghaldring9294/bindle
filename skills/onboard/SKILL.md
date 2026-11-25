@@ -7,6 +7,8 @@ description: Set up bindle for the first time — create or clone bindles, attac
 
 Walk the person through their first bindle setup. They should never need to type a bindle command — you call the MCP tools.
 
+If they ask what bindle is, give the four parts from `/bindle` ("What bindle is"): git-portable, domain-scoped, guarded boundaries, intentional movement. Craft and the demo domain below show the first two; read-only bindles and promotion show the other two.
+
 **Ask choices as a select.** When the person picks from a few options (approve / decline, which path, yes / no), ask with the AskUserQuestion tool so they can arrow through them: recommended option first, and the question names the item, since the dialog can hide what you wrote before it. Answers they have to type (a path, a name, a remote URL) stay plain questions, as does everything when that tool isn't available.
 
 ## 1. Already have bindles?

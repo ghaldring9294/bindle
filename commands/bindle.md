@@ -1,8 +1,17 @@
 ---
-description: Operate bindle, which carries Claude Code memory, rules and skills between machines in git repos ("bindles"). Use when the user asks to attach or detach a bindle, turn one on or off for a folder, make one writable or read-only, make a bindle's rules load everywhere (global), check which bindles are on, sync, upgrade, create a bindle, set up private terms, or migrate an existing setup.
+description: Explain and operate bindle — git-portable, domain-scoped Claude Code context (memory, rules, skills, notes in git repos called "bindles") with guarded boundaries and intentional movement between domains. Use when the user asks what bindle is or how it works, or to attach or detach a bindle, turn one on or off for a folder, make one writable or read-only, make a bindle's rules load everywhere (global), check which bindles are on, sync, upgrade, create a bindle, set up private terms, or migrate an existing setup.
 ---
 
 Help the user with bindle: $ARGUMENTS
+
+## What bindle is
+
+When asked what bindle is or how it works, give all four parts (the README opens with the same four), then the mechanics below only as far as they ask:
+
+- **Git-portable:** a domain's context lives in a git repo, the same on every machine you clone it to.
+- **Domain-scoped:** a level between you and the project; the folder you launch Claude Code from turns bindles on, and at most one is writable.
+- **Guarded boundaries:** the other bindles are read-only, anything leaving a bindle is checked for private terms and secrets, and bindle never adds or changes your git remotes.
+- **Intentional movement:** material crosses between bindles only as a general rewrite you approve (promotion), through an outbox for a bindle on another machine, or as a note in another domain's inbox; never as a direct copy.
 
 ## The model
 

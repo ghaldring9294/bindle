@@ -6,6 +6,13 @@ Claude Code keeps context at two main levels: you (everything in `~/.claude`, on
 
 Each domain's setup (skills, hooks, memory, notes and rules) lives in its own git repo, called a **bindle**, and the domains never mix. Each folder you launch Claude Code from turns on the bindles it needs. A work session can use your general tooling, but it can't write work context into your craft bindle, and a client's knowledge never reaches another client's folder.
 
+In four parts:
+
+- **Git-portable:** a domain's context lives in a git repo, the same on every machine you clone it to.
+- **Domain-scoped:** a level between you and the project; the folder you launch Claude Code from turns bindles on, and at most one is writable.
+- **Guarded boundaries:** the other bindles are read-only, anything leaving a bindle is checked for private terms and secrets, and bindle never adds or changes your git remotes.
+- **Intentional movement:** material crosses between bindles only as a general rewrite you approve (promotion), through an outbox for a bindle on another machine, or as a note in another domain's inbox; never as a direct copy.
+
 Contents: [Install](#install) · [Getting started](#getting-started) · [How it works](#how-it-works) · [Everyday use](#everyday-use) · [Scenarios](#scenarios) · [Using the terminal](#using-the-terminal) · [Configuration](#configuration) · [Safety](#safety-and-boundaries) · [Updating](#updating) · [Troubleshooting](#troubleshooting) · [Limits](#limits)
 
 ## Install

@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.36.1 (2026-11-25)
+
+No upgrade needed. Run `/plugin update bindle` (or `bindle update`), then restart Claude Code.
+
+- **Claude explains bindle in four parts.** Asked what bindle is, Claude gives all four: git-portable, domain-scoped, guarded boundaries, intentional movement. Before, it covered moving context between machines and promotion, but not the read-only locks, leak checks or the domain level. `/bindle` has a "What bindle is" section matching the README's opening (a test keeps them in step), its description triggers on "what is bindle" questions, and onboarding uses the same framing.
+
 ## 0.36.0 (2026-11-25)
 
 No upgrade needed. Run `/plugin update bindle` (or `bindle update`), restart Claude Code, then `bindle machine <name>` on each machine. For an existing bindle, add this line to its `AGENTS.md` by hand (`upgrade` doesn't touch that file): "Memories sync to every machine: save what's true everywhere, and name the machine (the user `CLAUDE.md` says which one this is) for a fact true on only one."
