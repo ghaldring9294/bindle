@@ -68,7 +68,7 @@ def build_parser():
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.set_defaults(fn=cmd_doctor)
 
-    s = sub.add_parser("sync", help="pull the bindles that are on, and commit and push the writable one's memories")
+    s = sub.add_parser("sync", help="pull the bindles that are on, and commit and push the writable one's memories and notes")
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.add_argument("--all", action="store_true", help="every bindle `bindle list` finds: pull each, and commit and push memories in those that can be writable")
     s.set_defaults(fn=cmd_sync)

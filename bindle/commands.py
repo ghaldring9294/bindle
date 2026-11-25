@@ -297,7 +297,7 @@ def cmd_new(args):
     print("  no remote set. To add one later: git remote add origin <url> && git push -u origin HEAD")
     if excluded:
         print(f"  inside the repo {excluded[0]}: added {excluded[1]} to its .git/info/exclude (local, never committed)")
-    print("  sync: " + ("on (memories pull at session start and push at session end, once a remote is set)"
+    print("  sync: " + ("on (memories and notes pull at session start and push at session end, once a remote is set)"
                         if args.sync else "off (turn on with \"sync\": true in bindle.json)"))
     warning = register(load_bindle(dest))
     if warning:

@@ -2,7 +2,7 @@
 
 Where bindle stands and what's next. The design and the reasons behind it are in [docs/design.md](docs/design.md); what changed in each version is in [CHANGELOG.md](CHANGELOG.md). Update this when work lands or priorities change.
 
-## Where it stands (2026-11-25, v0.33.0)
+## Where it stands (2026-11-25, v0.34.0)
 
 - **The tool:** the commands in README's table (tests keep the README, `/bindle` and AGENTS.md in step with the CLI); one Python implementation shared by the CLI and every bindle's hooks; unit tests in CI (macOS, Linux and Windows) plus an end-to-end test against real Claude Code.
 - **In use on three machines:** a personal laptop and a Windows PC with the personal bindle writable; a work machine with its domain bindle writable (notes, memories, rules, skills moved in) and a shared craft bindle read-only. Memories round-trip between machines through git, including from Windows.
@@ -64,7 +64,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **Trust warning:** `attach` and `doctor` still name the extra code (it runs on every machine), but say once that it's the person's own rather than warning every session.
 - Comes before "global brings the plugin parts too", which decides whether a global bindle's hooks run in every session (David, 2026-11-25: for craft, yes: its hooks and servers always run).
 
-**Planned (2026-11-25): sync commits `notes/` too.** Decided (David, 2026-11-25): notes matter as much as memories. Today sync commits only `memory/`, `projects/` and `outbox/`, so a task note or TODO edited on one machine doesn't reach the others until someone commits it by hand. Add `notes` to `SYNCED` in the managed hook (so `bindle upgrade` for every bindle), with the same secret check; still never for an `explicit`-writes bindle, where nothing is committed automatically. Update the README, docs/design.md ("Memory and sync") and the template's `AGENTS.md`.
+**Done (2026-11-25, v0.34.0): sync commits `notes/` too.** Decided (David, 2026-11-25): notes matter as much as memories. Before, sync committed only `memory/`, `projects/` and `outbox/`, so a task note or TODO edited on one machine doesn't reach the others until someone commits it by hand. Add `notes` to `SYNCED` in the managed hook (so `bindle upgrade` for every bindle), with the same secret check; still never for an `explicit`-writes bindle, where nothing is committed automatically. Update the README, docs/design.md ("Memory and sync") and the template's `AGENTS.md`.
 
 **Done (2026-11-25, v0.33.0): any change to craft goes through promotion.** Decided (David, 2026-11-25): he can ask Claude to change anything in craft from any session, and Claude does it through promotion (reviewed, leak-checked, committed), saying so. Found in real use: asked to gather machine specs, Claude wrote straight into craft because craft's own `machines.md` said where specs go; the promote skill triggers on wording that names another bindle, not on the write target.
 - **Reach for it:** the promote skill's description and `commands/bindle.md` trigger on the write target: any create, edit or removal in a bindle that's read-only here (including one a bindle's own file asks for), and plain asks like "change X in my craft". Measure with a fresh `claude -p` whose request implies craft without naming it, before and after.
@@ -139,3 +139,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-24:** README Scenarios rewritten to lead with what you ask Claude, commands kept as detail; tagline "Git-portable, domain-scoped Claude Code context" in the README and plugin manifests.
 - **2026-11-25:** v0.32.2: the bindle-demo repo retired (onboarding supersedes it); doctor's `"demo": true` exemption from the tracked-by-repo check removed with it. Machine awareness planned.
 - **2026-11-25:** v0.33.0: promotion reaches anything in a bindle (`--kind file`, `--remove`), and Claude reaches for it by the target (any change to a read-only bindle such as craft). Found when machine specs were written straight into craft. Planned: sync pushes craft's commits and warns about uncommitted edits.
+- **2026-11-25:** v0.34.0: sync commits `notes/` (scratch stays local; a secret-looking note is held back like a memory). The v0.33.0 promotion measure passed (2/2 runs).

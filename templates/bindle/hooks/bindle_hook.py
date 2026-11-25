@@ -34,7 +34,7 @@ LEAK_SHAPES = [re.compile(p) for p in [
     r"-----BEGIN [A-Z ]*PRIVATE KEY-----",
 ]]
 
-SYNCED = ("memory", "projects", "outbox")  # what sync commits by itself; everything else is committed by hand
+SYNCED = ("memory", "projects", "outbox", "notes")  # what sync commits by itself; everything else is committed by hand
 NETWORK_TIMEOUT = 5  # seconds per network call; a session start makes at most two, within its 20s hook
 # Parts of a plugin that run code on the person's machine (hooks, servers, executables).
 CODE_PATHS = ("hooks", ".claude-plugin/plugin.json", ".mcp.json", ".lsp.json", "bin")
@@ -318,7 +318,7 @@ def sync_pull(root, log):
 
 
 def sync_push(root, log):
-    """Commit changes in memory/, projects/ and outbox/ and push them. A file that looks like it holds a secret
+    """Commit changes in memory/, projects/, outbox/ and notes/ and push them. A file that looks like it holds a secret
     is held back (the rest still sync), so it can't reach the remote; the session start and doctor report it."""
     if operation_in_progress(root):
         return log.say("commit: a merge or rebase is in progress; skipped", problem=True)
@@ -329,10 +329,10 @@ def sync_push(root, log):
         log.say("held back, may hold a secret: " + ", ".join(hits), problem=True)
     ready = [p for p in changed if p not in hits]
     if ready:
-        message = f"Memories from {socket.gethostname().split('.')[0]} on {datetime.date.today()}"
+        message = f"Memories and notes from {socket.gethostname().split('.')[0]} on {datetime.date.today()}"
         if git(root, "add", "-A", "--", *ready).returncode != 0 or git(root, "commit", "-q", "-m", message, "--", *ready).returncode != 0:
             return log.say("commit failed", problem=True)
-        log.say("committed memory changes")
+        log.say("committed memory and note changes")
     push_leftovers(root, log)
 
 

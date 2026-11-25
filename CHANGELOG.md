@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.34.0 (2026-11-25)
+
+Run `bindle upgrade` (the managed hook changed), then `/plugin update bindle` (or `bindle update`) and restart Claude Code.
+
+- **Sync commits notes.** With `"sync": true`, a session end now commits and pushes changes under `notes/` along with memories, so a task note or TODO edited on one machine reaches the others without a hand commit. `notes/scratch/` stays ignored and machine-local. A note that looks like it holds a secret is held back like a memory, and the rest still sync. Bindles without sync are unchanged: the session start still reminds you to commit notes.
+
 ## 0.33.0 (2026-11-25)
 
 No upgrade needed. Run `/plugin update bindle` (or `bindle update`), then restart Claude Code.

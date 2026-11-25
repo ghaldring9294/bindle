@@ -2137,7 +2137,7 @@ class MemoryHookTest(BindleTest):
         self.run_cli("attach", b, g)
         self.assertNotIn("Notes for this domain", self.run_hook(b, g))
 
-    # Notes, rules and skills are committed by hand; work left uncommitted is lost if the machine is.
+    # Without sync, notes are committed by hand; work left uncommitted is lost if the machine is.
     def test_reminds_about_uncommitted_notes_where_writable(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
@@ -2161,7 +2161,7 @@ class MemoryHookTest(BindleTest):
         self.run_cli("attach", b, f, "--writable")
         self.assertNotIn("uncommitted", self.run_hook(b, f))
 
-    # Notes are committed by hand, so a secret could ride along with `git add -A`; flag it first.
+    # Without sync, notes are committed by hand, so a secret could ride along with `git add -A`; flag it first.
     def test_flags_a_secret_in_an_uncommitted_note(self):
         b, f = self.make_bindle("acme"), self.folder()
         self.run_cli("attach", b, f, "--writable")
@@ -2282,19 +2282,19 @@ class SyncTest(BindleTest):
         code, out = self.run_cli("doctor", self.laptop_folder)
         self.assertIn("held back, may hold a secret: memory/oops.md", out)
 
-    # An uncommitted note the remote didn't touch mustn't stop memories syncing between machines.
-    def test_an_unrelated_uncommitted_note_doesnt_stall_sync(self):
+    # An uncommitted skill the remote didn't touch mustn't stop memories syncing between machines.
+    def test_an_unrelated_uncommitted_skill_doesnt_stall_sync(self):
         (self.desktop / "memory/from-desktop.md").write_text("d\n", encoding="utf-8")
         self.hook(self.desktop, self.desktop_folder, "session-end.sh")
-        (self.laptop / "notes/draft.md").write_text("v1\n", encoding="utf-8")
+        (self.laptop / "skills/draft.md").write_text("v1\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "draft")
-        (self.laptop / "notes/draft.md").write_text("still editing\n", encoding="utf-8")  # tracked, uncommitted
+        (self.laptop / "skills/draft.md").write_text("still editing\n", encoding="utf-8")  # tracked, uncommitted
         (self.laptop / "memory/from-laptop.md").write_text("l\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         tree = bindle.git(self.remote, "ls-tree", "-r", "--name-only", "HEAD")
         self.assertIn("memory/from-laptop.md", tree)
         self.assertIn("memory/from-desktop.md", tree)
-        self.assertEqual((self.laptop / "notes/draft.md").read_text(encoding="utf-8"), "still editing\n")
+        self.assertEqual((self.laptop / "skills/draft.md").read_text(encoding="utf-8"), "still editing\n")
         self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
 
     # Being offline is normal; flagging it at every session start would teach people to ignore the real ones.
@@ -2321,18 +2321,18 @@ class SyncTest(BindleTest):
         with self.assertRaises(OSError):
             os.kill(pid, 0)
 
-    # Autostash once left conflict markers in an uncommitted note and stalled sync for good, silently.
-    def test_never_rebases_over_uncommitted_notes_and_says_why_it_stopped(self):
-        (self.laptop / "notes/plan.md").write_text("v1\n", encoding="utf-8")
+    # Autostash once left conflict markers in an uncommitted file and stalled sync for good, silently.
+    def test_never_rebases_over_uncommitted_files_and_says_why_it_stopped(self):
+        (self.laptop / "skills/plan.md").write_text("v1\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "plan")
         bindle.git(self.laptop, "push", "-q")
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
-        (self.desktop / "notes/plan.md").write_text("desktop\n", encoding="utf-8")
+        (self.desktop / "skills/plan.md").write_text("desktop\n", encoding="utf-8")
         bindle.git(self.desktop, "commit", "-qam", "desktop plan"); bindle.git(self.desktop, "push", "-q")
-        (self.laptop / "notes/plan.md").write_text("laptop\n", encoding="utf-8")  # uncommitted
+        (self.laptop / "skills/plan.md").write_text("laptop\n", encoding="utf-8")  # uncommitted
         (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
-        self.assertEqual((self.laptop / "notes/plan.md").read_text(encoding="utf-8"), "laptop\n")
+        self.assertEqual((self.laptop / "skills/plan.md").read_text(encoding="utf-8"), "laptop\n")
         self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
         code, out = self.run_cli("doctor", self.laptop_folder)
         self.assertEqual(code, 1)
@@ -2468,20 +2468,20 @@ class SyncTest(BindleTest):
         code, out = self.run_cli("doctor", self.laptop_folder)
         self.assertIn("haven't reached the remote for over a day", out)
 
-    # A rename by the remote once hid an overlap, so autostash left conflict markers in a note.
+    # A rename by the remote once hid an overlap, so autostash left conflict markers in a file.
     def test_an_uncommitted_edit_to_a_file_the_remote_renamed_stops_sync_cleanly(self):
-        (self.laptop / "notes/a.md").write_text("one\ntwo\nthree\nfour\n", encoding="utf-8")
+        (self.laptop / "skills/a.md").write_text("one\ntwo\nthree\nfour\n", encoding="utf-8")
         bindle.git(self.laptop, "add", "-A"); bindle.git(self.laptop, "commit", "-qm", "a"); bindle.git(self.laptop, "push", "-q")
         self.hook(self.desktop, self.desktop_folder, "session-start.sh")
-        bindle.git(self.desktop, "mv", "notes/a.md", "notes/b.md")
-        (self.desktop / "notes/b.md").write_text("one\nTWO desktop\nthree\nfour\n", encoding="utf-8")
+        bindle.git(self.desktop, "mv", "skills/a.md", "skills/b.md")
+        (self.desktop / "skills/b.md").write_text("one\nTWO desktop\nthree\nfour\n", encoding="utf-8")
         bindle.git(self.desktop, "commit", "-qam", "rename"); bindle.git(self.desktop, "push", "-q")
-        (self.laptop / "notes/a.md").write_text("one\nTWO laptop\nthree\nfour\n", encoding="utf-8")  # uncommitted
+        (self.laptop / "skills/a.md").write_text("one\nTWO laptop\nthree\nfour\n", encoding="utf-8")  # uncommitted
         (self.laptop / "memory/fact.md").write_text("x\n", encoding="utf-8")
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertEqual(bindle.git(self.laptop, "stash", "list"), "")
-        self.assertFalse((self.laptop / "notes/b.md").exists() and "<<<<<<<" in (self.laptop / "notes/b.md").read_text(encoding="utf-8"))
-        self.assertEqual((self.laptop / "notes/a.md").read_text(encoding="utf-8"), "one\nTWO laptop\nthree\nfour\n")
+        self.assertFalse((self.laptop / "skills/b.md").exists() and "<<<<<<<" in (self.laptop / "skills/b.md").read_text(encoding="utf-8"))
+        self.assertEqual((self.laptop / "skills/a.md").read_text(encoding="utf-8"), "one\nTWO laptop\nthree\nfour\n")
         self.assertIn("problem:", bindle.core.last_sync(self.laptop))
 
     # A hook error once started a fresh log run, hiding that run's earlier problems from doctor.
@@ -2568,6 +2568,27 @@ class SyncTest(BindleTest):
         self.hook(self.laptop, self.laptop_folder, "session-end.sh")
         self.assertIn("skills/draft.md", bindle.git(self.laptop, "status", "--porcelain"))
         self.assertNotIn("draft.md", bindle.git(self.remote, "log", "--name-only", "--format="))
+
+    # A task note edited on one machine must reach the others without a hand commit; scratch stays machine-local.
+    def test_commits_and_pushes_notes_but_not_scratch(self):
+        (self.laptop / "notes/todo.md").write_text("- next step\n", encoding="utf-8")
+        (self.laptop / "notes/scratch/dump.txt").write_text("throwaway\n", encoding="utf-8")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        pushed = bindle.git(self.remote, "log", "--name-only", "--format=")
+        self.assertIn("notes/todo.md", pushed)
+        self.assertNotIn("dump.txt", pushed)
+        self.assertEqual(bindle.git(self.laptop, "status", "--porcelain"), "")
+
+    # A note is where a pasted credential is most likely; sync holds it back like a memory and syncs the rest.
+    def test_holds_back_a_note_that_looks_like_a_secret(self):
+        (self.laptop / "notes/logins.md").write_text("password: abcdefghijklmnopqrstuvwx\n", encoding="utf-8")
+        (self.laptop / "notes/todo.md").write_text("- next step\n", encoding="utf-8")
+        self.hook(self.laptop, self.laptop_folder, "session-end.sh")
+        pushed = bindle.git(self.remote, "log", "--name-only", "--format=")
+        self.assertIn("notes/todo.md", pushed)
+        self.assertNotIn("logins.md", pushed)
+        code, out = self.run_cli("doctor", self.laptop_folder)
+        self.assertIn("notes/logins.md may hold a secret", out)
 
     # A session only writes to its writable bindle, so a read-only one has nothing of its own to push.
     def test_session_end_does_nothing_where_the_bindle_is_read_only(self):

@@ -122,7 +122,7 @@ TOOLS = [
     {
         "name": "sync",
         "description": (
-            "Commit and push the writable bindle's memories, then pull the bindles that "
+            "Commit and push the writable bindle's memories and notes, then pull the bindles that "
             "are on. With all=true, does every bindle on this machine."
         ),
         "inputSchema": {
