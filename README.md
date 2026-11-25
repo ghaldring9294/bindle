@@ -2,9 +2,9 @@
 
 **Git-portable, domain-scoped Claude Code context.**
 
-Claude Code keeps context at two main levels: you (everything in `~/.claude`, on one machine) and each project. bindle adds a level between them, the **domain**: your personal projects, an employer, or one client, covering every project in it, and carried between machines in git.
+Claude Code keeps context at two main levels: you (everything in `~/.claude`, on one machine) and each project. bindle adds a level between them, the **domain**: an employer, one client, or your side projects, covering every project in it, and carried between machines in git.
 
-Each domain's setup (skills, hooks, memory, notes and rules) lives in its own git repo, called a **bindle**, and the domains never mix. Each folder you launch Claude Code from turns on the bindles it needs. A work session can use your general tooling, but it can't write work context into your personal repo, and a client's knowledge never reaches another client's folder.
+Each domain's setup (skills, hooks, memory, notes and rules) lives in its own git repo, called a **bindle**, and the domains never mix. Each folder you launch Claude Code from turns on the bindles it needs. A work session can use your general tooling, but it can't write work context into your craft bindle, and a client's knowledge never reaches another client's folder.
 
 Contents: [Install](#install) · [Getting started](#getting-started) · [How it works](#how-it-works) · [Everyday use](#everyday-use) · [Scenarios](#scenarios) · [Using the terminal](#using-the-terminal) · [Configuration](#configuration) · [Safety](#safety-and-boundaries) · [Updating](#updating) · [Troubleshooting](#troubleshooting) · [Limits](#limits)
 
@@ -52,7 +52,8 @@ Changes to what's attached take effect in your next session, since Claude Code r
 | Term | Meaning |
 |---|---|
 | **Bindle** | A git repo for one domain: its skills, commands, hooks, memory, notes and rules. Technically, a Claude Code plugin with a few extra folders. |
-| **Domain** | A boundary you want to keep: you, an employer, one client. One bindle per domain. |
+| **Domain** | A boundary you want to keep: an employer, one client, your side projects. One bindle per domain. |
+| **Craft** | A bindle of general rules and skills with nothing from any one domain, turned on wherever you work. |
 | **Attach** | Turn a bindle on for a folder. Every session started from that folder loads it. |
 | **Writable** | The one attached bindle that new memories are saved to. A folder has at most one. |
 | **Read-only** | Any other attached bindle. Its skills, rules and memories load, but sessions can't edit it. |
@@ -69,7 +70,7 @@ flowchart LR
     F -- "on, read-only:<br/>skills and rules only" --> C
 ```
 
-Your personal bindle isn't attached at `~/acme` at all, so nothing personal loads there. At home, `~/projects` attaches your personal bindle as writable instead.
+Any other domain's bindle isn't attached at `~/acme`, so nothing from it loads there; in that domain's own folder, its bindle is the writable one instead.
 
 bindle uses Claude Code's own mechanisms rather than replacing them: plugins for skills and hooks, the `autoMemoryDirectory` setting for memory, and permission rules for the read-only lock. The `bindle` command writes a folder's `.claude/settings.local.json` and reads it back; the only thing it keeps is `~/bindles/registry.json`, a plain list of where your bindles live, so you can name them from any folder.
 
@@ -156,7 +157,7 @@ The original stays where it was. To send it to a second bindle, promote it again
 
 > "Remind me in globex to send the March invoice."
 
-It's promoted as a note (`--kind note`): checked against this domain's private terms like anything else, then added to the other bindle's `notes/inbox.md` with the date and where it came from. The next session there shows how many notes are waiting as it starts, and Claude brings them up. When the target isn't on this machine (personal, from a work laptop), the approved draft waits in the source's outbox (`bindle outbox add`); on the machine where the target lives, ask "collect what acme has for personal" (`bindle collect`).
+It's promoted as a note (`--kind note`): checked against this domain's private terms like anything else, then added to the other bindle's `notes/inbox.md` with the date and where it came from. The next session there shows how many notes are waiting as it starts, and Claude brings them up. When the target isn't on this machine (a client whose bindle lives on another laptop), the approved draft waits in the source's outbox (`bindle outbox add`); on the machine where the target lives, ask "collect what acme has for globex" (`bindle collect`).
 
 **Sharing your craft.** Keep finished, general skills in a craft bindle that only takes promoted material, and share its repo:
 
@@ -200,32 +201,36 @@ bindle/bin/bindle install
 
 ### Quick start
 
-Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works. Commands find a bindle in `~/bindles/` by its folder name, and one elsewhere (like a domain bindle in its project folder) by the name it was created or attached with (set `BINDLE_HOME` to use another home folder). Run `bindle` alone to see every command.
+Create a craft bindle for your general rules and skills, and a domain bindle for one folder of work (here `~/acme`), then turn both on there. Commands find a bindle in `~/bindles/` by its folder name, and one elsewhere (like a domain bindle in its folder) by the name it was created or attached with (set `BINDLE_HOME` to use another home folder). Run `bindle` alone to see every command.
 
-1. **Create the bindle.** It's a local git repo; bindle never sets a remote.
+1. **Create the bindles.** Each is a local git repo; bindle never sets a remote.
    ```
-   bindle new personal --at ~/bindles/personal --sync
+   bindle new craft --at ~/bindles/craft --sync
+   bindle new acme --at ~/acme/.bindle --sync
    ```
-2. **Give it a private remote** so it can travel between machines (any git host):
+2. **Give each a private remote** so it can travel between machines (any git host):
    ```
-   cd ~/bindles/personal
-   git remote add origin git@github.com:you/bindle-personal.git
+   cd ~/bindles/craft
+   git remote add origin git@github.com:you/bindle-craft.git
    git push -u origin HEAD
    ```
-3. **Attach it** to the folder you launch Claude Code from, as the writable bindle:
+   and the same in `~/acme/.bindle`.
+3. **Turn them on.** Make craft's rules load everywhere, and attach both to the folder you launch Claude Code from, with acme as the writable bindle:
    ```
-   bindle attach personal ~/projects --writable
+   bindle global craft
+   bindle attach acme ~/acme --writable
+   bindle attach craft ~/acme
    ```
-   `personal` is short for `~/bindles/personal`; a path works too.
+   `craft` is short for `~/bindles/craft`; a path works too.
 4. **Check it:**
    ```
-   bindle doctor ~/projects
+   bindle doctor ~/acme
    ```
-   You should see `personal: on, writable, sync on` and `No problems found.`
+   You should see `acme: on, writable, sync on`, `craft: on, read-only, sync on` and `No problems found.`
    If you installed from a git clone rather than the plugin, turn on the session check (`bindle install --session-check`).
-5. **Start Claude Code from `~/projects`.** The first lines of the session name the bindle and say it's writable. Ask Claude to remember something; it lands in `~/bindles/personal/memory/`, and with sync on, it's committed and pushed when the session ends.
+5. **Start Claude Code from `~/acme`.** The first lines of the session name the bindles and say which is writable. Ask Claude to remember something; it lands in `~/acme/.bindle/memory/`, and with sync on, it's committed and pushed when the session ends.
 
-On another machine: install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone the bindle to the same kind of place (`git clone <url> ~/bindles/personal`; plain `git clone <url>` would put it in the current folder as `bindle-personal`), and `bindle attach` once per folder.
+On another machine: install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone each bindle to the same kind of place (`git clone <url> ~/bindles/craft`; plain `git clone <url>` would put it in the current folder as `bindle-craft`), and `bindle attach` once per folder.
 
 ### Commands
 
@@ -332,10 +337,10 @@ A server that only exists on one machine (a local path, a tool installed in one 
 
 ## Safety and boundaries
 
-- **One writable bindle per folder.** Every new memory has exactly one destination, so a session can't save work context into your personal bindle by mistake.
+- **One writable bindle per folder.** Every new memory has exactly one destination, so a session can't save one client's context into craft or another client's bindle by mistake.
 - **Read-only bindles are locked against Claude's file-editing tools.** `attach` adds a permission rule, so Claude can't edit them. It isn't a sandbox: it doesn't cover shell commands, though Claude Code refuses attempts to work around the lock that way.
 - **Promotion is the only way bindle moves material between bindles.** Material crosses as a general rewrite you approved. `promote` (and `outbox add`) check it against the source's private terms (in its name, description, file names and contents) and for credentials, and Claude Code's permission prompt shows exactly what moves. An item that waits in an outbox gets a hash, and `collect` refuses it if it changed since you approved it. The private terms are a backstop for names you've listed, not a guarantee.
-- **A read-only bindle is visible, not sealed.** Its rules and memory index are shown in sessions where it's attached, so what a session sees there could end up in the writable bindle's memories. Attach a bindle to a folder only if that domain may see it, which is why personal stays off at work and craft holds only general material.
+- **A read-only bindle is visible, not sealed.** Its rules and memory index are shown in sessions where it's attached, so what a session sees there could end up in the writable bindle's memories. Attach a bindle to a folder only if that domain may see it, which is why a client's bindle stays off in other clients' folders and craft holds only general material.
 - **Secrets are never pushed by sync.** A memory, project or outbox file that looks like it holds a credential is held back (the rest still sync), the next session start says so, and `doctor` reports it. Sync also checks everything it's about to push that the remote doesn't already have, so a secret committed by hand stays local too, even if a later commit removed it; `doctor` says how to take it out of those commits. `doctor` also checks notes and suggests moving a secret to a password manager, leaving a pointer in the note.
 - **A bindle inside a project repo is excluded there.** `bindle new` adds it to that repo's `.git/info/exclude`, so a `git add -A` in the project can't commit your bindle. `doctor` warns if a repo would commit or already tracks one.
 - **bindle never adds or pushes a remote.** Where each bindle lives is your decision. A work bindle belongs only on storage your employer allows.
