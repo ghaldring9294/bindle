@@ -4,7 +4,46 @@ bindle carries your Claude Code setup (skills, hooks, memory, notes and rules) b
 
 You keep one repo per domain, called a **bindle**. Each folder you launch Claude Code from turns on the bindles it needs. A work session can use your general tooling, but it can't write work context into your personal repo, and a client's knowledge never reaches another client's folder.
 
-Contents: [How it works](#how-it-works) · [Install](#install) · [Quick start](#quick-start) · [Everyday use](#everyday-use) · [Scenarios](#scenarios) · [Commands](#commands) · [Configuration](#configuration) · [Safety](#safety-and-boundaries) · [Updating](#updating) · [Troubleshooting](#troubleshooting) · [Limits](#limits)
+Contents: [Install](#install) · [Getting started](#getting-started) · [How it works](#how-it-works) · [Everyday use](#everyday-use) · [Scenarios](#scenarios) · [Using the terminal](#using-the-terminal) · [Configuration](#configuration) · [Safety](#safety-and-boundaries) · [Updating](#updating) · [Troubleshooting](#troubleshooting) · [Limits](#limits)
+
+## Install
+
+You need Claude Code 2.1.74 or later, git, and Python 3.9 or later. It runs on macOS, Linux and Windows. On Windows, install [Git for Windows](https://git-scm.com/download/win) (Claude Code runs hooks in its Git Bash) and Python from [python.org](https://www.python.org/downloads/).
+
+In Claude Code, run:
+
+```
+/plugin marketplace add https://github.com/ghaldring9294/bindle.git
+/plugin install bindle@bindle --scope user
+```
+If the remote URL doesn't work, clone the repo first and add it by local path:
+```
+git clone https://github.com/ghaldring9294/bindle.git
+/plugin marketplace add /path/to/bindle
+/plugin install bindle@bindle --scope user
+```
+Adding the marketplace only makes the plugin available; the install turns it on, and user scope turns it on in every folder (your bindles still load only where you attach them). This gives you the `/bindle` command, the `/bindle:promote` and `/bindle:onboard` skills, MCP tools that Claude calls directly (attach, detach, doctor, sync and so on — no shell commands needed), and the session-check hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating. Nothing else to install; next, [get started](#getting-started).
+
+The session check warns inside folders you've attached a bindle to as writable; everywhere else it stays silent. In any folder, it also says when bindle has a new release (it checks for new tags in the background, at most once a day; set `BINDLE_UPDATE_CHECK=off` to stop that) or when a bindle needs `bindle upgrade`.
+
+## Getting started
+
+Start Claude Code in any folder. With no bindles yet, the session's first lines offer `/bindle:onboard`, which walks you through setup: a **craft** bindle for the rules and skills you want in every session, your first rule, a demo of how a domain bindle keeps one context to its own folder, and a remote so it all travels between machines. If you already have bindles on another machine, it clones them instead. You don't type any `bindle` commands; Claude runs them.
+
+After that, ask Claude in your own words:
+
+| Ask | What happens |
+|---|---|
+| "attach craft here" | craft turns on for this folder, read-only |
+| "make acme writable here" | new memories from this folder go to acme |
+| "make craft's rules apply everywhere" | craft's rules load in every session, subagent and folder |
+| "what's on here?" | Claude checks the folder and summarizes what's on and anything wrong |
+| "make a bindle for ~/acme" | a new domain bindle, with its private terms, writable in that folder |
+| "promote this lesson to craft" | Claude drafts a general version; it moves only once you approve |
+| "remind me in globex to send the invoice" | a note waits for the next session in globex's folder |
+| "update bindle" | pulls and upgrades every bindle |
+
+Changes to what's attached take effect in your next session, since Claude Code reads settings when a session starts. `/bindle` teaches Claude bindle in any session, and `/bindle:docs` links to these docs. [Scenarios](#scenarios) shows common setups; from [Using the terminal](#using-the-terminal) on is reference.
 
 ## How it works
 
@@ -31,63 +70,6 @@ flowchart LR
 Your personal bindle isn't attached at `~/acme` at all, so nothing personal loads there. At home, `~/projects` attaches your personal bindle as writable instead.
 
 bindle uses Claude Code's own mechanisms rather than replacing them: plugins for skills and hooks, the `autoMemoryDirectory` setting for memory, and permission rules for the read-only lock. The `bindle` command writes a folder's `.claude/settings.local.json` and reads it back; the only thing it keeps is `~/bindles/registry.json`, a plain list of where your bindles live, so you can name them from any folder.
-
-## Install
-
-You need Claude Code 2.1.74 or later, git, and Python 3.9 or later. It runs on macOS, Linux and Windows.
-
-**As a plugin (recommended):**
-```
-/plugin marketplace add https://github.com/ghaldring9294/bindle.git
-/plugin install bindle@bindle --scope user
-```
-If the remote URL doesn't work, clone the repo first and add it by local path:
-```
-git clone https://github.com/ghaldring9294/bindle.git
-/plugin marketplace add /path/to/bindle
-/plugin install bindle@bindle --scope user
-```
-Adding the marketplace only makes the plugin available; the install turns it on, and user scope turns it on in every folder (your bindles still load only where you attach them). This gives you the `/bindle` command, the `/bindle:promote` and `/bindle:onboard` skills, MCP tools that Claude calls directly (attach, detach, doctor, sync and so on — no shell commands needed), and the session-check hook that warns when a session starts inside a domain folder without its bindle, and when bindle or a bindle needs updating. If no bindles exist yet, the session check offers `/bindle:onboard` to walk you through setup. Nothing else to do.
-
-**For terminal access** (optional — lets you run `bindle` commands outside Claude Code):
-```
-git clone https://github.com/ghaldring9294/bindle.git
-bindle/bin/bindle install
-```
-`install` puts the `bindle` command in `~/.local/bin`. If `~/.local/bin` isn't on your `PATH`, it tells you how to add it.
-
-The session check warns inside folders you've attached a bindle to as writable; everywhere else it stays silent. In any folder, it also says when bindle has a new release (it checks for new tags in the background, at most once a day; set `BINDLE_UPDATE_CHECK=off` to stop that) or when a bindle needs `bindle upgrade`.
-
-**On Windows:** install [Git for Windows](https://git-scm.com/download/win) (Claude Code runs hooks in its Git Bash) and Python from [python.org](https://www.python.org/downloads/). For the plugin, the same `/plugin marketplace add` works. For terminal access, run `python bindle\bin\bindle install` after cloning. Without developer mode, Windows doesn't allow symlinks, so `install` copies files instead and writes a `bindle.cmd` launcher; run `bindle install` again after updating bindle. Add `%USERPROFILE%\.local\bin` to your `PATH`.
-
-## Quick start
-
-Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works. Commands find a bindle in `~/bindles/` by its folder name, and one elsewhere (like a domain bindle in its project folder) by the name it was created or attached with (set `BINDLE_HOME` to use another home folder). Run `bindle` alone to see every command.
-
-1. **Create the bindle.** It's a local git repo; bindle never sets a remote.
-   ```
-   bindle new personal --at ~/bindles/personal --sync
-   ```
-2. **Give it a private remote** so it can travel between machines (any git host):
-   ```
-   cd ~/bindles/personal
-   git remote add origin git@github.com:you/bindle-personal.git
-   git push -u origin HEAD
-   ```
-3. **Attach it** to the folder you launch Claude Code from, as the writable bindle:
-   ```
-   bindle attach personal ~/projects --writable
-   ```
-   `personal` is short for `~/bindles/personal`; a path works too.
-4. **Check it:**
-   ```
-   bindle doctor ~/projects
-   ```
-   You should see `personal: on, writable, sync on` and `No problems found.`
-   If you installed from a git clone rather than the plugin, turn on the session check (`bindle install --session-check`, see [Install](#install)).
-5. **Start Claude Code from `~/projects`.** The first lines of the session name the bindle and say it's writable. Ask Claude to remember something; it lands in `~/bindles/personal/memory/`, and with sync on, it's committed and pushed when the session ends.
-
-On another machine: install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone the bindle to the same kind of place (`git clone <url> ~/bindles/personal`; plain `git clone <url>` would put it in the current folder as `bindle-personal`), and `bindle attach` once per folder.
 
 ## Everyday use
 
@@ -119,7 +101,7 @@ This adds imports of the bindle's `rules.md` and its memory index (`memory/MEMOR
 
 ## Scenarios
 
-Each scenario uses made-up names. Replace the paths with your own.
+Each scenario uses made-up names. Replace the paths with your own. The commands show what happens; in Claude Code, ask for it in words and Claude runs them.
 
 **An employee.** Your employer's bindle lives in your work folder and is writable there; your general tooling (a craft bindle) is on read-only.
 ```
@@ -173,7 +155,50 @@ What you write in craft isn't checked against acme's private terms (only promoti
 
 **Working with a friend on a project.** You each keep your own bindles. Anything you both need goes into the project's repo itself (its `CLAUDE.md` and docs), where it's reviewed like code.
 
-## Commands
+## Using the terminal
+
+Everything above works through Claude. To run bindle yourself, or script it, the same operations are a `bindle` command.
+
+### Install the command
+
+```
+git clone https://github.com/ghaldring9294/bindle.git
+bindle/bin/bindle install
+```
+`install` puts the `bindle` command in `~/.local/bin`. If `~/.local/bin` isn't on your `PATH`, it tells you how to add it.
+
+**On Windows,** run `python bindle\bin\bindle install` after cloning. Without developer mode, Windows doesn't allow symlinks, so `install` copies files instead and writes a `bindle.cmd` launcher; run `bindle install` again after updating bindle. Add `%USERPROFILE%\.local\bin` to your `PATH`.
+
+### Quick start
+
+Create a personal bindle and turn it on for the folder you keep side projects in. These examples keep bindles in `~/bindles/`; any folder works. Commands find a bindle in `~/bindles/` by its folder name, and one elsewhere (like a domain bindle in its project folder) by the name it was created or attached with (set `BINDLE_HOME` to use another home folder). Run `bindle` alone to see every command.
+
+1. **Create the bindle.** It's a local git repo; bindle never sets a remote.
+   ```
+   bindle new personal --at ~/bindles/personal --sync
+   ```
+2. **Give it a private remote** so it can travel between machines (any git host):
+   ```
+   cd ~/bindles/personal
+   git remote add origin git@github.com:you/bindle-personal.git
+   git push -u origin HEAD
+   ```
+3. **Attach it** to the folder you launch Claude Code from, as the writable bindle:
+   ```
+   bindle attach personal ~/projects --writable
+   ```
+   `personal` is short for `~/bindles/personal`; a path works too.
+4. **Check it:**
+   ```
+   bindle doctor ~/projects
+   ```
+   You should see `personal: on, writable, sync on` and `No problems found.`
+   If you installed from a git clone rather than the plugin, turn on the session check (`bindle install --session-check`).
+5. **Start Claude Code from `~/projects`.** The first lines of the session name the bindle and say it's writable. Ask Claude to remember something; it lands in `~/bindles/personal/memory/`, and with sync on, it's committed and pushed when the session ends.
+
+On another machine: install the plugin (`/plugin marketplace add <bindle-repo-url>`), clone the bindle to the same kind of place (`git clone <url> ~/bindles/personal`; plain `git clone <url>` would put it in the current folder as `bindle-personal`), and `bindle attach` once per folder.
+
+### Commands
 
 | Command | What it does |
 |---|---|

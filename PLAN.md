@@ -99,3 +99,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-24:** v0.32.1: the MCP server starts on Windows: `.mcp.json` runs `bin/py` without `bash` (not on PATH there), and `bin/py.cmd` is its Windows twin.
 - **2026-11-24:** v0.32.0: `/bindle:onboard` skill and session-check nudge for new users; skills and commands renamed to drop the redundant `bindle-` prefix (`/bindle:promote`, `/bindle:onboard`, `/bindle:docs` instead of `bindle:bindle-promote`, etc.).
 - **2026-11-24:** v0.29.1: two Windows-only test failures fixed (present since before 0.28.0, found checking CI for 0.29.0).
+- **2026-11-24:** README reordered for people using bindle through Claude: Install and a new Getting started (onboarding, asks in plain words) first; CLI install, Quick start and Commands grouped under "Using the terminal".
