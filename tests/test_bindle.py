@@ -940,6 +940,7 @@ class SessionCheckTest(InstallTest):
     # Folders outside any domain stay silent, or the warning becomes noise people learn to skip.
     def test_silent_outside_domains_in_the_domain_itself_and_after_detach(self):
         self.run_cli("install", "--session-check")
+        self.run_cli("machine", "test-mac")  # an unnamed machine is asked for a name once; not what this test is about
         self.assertEqual(self.hook(self.folder("downloads")).stdout, "")
         self.assertEqual(self.hook(self.domain).stdout, "")
         self.run_cli("detach", "acme", self.domain)
