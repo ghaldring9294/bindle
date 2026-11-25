@@ -39,6 +39,11 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - A test that the README opening and `commands/bindle.md` both name the four parts, so they don't drift.
 - Measure: a fresh `claude -p "what is bindle?"` in an unrelated folder, before and after; done when the answer covers all four parts.
 
+**Planned (2026-11-25): global brings the plugin parts too.** A global bindle's `rules.md` and memory index load everywhere, but its agents, skills and commands load only where it's attached (`attach` installs the plugin at local scope). So agents kept in craft don't travel the way its rules do. Decided (David, 2026-11-25): global means the whole bindle, so making craft global makes its agents available everywhere. `bindle global <name>` also installs the bindle's plugin at user scope (Claude Code's own mechanism), and `--off` removes it.
+- Decide first: whether its hooks should run in every session (or the hook stays quiet where the bindle isn't attached); how it interacts with a local-scope install where it's also attached (no double load); names become `<bindle>:<agent>`, so references by bare name change.
+- `doctor` reports a global bindle whose plugin isn't installed at user scope.
+- Cross-platform: manual check that a user-scope plugin's agents and skills load in a subagent-capable session on macOS, Windows and Linux. Contract-test assumption: a user-scope plugin's agents are available in every folder.
+
 **Planned (2026-11-25): machine awareness.** Memories sync to every machine, but some are true on only one: found in real use, where a "dev machine is a 2015 MacBook, avoid source builds" memory reached an M1 machine and would have steered Claude wrong. Claude can't judge whether a memory applies without knowing which machine it's on.
 - **A machine name, per machine:** stored in `~/bindles/registry.json` (bindle's only per-machine state; never in a bindle, which would sync it everywhere). Asked in `/bindle:onboard`; when unset, the session check asks once. Suggest a short default from the hostname ("work-mac"), not the raw hostname (ugly, and it changes).
 - **Hardware detected by code, not asked:** model, architecture and OS (`sysctl`/`uname` on macOS and Linux, the Windows equivalents). Only the name needs a person.
