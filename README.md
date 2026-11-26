@@ -1,5 +1,7 @@
 # bindle
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?logo=buymeacoffee)](https://buymeacoffee.com/ghaldring9294)
+
 **Git-portable, domain-scoped Claude Code context.**
 
 Claude Code keeps context at two main levels: you (everything in `~/.claude`, on one machine) and each project. bindle adds a level between them, the **domain**: an employer, one client, or your side projects, covering every project in it, and carried between machines in git.
