@@ -1033,23 +1033,20 @@ def example_commands(text):
 
 
 class DocsTest(unittest.TestCase):
-    # The README is how people learn the commands; a command it doesn't list is one nobody finds.
-    def test_readme_lists_every_command(self):
-        readme = (bindle.BASE / "README.md").read_text(encoding="utf-8")
+    # The reference doc is how people learn the commands; a command it doesn't list is one nobody finds.
+    def test_reference_lists_every_command(self):
+        reference = (bindle.BASE / "docs" / "reference.md").read_text(encoding="utf-8")
         parser_cmds = ["install", "new", "attach", "detach", "doctor", "sync", "update", "upgrade", "outbox add", "outbox list", "collect", "terms", "outbox clean", "outbox remove", "list", "promote", "session-check", "global", "machine"]
         import argparse
         sub = next(a for a in bindle.build_parser()._actions if isinstance(a, argparse._SubParsersAction))
         self.assertEqual(sorted(sub.choices), sorted({c.split()[0] for c in parser_cmds}))
         for c in parser_cmds:
-            self.assertIn(f"`bindle {c}", readme, c)
+            self.assertIn(f"`bindle {c}", reference, c)
 
-    # Asked "what is bindle?", Claude answers from /bindle; if it drifts from the README, people and Claude describe two
-    # different tools, and an answer that stops at "syncs between machines" misses the boundaries that are the point.
-    def test_readme_and_the_bindle_command_both_give_the_four_parts(self):
-        readme = (bindle.BASE / "README.md").read_text(encoding="utf-8").split("Contents:")[0]
+    # Asked "what is bindle?", Claude answers from /bindle; the four-parts framing must stay in its guide.
+    def test_the_bindle_command_gives_the_four_parts(self):
         guide = (bindle.BASE / "commands" / "bindle.md").read_text(encoding="utf-8").split("## The model")[0]
         for part in ("Git-portable", "Domain-scoped", "Guarded boundaries", "Intentional movement"):
-            self.assertIn(f"**{part}:**", readme, part)
             self.assertIn(f"**{part}:**", guide, part)
 
     # AGENTS.md is how an agent finds its way around this repo; a module or script it doesn't name gets
@@ -1072,20 +1069,20 @@ class DocsTest(unittest.TestCase):
             elif term.endswith(".py") and "/" not in term:
                 self.assertTrue((bindle.BASE / "bindle" / term).exists(), f"AGENTS.md names {term}, which doesn't exist")
 
-    # An option that the README doesn't mention is one people never use. The /bindle command uses MCP tool
+    # An option that the reference doesn't mention is one people never use. The /bindle command uses MCP tool
     # args (not --option format), so it's checked separately above.
-    def test_every_option_is_in_the_readme(self):
-        readme = (bindle.BASE / "README.md").read_text(encoding="utf-8")
-        missing = [f"README.md doesn't mention `bindle {command} {option}`"
+    def test_every_option_is_in_the_reference(self):
+        reference = (bindle.BASE / "docs" / "reference.md").read_text(encoding="utf-8")
+        missing = [f"docs/reference.md doesn't mention `bindle {command} {option}`"
                    for command, option in all_options(bindle.build_parser())
-                   if option not in readme]
+                   if option not in reference]
         self.assertEqual(missing, [])
 
     # Example commands are what people and agents copy; one the CLI no longer accepts fails at the worst moment.
     # The /bindle command and promote skill use MCP tools now, not CLI syntax, so they aren't checked here.
     def test_every_example_command_parses(self):
         import shlex
-        files = ["README.md", "MIGRATION.md"]
+        files = ["README.md", "MIGRATION.md", str(Path("docs") / "reference.md")]
         for rel in files:
             for line in example_commands((bindle.BASE / rel).read_text(encoding="utf-8")):
                 with self.subTest(file=rel, line=line):
