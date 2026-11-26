@@ -20,6 +20,7 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 - `skills/promote/`: the promotion skill (`/bindle:promote`), provided by the plugin. Drafting is judgment; the `promote` tool (or `outbox_add` then `collect`, for a target on another machine) does every write and check.
 - `skills/onboard/`: the onboarding skill (`/bindle:onboard`), offered by the session check when no bindles exist. Walks through creating or cloning a first bindle, making it global, and seeing it work.
 - `hooks/hooks.json`: the plugin's session-check hook (warns when a session starts inside a domain folder without its bindle, when bindle or a bindle needs updating, and when no bindles exist yet).
+- `docs/reference.md`: the full reference (everyday use, CLI commands, configuration, safety, troubleshooting).
 - `MIGRATION.md`: instructions an agent follows to move an existing setup into bindles.
 - `CHANGELOG.md` and `VERSION` (in `bindle/core.py`): bump the version and add an entry for each release; say "run `bindle upgrade`" when managed files or the layout change. Tag releases `vX.Y.Z`.
 
@@ -31,7 +32,7 @@ A CLI that carries one person's Claude Code setup between machines while keeping
 4. **Use Claude Code's native mechanisms** (plugins, `autoMemoryDirectory`, hooks) rather than custom loading.
 5. **Tests encode why:** each test says what breaks for a person if it fails. Run the unit tests before committing.
 6. **Docs ship with the change, in the same commit.** A change to a command, a behaviour or a decision updates every place that describes it:
-   - `README.md` (people using bindle) and `commands/bindle.md` (Claude operating bindle): tests check that both name every command and option, and that every `bindle …` line in a code block in the README and MIGRATION.md parses
+   - `README.md` (front page), `docs/reference.md` (full reference) and `commands/bindle.md` (Claude operating bindle): tests check that the reference and the command both name every command and option, and that every `bindle …` line in a code block in the README, reference and MIGRATION.md parses
    - `skills/promote/SKILL.md` and `MIGRATION.md`, when promotion or setup changes
    - `docs/design.md`, when a decision or its reason changes
    - `templates/bindle/AGENTS.md`, when the bindle layout changes
