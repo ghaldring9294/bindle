@@ -45,6 +45,7 @@ def build_parser():
     s.add_argument("folder", nargs="?", help=FOLDER_HELP)
     s.add_argument("--writable", action="store_true", help="new memories in this folder go to this bindle")
     s.add_argument("--repos", action="store_true", help="also each git repo directly inside the folder (sessions started in a repo read only its own settings)")
+    s.add_argument("--dry-run", action="store_true", help="show what would load there (rules, skills, agents, commands, code) and change nothing")
     s.set_defaults(fn=cmd_attach)
 
     s = sub.add_parser("detach", help="turn a bindle off for a folder")
@@ -60,6 +61,7 @@ def build_parser():
                                    "commands, hooks) at user scope. Takes effect in the next session.")
     s.add_argument("bindle", help="the bindle's name or path (with --off, also the path doctor shows for one that moved)")
     s.add_argument("--off", action="store_true", help="stop loading it everywhere (remove its imports and the user-scope plugin)")
+    s.add_argument("--dry-run", action="store_true", help="show what would load everywhere (rules, skills, agents, commands, code) and change nothing")
     s.set_defaults(fn=cmd_global)
 
     s = sub.add_parser("machine", help="show or set this machine's name, which every session and subagent sees",

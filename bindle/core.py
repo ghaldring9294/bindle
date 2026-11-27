@@ -19,7 +19,7 @@ WINDOWS = os.name == "nt"
 BASE = Path(os.path.realpath(__file__)).parent.parent
 TEMPLATE = BASE / "templates" / "bindle"
 LAYOUT = 1
-VERSION = "0.38.0"
+VERSION = "0.39.0"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]*$")
 # Files bindle owns inside every bindle; doctor flags copies that drifted from the template.
 MANAGED = ["hooks/bindle_hook.py", "hooks/run", "hooks/hooks.json"]
@@ -463,6 +463,28 @@ def extra_code(b):
     if (root / "bin").is_dir() and any((root / "bin").iterdir()):
         found.append("bin/ (executables)")
     return found
+
+
+def what_loads(b, warn_code=True):
+    """Lines naming what b puts into a session, so turning it on is a choice made knowing what it brings.
+    Only code is a warning; rules, skills and agents are instructions, listed for information."""
+    root, name = b["root"], b["name"]
+    size = sum(len((root / f).read_text(encoding="utf-8", errors="ignore")) for f in hooks().GLOBAL_FILES if (root / f).is_file())
+    listed = lambda found: ", ".join(f"{name}:{n}" for n in found) or "none"
+    code = []
+    for item in extra_code(b):
+        servers = read_json(root / ".mcp.json").get("mcpServers") if item == ".mcp.json" else None
+        code.append(f"MCP servers {', '.join(sorted(servers))} (.mcp.json)" if isinstance(servers, dict) and servers else item)
+    lines = [f"  Always in context  rules.md and memory index ({size:,} chars)",
+             f"  Skills             {listed(sorted(p.parent.name for p in (root / 'skills').glob('*/SKILL.md')))}",
+             f"  Agents             {listed(sorted(p.stem for p in (root / 'agents').glob('*.md')))}",
+             f"  Commands           {listed(sorted(p.stem for p in (root / 'commands').glob('*.md')))}"]
+    if not code:
+        return lines + ["  Runs code          nothing beyond bindle's own hooks"]
+    lines.append(f"  Runs code          {'warning: ' if warn_code else ''}{'; '.join(code)}")
+    if warn_code:
+        lines.append("                     It runs code on this machine with your permissions: turn it on only if you trust whoever can push to it.")
+    return lines
 
 
 def secret_hits(b):

@@ -123,7 +123,7 @@ The leak check is only as good as the term list. `bindle terms` suggests candida
 | Private terms | Names you listed | Names you didn't list. It's a backstop, not a guarantee |
 | Secret check | Common credential formats in files that would be committed | Novel formats; anything in ignored files (which never leave the machine) |
 | Enclosing-repo exclude | A bindle inside a project repo being committed by `git add -A` there | A bindle deliberately tracked there (`doctor` warns) |
-| Trust warnings | Code a read-only bindle runs beyond bindle's own hooks (extra hooks, servers, executables), and pulls that change such code | Instructions in skills and rules, which are trusted like any plugin's |
+| Trust warnings | Code a read-only bindle runs beyond bindle's own hooks (extra hooks, servers by name, executables), and pulls that change such code; `attach` and `global` also list the skills, agents and commands a bindle brings, for information (decided 2026-11-27: turning one on should be a choice made knowing what it brings, with `--dry-run` to see it first) | Instructions in skills and rules, which are trusted like any plugin's |
 
 A read-only bindle is **visible, not sealed**: its rules and memory index are shown in sessions where it's attached. So attach a bindle only to folders whose domain may see it. That's why a personal bindle stays off at work, and a craft bindle holds only general material.
 
