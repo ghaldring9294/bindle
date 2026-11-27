@@ -142,3 +142,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-25:** v0.37.0: `bindle global` installs the bindle's plugin at user scope (agents, skills, commands, hooks everywhere) and locks an explicit-writes one everywhere; probed that a plugin on at both scopes loads once.
 - **2026-11-25:** v0.37.1: `bindle update` also updates bindle's plugin, each global bindle's user-scope plugin and the machine line (asked for: one command that updates everything).
 - **2026-11-27:** v0.38.0: promotion takes dot paths (found setting craft up as an Obsidian vault: `.gitignore` was refused). `.claude/`, `.claude-plugin/` and `.mcp.json` need `--allow <path>`; only `.git` and bindle's own files are refused.
+- **2026-11-27:** v0.39.0: `attach` and `global` list what a bindle loads (skills, agents, commands by name; MCP servers named in the code warning) and take `--dry-run` (asked for: see what going global brings first).

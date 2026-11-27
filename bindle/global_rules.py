@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import machine
 from .core import (BindleError, claude, declared_bindles, directory_marketplaces, find_bindle, hooks, load_bindle, plugin_id,
-                   quote, read_json, real, set_lock, settings_path, user_settings_path, write_json)
+                   quote, read_json, real, set_lock, settings_path, user_settings_path, what_loads, write_json)
 
 HEADER = ("<!-- bindle global: start. Managed by `bindle global <name>` (`--off` removes one); "
           "edits inside this block are overwritten. -->")
@@ -116,6 +116,8 @@ def cmd_global(args):
     lines, bom, codec, eol, block = read_claude_md(target)
     roots = h.global_roots(block_text(lines, block))
 
+    if args.off and getattr(args, "dry_run", False):
+        raise BindleError("--dry-run previews turning a bindle on; run --off without it.")
     if args.off:
         try:
             found = find_bindle(args.bindle)
@@ -138,6 +140,11 @@ def cmd_global(args):
     rules = b["root"] / "rules.md"
     if not rules.is_file():
         raise BindleError(f"{b['name']} has no rules.md at {rules}; create it first.")
+    if getattr(args, "dry_run", False):
+        print(f"{b['name']} would load in every session and subagent, in every folder:")
+        print("\n".join(what_loads(b)))
+        print("Nothing changed (dry run).")
+        return 0
     new_roots = roots if any(same_file(r, b["root"]) for r in roots) else roots + [b["root"]]
     plugin_changed = install_everywhere(b)  # also for a bindle made global before 0.37.0, which had only the imports
     if block and block_text(lines, block) == "".join(render(new_roots, eol, machine.line())):
@@ -146,8 +153,9 @@ def cmd_global(args):
                  f"folder from the next session." if plugin_changed else ""))
         return 0
     write_block(target, lines, bom, codec, eol, block, new_roots, machine.line())
-    print(f"{b['name']} now loads in every session and subagent, from the next session: its rules.md and memory index "
-          f"through {path}, and its agents, skills, commands and hooks through its plugin at user scope. Where "
+    print(f"{b['name']} now loads in every session and subagent, in every folder, from the next session:")
+    print("\n".join(what_loads(b)))
+    print(f"Its rules.md and memory index load through {path}, the rest through its plugin at user scope. Where "
           f"{b['name']} is attached, its hook no longer shows the rules and index a second time."
           + (f" It takes explicit writes, so it's locked against Claude's edit tools everywhere; change it through "
              f"promotion." if b["writes"] == "explicit" else ""))

@@ -418,6 +418,37 @@ class ReposTest(BindleTest):
         self.assertEqual(code, 0, out)
         self.assertEqual(out.count("runs code on this machine"), 1, out)
 
+    # Turning a bindle on should be a choice made knowing what it brings: its skills, agents and commands by the
+    # names Claude will use, and its servers by name, since a bare ".mcp.json" says nothing about what will run.
+    def test_attach_says_what_loads_and_names_its_servers(self):
+        b, d = self.make_bindle("craft"), self.domain()
+        (b / "skills/tidy").mkdir(parents=True)
+        (b / "skills/tidy/SKILL.md").write_text("---\nname: tidy\n---\n", encoding="utf-8")
+        (b / "agents").mkdir(exist_ok=True)
+        (b / "agents/reviewer.md").write_text("reviewer\n", encoding="utf-8")
+        (b / ".mcp.json").write_text('{"mcpServers": {"playwright": {}, "notes": {}}}\n', encoding="utf-8")
+        code, out = self.run_cli("attach", b, d)
+        self.assertEqual(code, 0, out)
+        for expected in ("craft:tidy", "craft:reviewer", "MCP servers notes, playwright", "warning:"):
+            self.assertIn(expected, out)
+
+    # A preview that changes something isn't a preview: the folder must be exactly as it was.
+    def test_attach_dry_run_changes_nothing(self):
+        b, d = self.make_bindle("craft"), self.domain()
+        code, out = self.run_cli("attach", b, d, "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("would load", out)
+        self.assertFalse((d / ".claude").exists())
+
+    # The writable bindle is the person's own domain: its code is listed, but warning them about themselves is noise.
+    def test_a_writable_bindles_code_is_listed_without_a_warning(self):
+        b, d = self.make_bindle("acme"), self.domain()
+        (b / ".mcp.json").write_text('{"mcpServers": {"tracker": {}}}\n', encoding="utf-8")
+        code, out = self.run_cli("attach", b, d, "--writable")
+        self.assertEqual(code, 0, out)
+        self.assertIn("MCP servers tracker", out)
+        self.assertNotIn("warning:", out)
+
     # A command that names the bindle reads (and pastes) better than a long path; the name must find this bindle.
     def test_doctors_fix_names_the_bindle(self):
         b, d = self.make_bindle("acme"), self.domain()
@@ -2743,6 +2774,20 @@ class GlobalRulesTest(BindleTest):
 
     def user_settings(self):
         return json.loads((self.tmp / "claude-config" / "settings.json").read_text(encoding="utf-8"))
+
+    # Global reaches every session on the machine, so the person must be able to see what it brings before saying
+    # yes, and a preview must not install the plugin or touch their CLAUDE.md.
+    def test_global_dry_run_says_what_would_load_and_changes_nothing(self):
+        (self.craft / "skills/tidy").mkdir(parents=True)
+        (self.craft / "skills/tidy/SKILL.md").write_text("---\nname: tidy\n---\n", encoding="utf-8")
+        log_before = self.log.read_text(encoding="utf-8") if self.log.exists() else ""
+        code, out = self.run_cli("global", "craft", "--dry-run")
+        self.assertEqual(code, 0, out)
+        self.assertIn("every session", out)
+        self.assertIn("craft:tidy", out)
+        self.assertFalse(self.md.exists())
+        self.assertEqual(self.log.read_text(encoding="utf-8") if self.log.exists() else "", log_before)
+        self.assertEqual(self.run_cli("global", "craft", "--off", "--dry-run")[0], 1)
 
     # Global means the whole bindle: agents and skills kept in craft must reach every folder, as its rules do.
     def test_installs_the_plugin_at_user_scope_and_off_removes_it(self):

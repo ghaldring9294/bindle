@@ -67,7 +67,8 @@ TOOLS = [
                 "bindle": {"type": "string", "description": "Bindle name or path"},
                 "folder": {"type": "string", "description": "Folder to attach to (default: cwd)"},
                 "writable": {"type": "boolean", "description": "New memories in this folder go to this bindle", "default": False},
-                "repos": {"type": "boolean", "description": "Also attach to each git repo directly inside the folder", "default": False}
+                "repos": {"type": "boolean", "description": "Also attach to each git repo directly inside the folder", "default": False},
+                "dry_run": {"type": "boolean", "description": "Show what would load there and change nothing; show this to the user before attaching a bindle that isn't theirs", "default": False}
             },
             "required": ["bindle"]
         }
@@ -98,7 +99,8 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "bindle": {"type": "string", "description": "The bindle's name or path (with off, also the path doctor shows for one that moved)"},
-                "off": {"type": "boolean", "description": "Stop loading it everywhere"}
+                "off": {"type": "boolean", "description": "Stop loading it everywhere"},
+                "dry_run": {"type": "boolean", "description": "Show what would load in every session (rules, skills, agents, commands, code) and change nothing; show it to the user before going global", "default": False}
             },
             "required": ["bindle"]
         }
@@ -332,12 +334,12 @@ def build_args(name, a):
         return SimpleNamespace(folder=a.get("folder"))
     if name == "attach":
         return SimpleNamespace(bindle=a["bindle"], folder=a.get("folder"),
-                               writable=a.get("writable", False), repos=a.get("repos", False))
+                               writable=a.get("writable", False), repos=a.get("repos", False), dry_run=a.get("dry_run", False))
     if name == "detach":
         return SimpleNamespace(bindle=a["bindle"], folder=a.get("folder"),
                                repos=a.get("repos", False))
     if name == "global":
-        return SimpleNamespace(bindle=a["bindle"], off=a.get("off", False))
+        return SimpleNamespace(bindle=a["bindle"], off=a.get("off", False), dry_run=a.get("dry_run", False))
     if name == "machine":
         return SimpleNamespace(name=a.get("name"))
     if name == "new":

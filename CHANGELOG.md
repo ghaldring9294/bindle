@@ -2,6 +2,13 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.39.0 (2026-11-27)
+
+No upgrade needed. Run `bindle update`, then restart Claude Code.
+
+- **`attach` and `global` say what loads.** Both list what the bindle brings: the size of its rules and memory index, its skills, agents and commands by the names Claude uses (`craft:ticket`), and any code it runs beyond bindle's own hooks, with MCP servers named. Code is a warning only for a read-only bindle; the rest is information.
+- **`--dry-run` for `attach` and `global`** shows that list and changes nothing, so you can see what a bindle brings before turning it on.
+
 ## 0.38.0 (2026-11-27)
 
 No upgrade needed. Run `bindle update`, then restart Claude Code.

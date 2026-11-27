@@ -13,7 +13,7 @@ from . import global_rules, machine
 from .promote import private_terms
 from .core import (BASE, WINDOWS, HOOK_OUTPUT_LIMIT, LAYOUT, MANAGED, NAME_RE, RULES_LIMIT, TEMPLATE, VERSION, BindleError, check_folder,
                    claude, declared_bindles, directory_marketplaces, enclosing_repo_problems,
-                   exclude_from_enclosing_repo, bindles_home, domains, quote, ref, set_domain, extra_code, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, user_settings_path, load_bindle,
+                   exclude_from_enclosing_repo, bindles_home, domains, quote, ref, set_domain, extra_code, what_loads, find_bindle, known_bindles, register, git, git_health, name_problems, hooks, is_writable, last_sync, user_settings_path, load_bindle,
                    lock_is_exact, lock_rules, missing_bindles, plugin_id, read_json, real, secret_hits, set_lock,
                    settings_path, write_json, write_text, version_tuple, from_newer_bindle)
 
@@ -348,12 +348,16 @@ def cmd_attach(args):
                 f"{folder} already writes memories to {current}. A folder has one writable bindle: "
                 f"detach that one first, or attach {b['name']} without --writable.")
 
+    where = "those folders" if len(folders) > 1 else "that folder"
+    if getattr(args, "dry_run", False):
+        print(f"{b['name']} would load in sessions started from {where}:")
+        print("\n".join(what_loads(b, warn_code=not args.writable)))
+        print("Nothing changed (dry run).")
+        return 0
     read_only = [folder for folder in folders if not attach_to(b, folder, args.writable)]
     # Once, not per folder: these depend only on the bindle, and a repeated warning gets skimmed.
-    code = extra_code(b) if read_only else []
-    if code:
-        print(f"  warning: {b['name']} runs code on this machine beyond bindle's own hooks: {', '.join(code)}. "
-              f"Attach it only if you trust whoever can push to it.")
+    print(f"{b['name']} loads in sessions started from {where}:")
+    print("\n".join(what_loads(b, warn_code=bool(read_only))))
     if read_only and not lock_is_exact(b["root"]):
         print(f"  note: {b['root']} contains * ? [ or ], which permission rules read as patterns; the lock may not match exactly")
     warning = register(b)
