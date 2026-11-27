@@ -101,7 +101,7 @@ def build_parser():
     s.add_argument("--kind", choices=PROMOTE_KINDS, default="memory", help="file: any other file, named by its path in the target (rules.md, agents/x.md)")
     s.add_argument("--name", required=True, help="the item's slug, e.g. small-prs; for --kind file, its path in the target")
     s.add_argument("--description", default="", help="one line for the target's memory index")
-    s.add_argument("--allow", action="append", default=[], metavar="TERM", help="a private term you've decided is fine to share in this promotion (repeatable); possible secrets can't be allowed")
+    s.add_argument("--allow", action="append", default=[], metavar="TERM", help="a private term you've decided is fine to share in this promotion, or a path that acts in every session (.mcp.json, .claude/…) you mean to place (repeatable); possible secrets can't be allowed")
     s.add_argument("--replace", action="store_true", help="update what's already in the target (git history keeps the old version)")
     s.add_argument("--remove", action="store_true", help="take the named item out of the target instead (git history keeps it)")
     s.add_argument("--dry-run", action="store_true", help="show what would change in the target, as a diff when replacing")

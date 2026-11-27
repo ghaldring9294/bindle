@@ -60,7 +60,7 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 
 **Planned (2026-11-25): hooks and MCP servers travel through promotion.** Decided (David, 2026-11-25): everything in his setup should travel, hooks and MCP servers included. Today a bindle can't carry its own hook cleanly: `hooks/hooks.json` is managed (doctor flags edits, upgrade overwrites), and v0.33.0's promotion refuses all of `hooks/` and every dot path, which includes `.claude-plugin/` and `.mcp.json` (a bindle's MCP servers, already documented in the README, but not promotable).
 - **Probe first:** whether Claude Code adds a plugin manifest's `hooks` entry to the default `hooks/hooks.json` or replaces it (if it replaces, bindle's own sync would stop). Contract-test assumption either way.
-- **`.mcp.json`:** promotion allows it by name (still no other dot paths), so user-scope servers (`claude mcp add --scope user`) can move into craft; secrets stay as environment variables.
+- **`.mcp.json`:** done in v0.38.0: promotable with `--allow .mcp.json`, along with every other dot path except `.git`; secrets stay as environment variables.
 - **Then:** a person's hook lives in an unmanaged folder (`hooks/<name>/`: its script and `hooks.json`), declared in `.claude-plugin/plugin.json`; promotion refuses only the managed hook files, and adds the manifest entry itself (without opening the rest of `.claude-plugin/`).
 - **Trust warning:** `attach` and `doctor` still name the extra code (it runs on every machine), but say once that it's the person's own rather than warning every session.
 - Comes before "global brings the plugin parts too", which decides whether a global bindle's hooks run in every session (David, 2026-11-25: for craft, yes: its hooks and servers always run).
@@ -141,3 +141,4 @@ Where bindle stands and what's next. The design and the reasons behind it are in
 - **2026-11-25:** v0.36.1: `/bindle` explains the four parts (git-portable, domain-scoped, guarded boundaries, intentional movement), matching the README; measured before and after.
 - **2026-11-25:** v0.37.0: `bindle global` installs the bindle's plugin at user scope (agents, skills, commands, hooks everywhere) and locks an explicit-writes one everywhere; probed that a plugin on at both scopes loads once.
 - **2026-11-25:** v0.37.1: `bindle update` also updates bindle's plugin, each global bindle's user-scope plugin and the machine line (asked for: one command that updates everything).
+- **2026-11-27:** v0.38.0: promotion takes dot paths (found setting craft up as an Obsidian vault: `.gitignore` was refused). `.claude/`, `.claude-plugin/` and `.mcp.json` need `--allow <path>`; only `.git` and bindle's own files are refused.

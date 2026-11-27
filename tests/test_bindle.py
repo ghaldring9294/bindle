@@ -1530,11 +1530,41 @@ class PromotionTest(BindleTest):
         draft.write_text("hello\n", encoding="utf-8")
         before = bindle.git(self.personal, "rev-parse", "HEAD")
         for path in ("bindle.json", "Bindle.json", "private-terms.txt", "hooks/run", "outbox/x/item.json",
-                     ".git/config", ".claude-plugin/plugin.json", "../escape.md", "memory/../../escape.md", "/etc/x", "a\\b.md"):
+                     ".git/config", ".GIT/config", "skills/x/.git/config", "./rules.md",
+                     "../escape.md", "memory/../../escape.md", "/etc/x", "a\\b.md"):
             code, out = self.run_cli("promote", self.acme, draft, "--into", self.personal, "--kind", "file", "--name", path)
             self.assertEqual(code, 1, f"{path} was accepted: {out}")
         self.assertEqual(bindle.git(self.personal, "rev-parse", "HEAD"), before)
         self.assertFalse((self.tmp / "escape.md").exists())
+
+    # A bindle carries what ~/.claude would hold, tool config included (.gitignore, an editor's settings folder),
+    # so a leading dot alone mustn't stop a promotion.
+    def test_a_file_can_be_a_dot_path(self):
+        draft = self.tmp / "x.txt"
+        draft.write_text("hello\n", encoding="utf-8")
+        for path in (".gitignore", ".obsidian/app.json"):
+            code, out = self.run_cli("promote", self.acme, draft, "--into", self.personal, "--kind", "file", "--name", path, "--replace")
+            self.assertEqual(code, 0, out)
+            self.assertEqual((self.personal / path).read_text(encoding="utf-8"), "hello\n")
+        self.assertEqual(bindle.git(self.personal, "status", "--porcelain"), "")
+
+    # Settings, the plugin manifest and MCP servers act in every session where the bindle is on, so they cross only
+    # once the person has said yes to that; after that, nothing stops them.
+    def test_a_file_that_acts_in_every_session_needs_an_explicit_allow(self):
+        draft = self.tmp / "x.json"
+        draft.write_text("{}\n", encoding="utf-8")
+        for path in (".mcp.json", ".claude/settings.json"):
+            base = ("promote", self.acme, draft, "--into", self.personal, "--kind", "file", "--name", path, "--replace")
+            code, out = self.run_cli(*base)
+            self.assertEqual(code, 1, out)
+            self.assertIn(f"--allow {path}", out)
+            code, out = self.run_cli(*base, "--allow", path)
+            self.assertEqual(code, 0, out)
+            self.assertEqual((self.personal / path).read_text(encoding="utf-8"), "{}\n")
+        removal = ("promote", self.acme, "--into", self.personal, "--kind", "file", "--name", ".mcp.json", "--remove")
+        self.assertEqual(self.run_cli(*removal)[0], 1)
+        self.assertEqual(self.run_cli(*removal, "--allow", ".mcp.json")[0], 0)
+        self.assertFalse((self.personal / ".mcp.json").exists())
 
     def test_a_file_is_leak_checked_like_any_draft(self):
         self.draft.write_text("Retry like widgetd does.\n", encoding="utf-8")

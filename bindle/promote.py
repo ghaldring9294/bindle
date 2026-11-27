@@ -21,8 +21,10 @@ INBOX_HEADER = "# Inbox\n\nNotes sent from other domains, oldest first. Remove e
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 # A "file" is any other file in the target, named by its path there (rules.md, agents/x.md); promotion only, not the outbox.
 PROMOTE_KINDS = [*KINDS, "file"]
-PATH_PART_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_.-]*$")  # no leading dot: keeps .git, .claude-plugin and .. out
+PATH_PART_RE = re.compile(r"^[A-Za-z0-9_.][A-Za-z0-9_.-]*$")
 BINDLES_OWN = ("bindle.json", "private-terms.txt", "hooks", "outbox")  # bindle's machinery, never promoted into
+# Settings, plugin manifest and MCP servers act in every session where the bindle is on: promotable once the person accepts that.
+RUNS_IN_SESSIONS = (".claude", ".claude-plugin", ".mcp.json")
 COLLECTABLE = ("approved",)  # items collected before 0.14 kept status "collected"; outbox clean removes them
 
 
@@ -166,23 +168,28 @@ def commit(root, message, *paths):
     return git(root, "commit", "-q", "-m", message, "--", *paths) is not None
 
 
-def check_name(slug, kind):
+def check_name(slug, kind, allowed=()):
     if kind != "file":
         if not SLUG_RE.match(slug):
             raise BindleError("Name must be lowercase letters, digits, hyphens or underscores.")
         return
     parts = slug.split("/")
-    if "\\" in slug or not all(PATH_PART_RE.match(p) for p in parts):
+    if "\\" in slug or not all(PATH_PART_RE.match(p) and p not in (".", "..") for p in parts):
         raise BindleError(f"{slug!r}: a file's name is its path in the target (rules.md, memory/machines/x.md): "
-                          "letters, digits, '.', '_' and '-', parts joined by '/', none starting with a dot.")
+                          "letters, digits, '.', '_' and '-', parts joined by '/', no '.' or '..' parts.")
+    if ".git" in (p.lower() for p in parts):
+        raise BindleError(f"{slug} is inside git's own folder; promotion doesn't change it.")
     if parts[0].lower() in BINDLES_OWN:
         raise BindleError(f"{slug} is bindle's own ({', '.join(BINDLES_OWN)}); promotion doesn't change it.")
+    if parts[0].lower() in RUNS_IN_SESSIONS and slug not in allowed:
+        raise BindleError(f"{slug} acts in every session where the target is on (settings, hooks, permissions, MCP servers). "
+                          f"If that's intended, run the same command with --allow {slug}.")
 
 
 def check_draft(b, slug, kind, src, description, verb, allowed=()):
     """A draft is fit to leave bindle b: a valid name, the right shape for its kind, and nothing that names
     b's domain or looks like a secret."""
-    check_name(slug, kind)
+    check_name(slug, kind, allowed)
     if not src.exists():
         raise BindleError(f"{src} doesn't exist.")
     if kind == "file" and not src.is_file():
@@ -286,7 +293,7 @@ def remove_from(source, target, args):
         raise BindleError("Notes are removed from the target's notes/inbox.md by hand, once handled.")
     if args.path or args.replace:
         raise BindleError("--remove takes no draft and no --replace.")
-    check_name(slug, kind)
+    check_name(slug, kind, args.allow)
     out = destination(target, slug, kind)
     rel = out.relative_to(target["root"]).as_posix()
     if out.is_symlink() or not out.exists() or (out.is_dir() != (kind == "skill")):
