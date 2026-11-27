@@ -36,7 +36,7 @@ If the target is on this machine (it's in the `list` output, even marked "not at
 
 Call the `promote` tool with the source, draft path, target, kind, name, and description.
 
-It checks the draft against the source's private terms and for secrets, refuses to overwrite anything, places it (a note is appended to the target's `notes/inbox.md`), adds a memory index line for a memory, and commits the target. If it refuses on a private term, that's a prompt to check, not a wall: show them the term in context and ask whether to reword or keep it. If they say it's fine (a public name, a target that's theirs alone), call the tool again with the term in allow. A possible secret can't be allowed: take it out of the draft, and suggest a password manager or vault for it.
+It checks the draft against the source's private terms and for secrets, refuses to overwrite anything, places it (a note is appended to the target's `notes/inbox.md`), adds a memory index line for a memory, and commits the target. If it refuses a path that acts in every session (`.claude/`, `.claude-plugin/`, `.mcp.json`), say what that file does there and ask; on their yes, call it again with the path in allow. If it refuses on a private term, that's a prompt to check, not a wall: show them the term in context and ask whether to reword or keep it. If they say it's fine (a public name, a target that's theirs alone), call the tool again with the term in allow. A possible secret can't be allowed: take it out of the draft, and suggest a password manager or vault for it.
 
 If the target lives on another machine, the draft waits in the source's outbox instead:
 

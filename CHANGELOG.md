@@ -2,6 +2,12 @@
 
 One entry per release. "Run `bindle upgrade`" means the files bindle manages inside every bindle changed: after `git pull` here, run `bindle upgrade <bindle>` (or `bindle upgrade` in a folder to upgrade every bindle attached there), then push each bindle. `bindle doctor` tells you when one is due.
 
+## 0.38.0 (2026-11-27)
+
+No upgrade needed. Run `bindle update`, then restart Claude Code.
+
+- **Promotion takes dot files.** `--kind file` now places `.gitignore`, an editor's settings folder (`.obsidian/app.json`) and anything else a `~/.claude` could hold. Files that act in every session where the bindle is on (`.claude/`, `.claude-plugin/`, `.mcp.json`) stop with a warning; pass `--allow <path>` to place or remove them anyway. Only git's folder and bindle's own files stay out of reach.
+
 ## 0.37.1 (2026-11-25)
 
 No upgrade needed. Run `bindle update --push`, then restart Claude Code.

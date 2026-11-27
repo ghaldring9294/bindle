@@ -199,7 +199,7 @@ TOOLS = [
                          "description": "file: any other file in the target, named by its path"},
                 "description": {"type": "string", "description": "One line for the memory index", "default": ""},
                 "allow": {"type": "array", "items": {"type": "string"},
-                          "description": "Private terms the user decided are fine to share", "default": []},
+                          "description": "Private terms the user decided are fine to share, or a path that acts in every session (.mcp.json, .claude/…) they agreed to place", "default": []},
                 "replace": {"type": "boolean", "description": "Update what's already in the target", "default": False},
                 "remove": {"type": "boolean", "description": "Take the named item out of the target (no path)", "default": False},
                 "dry_run": {"type": "boolean", "description": "Show the diff without changing anything", "default": False}
